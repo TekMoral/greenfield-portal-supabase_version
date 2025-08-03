@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Minimal Auth Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Minimal Auth Test</h1>
+    <button onclick="testAuth()">Test Authentication</button>
+    <div id="results"></div>
+
+    <script>
+        // Replace with your actual Supabase credentials
+        const supabaseUrl = 'YOUR_SUPABASE_URL'
+        const supabaseKey = 'YOUR_SUPABASE_ANON_KEY'
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey)
+
+        async function testAuth() {
+            const results = document.getElementById('results')
+            results.innerHTML = '<p>Testing...</p>'
+
+            try {
+                // Test 1: Get current user
+                console.log('Test 1: Getting current user...')
+                const { data: { user }, error: userError } = await supabase.auth.getUser()
+                console.log('User result:', { user, userError })
+
+                if (!user) {
+                    results.innerHTML = '<p style="color: red;">No user logged in. Please login first.</p>'
+                    return
+                }
+
+                // Test 2: Try to fetch profile with timeout
+                console.log('Test 2: Fetching profile...')
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('Profile fetch timeout after 5 seconds')), 5000)
+                })
+
+                const queryPromise = supabase
+                    .from('user_profiles')
+                    .select('*')
+                    .eq('id', user.id)
+                    .single()
+
+                const { data: profile, error: profileError } = await Promise.race([queryPromise, timeoutPromise])
+                console.log('Profile result:', { profile, profileError })
+
+                results.innerHTML = `
+                    <h3>Results:</h3>
+                    <p><strong>User ID:</strong> ${user.id}</p>
+                    <p><strong>Email:</strong> ${user.email}</p>
+                    <p><strong>Profile:</strong> ${profile ? JSON.stringify(profile) : 'Failed to load'}</p>
+                    <p><strong>Error:</strong> ${profileError ? profileError.message : 'None'}</p>
+                `
+
+            } catch (error) {
+                console.error('Test failed:', error)
+                results.innerHTML = `<p style="color: red;">Test failed: ${error.message}</p>`
+            }
+        }
+    </script>
+</body>
+</html>

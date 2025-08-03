@@ -1,0 +1,10 @@
+APP.css
+/* This file contains global styles for the application */
+#root {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  padding-top: 0px;
+}
+

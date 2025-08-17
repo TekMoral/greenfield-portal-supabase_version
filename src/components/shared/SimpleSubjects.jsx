@@ -1,70 +1,66 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import useToast from '../../hooks/useToast';
-import useAuditLog from '../../hooks/useAuditLog';
-
-import {
-  getSubjectsByDepartment,
-  addSubjectToDepartment,
-  removeSubjectFromDepartment
-} from '../../services/supabase/subjectService';
+import { getSubjects, createSubject, deleteSubject } from '../../services/supabase/subjectService';
 import { useAuth } from '../../hooks/useAuth';
 import ConfirmDialog from '../ui/ConfirmDialog';
 
-export default function SubjectList({ department = null }) {
+export default function SimpleSubjects({ department = null }) {
   const { isSuperAdmin } = useAuth();
-  const { showToast } = useToast();
-  const { logActivity, AUDIT_ACTIONS } = useAuditLog();
-  
   const [subjects, setSubjects] = useState([]);
   const [newSubject, setNewSubject] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedDept, setSelectedDept] = useState(department || 'junior');
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, subject: null });
+  const { showToast } = useToast();
 
+  // Simple fetch function like Firebase version
   const fetchSubjects = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getSubjectsByDepartment(selectedDept);
-      // Convert subject objects to just names for compatibility
-      const subjectNames = data.map(subject => subject.name || subject);
-      setSubjects(subjectNames);
+      const data = await getSubjects();
+      setSubjects(data || []);
     } catch (error) {
       console.error('Error fetching subjects:', error);
-      setSubjects([]);
+      showToast('Error loading subjects', 'error');
     }
     setLoading(false);
-  }, [selectedDept]);
+  }, [showToast]);
 
   useEffect(() => {
     fetchSubjects();
-  }, [selectedDept, fetchSubjects]);
+  }, [fetchSubjects]);
 
+  // Simple add function like Firebase version
   const handleAdd = async () => {
     if (!newSubject.trim()) return;
+
     try {
-      await addSubjectToDepartment(selectedDept, newSubject.trim());
+      // Create subject with auto-generated code
+      const subjectCode = newSubject.toUpperCase().replace(/[^A-Z0-9]/g, "").substring(0, 6);
+      const deptPrefix = {
+        junior: "JUN",
+        science: "SCI",
+        art: "ART",
+        commercial: "COM",
+        core: "COR",
+      }[selectedDept] || "";
       
-      // Log subject creation
-      await logActivity(
-        AUDIT_ACTIONS.SUBJECT_CREATE,
-        'subject',
-        {
-          resourceId: `${selectedDept}_${newSubject.trim()}`,
-          details: {
-            subjectName: newSubject.trim(),
-            department: selectedDept,
-            departmentName: getDepartmentName(selectedDept)
-          },
-          description: `Created new subject: ${newSubject.trim()} in ${getDepartmentName(selectedDept)}`
-        }
-      );
-      
+      const code = deptPrefix ? `${deptPrefix}_${subjectCode}` : subjectCode;
+
+      await createSubject({
+        name: newSubject.trim(),
+        code: code.substring(0, 10),
+        department: selectedDept,
+        credit_hours: 1,
+        is_core: selectedDept === 'core'
+      });
+
       setNewSubject('');
-      fetchSubjects();
-      showToast(`Subject "${newSubject.trim()}" added successfully`, 'success');
+      fetchSubjects(); // Refetch like Firebase version
+      showToast(`${newSubject.trim()} added successfully`, 'success');
     } catch (error) {
       console.error('Error adding subject:', error);
-      showToast('Failed to add subject. Please try again.', 'error');
+      showToast('Failed to add subject. Try again.', 'error');
     }
   };
 
@@ -73,32 +69,13 @@ export default function SubjectList({ department = null }) {
   };
 
   const handleConfirmDelete = async () => {
-    console.log('handleConfirmDelete called', confirmDialog.subject);
-
-    const subjectToDelete = confirmDialog.subject; // ✅ Save before reset
+    const subjectToDelete = confirmDialog.subject;
 
     if (subjectToDelete) {
       try {
-        await removeSubjectFromDepartment(selectedDept, subjectToDelete);
-        
-        // Log subject deletion
-        await logActivity(
-          AUDIT_ACTIONS.SUBJECT_DELETE,
-          'subject',
-          {
-            resourceId: `${selectedDept}_${subjectToDelete}`,
-            details: {
-              subjectName: subjectToDelete,
-              department: selectedDept,
-              departmentName: getDepartmentName(selectedDept),
-              totalSubjectsAfterDeletion: subjects.length - 1
-            },
-            description: `Deleted subject: ${subjectToDelete} from ${getDepartmentName(selectedDept)}`
-          }
-        );
-        
-        fetchSubjects();
-        showToast(`${subjectToDelete} deleted successfully`, 'success');
+        await deleteSubject(subjectToDelete.id);
+        fetchSubjects(); // Refetch like Firebase version
+        showToast(`${subjectToDelete.name} deleted successfully`, 'success');
       } catch (error) {
         console.error('Error deleting subject:', error);
         showToast('Failed to delete subject. Try again.', 'error');
@@ -116,27 +93,6 @@ export default function SubjectList({ department = null }) {
     if (e.key === 'Enter') {
       handleAdd();
     }
-  };
-
-  const handleDepartmentChange = async (newDept) => {
-    const oldDept = selectedDept;
-    setSelectedDept(newDept);
-    
-    // Log department view change
-    await logActivity(
-      AUDIT_ACTIONS.SYSTEM_VIEW_CHANGE,
-      'subject',
-      {
-        details: {
-          action: 'department_view_change',
-          fromDepartment: oldDept,
-          toDepartment: newDept,
-          fromDepartmentName: getDepartmentName(oldDept),
-          toDepartmentName: getDepartmentName(newDept)
-        },
-        description: `Switched subject view from ${getDepartmentName(oldDept)} to ${getDepartmentName(newDept)}`
-      }
-    );
   };
 
   const getDepartmentColor = (dept) => {
@@ -203,6 +159,11 @@ export default function SubjectList({ department = null }) {
     return names[dept] || dept.toUpperCase();
   };
 
+  // Filter subjects by department
+  const filteredSubjects = subjects.filter(subject => 
+    selectedDept === 'all' || subject.department === selectedDept
+  );
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
       <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden backdrop-blur-sm">
@@ -236,10 +197,10 @@ export default function SubjectList({ department = null }) {
                 <div className="flex items-center space-x-3">
                   <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
                   <span className="text-white font-semibold text-lg">
-                    {subjects.length}
+                    {filteredSubjects.length}
                   </span>
                   <span className="text-white text-opacity-90 text-sm">
-                    subject{subjects.length !== 1 ? 's' : ''}
+                    subject{filteredSubjects.length !== 1 ? 's' : ''}
                   </span>
                 </div>
               </div>
@@ -266,7 +227,7 @@ export default function SubjectList({ department = null }) {
                   <select
                     className="w-full appearance-none bg-white border-2 border-gray-200 rounded-xl px-6 py-4 pr-12 text-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-400 transition-all duration-300 hover:border-gray-300 text-lg font-medium shadow-lg"
                     value={selectedDept}
-                    onChange={(e) => handleDepartmentChange(e.target.value)}
+                    onChange={(e) => setSelectedDept(e.target.value)}
                   >
                     {['core', 'junior', 'science', 'art', 'commercial'].map((dept) => (
                       <option key={dept} value={dept}>
@@ -308,14 +269,9 @@ export default function SubjectList({ department = null }) {
                       onKeyPress={handleKeyPress}
                       className="w-full border-2 border-gray-200 rounded-xl px-6 py-4 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-400 transition-all duration-300 hover:border-gray-300 text-lg placeholder-gray-400 shadow-lg"
                     />
-                    <div className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                      </svg>
-                    </div>
                   </div>
-                  <button 
-                    onClick={handleAdd} 
+                  <button
+                    onClick={handleAdd}
                     disabled={!newSubject.trim()}
                     className="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 font-semibold shadow-lg hover:shadow-xl hover:scale-105 flex items-center gap-3 text-lg"
                   >
@@ -354,7 +310,7 @@ export default function SubjectList({ department = null }) {
               </div>
             ) : (
               <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200">
-                {subjects.length === 0 ? (
+                {filteredSubjects.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="w-24 h-24 mx-auto mb-6 text-gray-300">
                       <svg className="w-24 h-24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -368,21 +324,27 @@ export default function SubjectList({ department = null }) {
                   </div>
                 ) : (
                   <div className="grid gap-4">
-                    {subjects.map((subj, i) => (
-                      <div key={i} className="bg-white p-6 rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-lg transition-all duration-300 group transform hover:-translate-y-1">
+                    {filteredSubjects.map((subject, i) => (
+                      <div key={subject.id || i} className="bg-white p-6 rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-lg transition-all duration-300 group transform hover:-translate-y-1">
                         <div className="flex justify-between items-center">
                           <div className="flex items-center space-x-4">
                             <div className="flex items-center space-x-3">
                               <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full shadow-lg"></div>
-                              <span className="text-lg font-semibold text-gray-800">{subj}</span>
+                              <span className="text-lg font-semibold text-gray-800">{subject.name}</span>
                             </div>
                             <div className="bg-gray-100 px-3 py-1 rounded-full">
-                              <span className="text-sm font-medium text-gray-600">Subject #{i + 1}</span>
+                              <span className="text-sm font-medium text-gray-600">{subject.code}</span>
                             </div>
+                            {subject.is_core && (
+                              <div className="bg-blue-100 px-3 py-1 rounded-full">
+                                <span className="text-sm font-medium text-blue-800">Core Subject</span>
+                              </div>
+                            )}
                           </div>
+                          
                           {isSuperAdmin && (
                             <button
-                              onClick={() => handleDeleteClick(subj)}
+                              onClick={() => handleDeleteClick(subject)}
                               className="opacity-0 group-hover:opacity-100 px-4 py-2 text-sm bg-red-50 text-red-600 rounded-lg hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-300 flex items-center gap-2 font-medium shadow-md hover:shadow-lg"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -407,7 +369,7 @@ export default function SubjectList({ department = null }) {
         onClose={handleCancelDelete}
         onConfirm={handleConfirmDelete}
         title="Delete Subject"
-        message={`Are you sure you want to delete "${confirmDialog.subject}"? This action cannot be undone.`}
+        message={`Are you sure you want to delete "${confirmDialog.subject?.name}"? This action cannot be undone.`}
         confirmText="Delete"
         cancelText="Cancel"
         type="danger"

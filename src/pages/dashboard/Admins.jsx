@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { getAllAdmins, createAdmin, deleteAdmin, updateAdminStatus } from '../../services/supabase/adminService';
-import { useAuth } from '../../contexts/SupabaseAuthContext';
+import { getAllAdmins } from '../../services/supabase/adminService';
+import { createAdmin, deleteAdmin, updateAdminStatus } from '../../services/supabase/migrationWrapper';
+import { useAuth } from '../../hooks/useAuth';
+import { toast } from 'react-hot-toast';
 
 const Admins = () => {
   const { isSuperAdmin } = useAuth();
@@ -42,20 +44,36 @@ const Admins = () => {
   const handleDelete = async (adminId) => {
     if (window.confirm('Are you sure you want to delete this admin?')) {
       try {
-        await deleteAdmin(adminId);
-        fetchAdmins();
+        setError('');
+        const result = await deleteAdmin(adminId);
+        if (result.success) {
+          fetchAdmins();
+          toast.success('Admin deleted successfully!');
+        } else {
+          throw new Error(result.error || 'Failed to delete admin');
+        }
       } catch (err) {
+        console.error('❌ Error deleting admin:', err);
         setError(err.message);
+        toast.error('Failed to delete admin');
       }
     }
   };
 
   const handleToggleStatus = async (adminId, currentStatus) => {
     try {
-      await updateAdminStatus(adminId, !currentStatus);
-      fetchAdmins();
+      setError('');
+      const result = await updateAdminStatus(adminId, !currentStatus);
+      if (result.success) {
+        fetchAdmins();
+        toast.success(`Admin ${!currentStatus ? 'activated' : 'deactivated'} successfully!`);
+      } else {
+        throw new Error(result.error || 'Failed to update admin status');
+      }
     } catch (err) {
+      console.error('❌ Error updating admin status:', err);
       setError(err.message);
+      toast.error('Failed to update admin status');
     }
   };
 

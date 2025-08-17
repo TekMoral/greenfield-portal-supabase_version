@@ -4,9 +4,10 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
-import { getStudent } from "../../services/studentService";
-import { getAllClasses } from "../../services/classService";
-import { getAssignmentsForStudent } from "../../services/assignmentService";
+import { getStudent } from "../../services/supabase/studentService";
+import { getAllClasses } from "../../services/supabase/classService";
+import { getAssignmentsForStudent } from "../../services/supabase/assignmentService";
+import { supabase } from "../../lib/supabaseClient";
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -18,7 +19,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     const fetchStudentData = async () => {
-      if (!user?.uid) {
+      if (!user?.id) {
         setLoading(false);
         return;
       }
@@ -27,24 +28,27 @@ const Dashboard = () => {
         setLoading(true);
         setError(null);
         const [studentData, classesData] = await Promise.all([
-          getStudent(user.uid),
+          getStudent(user.id),
           getAllClasses()
         ]);
-        
+
         if (studentData) {
           // Enrich student data with class information
-          const classData = classesData.find(cls => cls.id === studentData.classId);
+          const classData = classesData.find(cls => cls.id === studentData.class_id);
           const enrichedStudent = {
             ...studentData,
             class: classData?.name || "N/A",
             level: classData?.level || "",
-            category: classData?.category || ""
+            category: classData?.category || "",
+            firstName: studentData.full_name?.split(' ')[0] || studentData.full_name || 'Student',
+            admissionNumber: studentData.admission_number,
+            academicYear: new Date().getFullYear() // Can be updated based on your schema
           };
           setStudent(enrichedStudent);
 
           // Fetch student assignments
           try {
-            const studentAssignments = await getAssignmentsForStudent(user.uid);
+            const studentAssignments = await getAssignmentsForStudent(user.id);
             setAssignments(studentAssignments || []);
           } catch (assignmentError) {
             console.error('Error fetching assignments:', assignmentError);
@@ -60,7 +64,7 @@ const Dashboard = () => {
     };
 
     fetchStudentData();
-  }, [user?.uid]);
+  }, [user?.id]);
 
   // Loading state
   if (loading) {
@@ -87,8 +91,8 @@ const Dashboard = () => {
         <div className="text-red-600 text-3xl sm:text-4xl mb-3 sm:mb-4">⚠️</div>
         <h2 className="text-lg sm:text-xl font-semibold text-slate-800 mb-2">Error Loading Dashboard</h2>
         <p className="text-sm sm:text-base text-slate-600 mb-3 sm:mb-4">{error}</p>
-        <button 
-          onClick={() => window.location.reload()} 
+        <button
+          onClick={() => window.location.reload()}
           className="bg-slate-800 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-slate-700 transition-colors font-medium text-sm sm:text-base"
         >
           Try Again
@@ -142,12 +146,12 @@ const Dashboard = () => {
 
   // Helper functions for assignments
   const getAssignmentStatus = (assignment) => {
-    const submission = assignment.submissions?.find(sub => sub.studentId === user.uid);
+    const submission = assignment.submissions?.find(sub => sub.student_id === user.id);
     if (submission) {
       return submission.status === 'graded' ? 'graded' : 'submitted';
     }
-    
-    const dueDate = new Date(assignment.dueDate);
+
+    const dueDate = new Date(assignment.due_date);
     const now = new Date();
     return dueDate < now ? 'overdue' : 'pending';
   };
@@ -166,10 +170,10 @@ const Dashboard = () => {
       {/* Welcome Section */}
       <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-4 sm:p-6 rounded-lg shadow-lg border-t-4 border-green-500 mx-2 sm:mx-0">
         <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2">
-          {getCurrentTime()}, {student.firstName}! 
+          {getCurrentTime()}, {student.firstName}!
         </h1>
         <p className="text-slate-200 text-sm sm:text-base">
-          Welcome back to your student dashboard. 
+          Welcome back to your student dashboard.
           {pendingAssignments.length > 0 && (
             <span className="block mt-1">
               📋 You have {pendingAssignments.length} pending assignment{pendingAssignments.length !== 1 ? 's' : ''}.
@@ -279,12 +283,12 @@ const Dashboard = () => {
               <div className="space-y-3 sm:space-y-4">
                 {pendingAssignments.map((assignment) => {
                   const status = getAssignmentStatus(assignment);
-                  const dueDate = new Date(assignment.dueDate);
+                  const dueDate = new Date(assignment.due_date);
                   const isOverdue = status === 'overdue';
-                  
+
                   return (
-                    <div 
-                      key={assignment.id} 
+                    <div
+                      key={assignment.id}
                       className={`bg-white border-l-4 pl-3 sm:pl-4 py-2 sm:py-3 rounded-r-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer ${
                         isOverdue ? 'border-red-500' : 'border-slate-600'
                       }`}
@@ -296,15 +300,15 @@ const Dashboard = () => {
                             {assignment.title}
                           </h4>
                           <p className="text-xs sm:text-sm text-slate-600 mt-1">
-                            {assignment.subjectName}
+                            {assignment.subject_name}
                           </p>
                           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                            Due: {dueDate.toLocaleDateString()} • {assignment.maxPoints} points
+                            Due: {dueDate.toLocaleDateString()} • {assignment.total_marks} points
                           </p>
                         </div>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          isOverdue 
-                            ? 'bg-red-100 text-red-800' 
+                          isOverdue
+                            ? 'bg-red-100 text-red-800'
                             : 'bg-yellow-100 text-yellow-800'
                         }`}>
                           {isOverdue ? 'Overdue' : 'Pending'}

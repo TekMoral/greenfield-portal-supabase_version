@@ -5,7 +5,7 @@ import EventForm from '../../components/news/EventForm';
 import NewsTable from '../../components/news/NewsTable';
 import EventsTable from '../../components/news/EventsTable';
 import FeaturedAnnouncementForm from '../../components/news/FeaturedAnnouncementForm';
-import { getNewsEvents, createNews, updateNews, deleteNews } from '../../services/supabase/newsService';
+import { newsService } from '../../services/supabase/newsService';
 
 const NewsManagement = () => {
   const [activeTab, setActiveTab] = useState('news');
@@ -25,8 +25,8 @@ const NewsManagement = () => {
     try {
       setLoading(true);
       const [news, events] = await Promise.all([
-        getNewsEvents(),
-        getNewsEvents() // For now, using same function for events
+        newsService.getNewsEvents(),
+        newsService.getNewsByType('event') // Get events specifically
       ]);
       setNewsData(news || []);
       setEventsData(events || []);
@@ -53,12 +53,12 @@ const NewsManagement = () => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
 
     try {
+      await newsService.deleteNews(id);
+      
       if (type === 'news') {
-        await newsService.deleteNews(id);
         setNewsData(prev => prev.filter(item => item.id !== id));
         showToast('News article deleted successfully', 'success');
       } else {
-        await newsService.deleteEvent(id);
         setEventsData(prev => prev.filter(item => item.id !== id));
         showToast('Event deleted successfully', 'success');
       }
@@ -70,33 +70,46 @@ const NewsManagement = () => {
 
   const handleFormSubmit = async (data, type, imageFile = null) => {
     try {
+      // Map form data to database schema
+      const newsData = {
+        title: data.title,
+        content: data.content,
+        type: type === 'event' ? 'event' : 'news',
+        status: 'published', // Default to published
+        author_id: null, // Will be set by RLS policy
+        summary: data.summary,
+        category: data.category,
+        author: data.author,
+        tags: data.tags,
+        featured: data.featured,
+        date: data.date
+      };
+
       if (editingItem) {
         // Update existing item
+        const updated = await newsService.updateNews(editingItem.id, newsData, imageFile);
+        
         if (type === 'news') {
-          const updated = await newsService.updateNews(editingItem.id, data, imageFile);
           setNewsData(prev => prev.map(item => item.id === editingItem.id ? updated : item));
           showToast('News article updated successfully', 'success');
         } else if (type === 'event') {
-          const updated = await newsService.updateEvent(editingItem.id, data);
           setEventsData(prev => prev.map(item => item.id === editingItem.id ? updated : item));
           showToast('Event updated successfully', 'success');
         } else if (type === 'featured') {
-          const updated = await newsService.updateFeaturedAnnouncement(data, imageFile);
           setFeaturedAnnouncement(updated);
           showToast('Featured announcement updated successfully', 'success');
         }
       } else {
         // Create new item
+        const newItem = await newsService.createNews(newsData, imageFile);
+        
         if (type === 'news') {
-          const newItem = await newsService.createNews(data, imageFile);
           setNewsData(prev => [newItem, ...prev]);
           showToast('News article created successfully', 'success');
         } else if (type === 'event') {
-          const newItem = await newsService.createEvent(data);
           setEventsData(prev => [newItem, ...prev]);
           showToast('Event created successfully', 'success');
         } else if (type === 'featured') {
-          const newItem = await newsService.updateFeaturedAnnouncement(data, imageFile);
           setFeaturedAnnouncement(newItem);
           showToast('Featured announcement created successfully', 'success');
         }
@@ -129,7 +142,7 @@ const NewsManagement = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">News & Events Management</h1>
-            <p className="text-gray-600 mt-1">Manage school news, events, and announcements with Cloudinary image uploads</p>
+            <p className="text-gray-600 mt-1">Manage school news, events, and announcements with Supabase Storage</p>
           </div>
 
           {!showForm && (
@@ -251,27 +264,23 @@ const NewsManagement = () => {
                               FEATURED
                             </span>
                             <span className="text-sm text-gray-500">
-                              {new Date(featuredAnnouncement.date).toLocaleDateString()}
+                              {new Date(featuredAnnouncement.created_at).toLocaleDateString()}
                             </span>
                           </div>
                           <h3 className="text-xl font-bold text-gray-900 mb-2">
                             {featuredAnnouncement.title}
                           </h3>
                           <p className="text-gray-600 mb-4">
-                            {featuredAnnouncement.summary}
+                            {featuredAnnouncement.content?.substring(0, 200)}...
                           </p>
                           <div className="flex items-center gap-4 text-sm text-gray-500">
-                            <span>Category: {featuredAnnouncement.category}</span>
-                            {featuredAnnouncement.urgent && (
-                              <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-semibold">
-                                URGENT
-                              </span>
-                            )}
+                            <span>Type: {featuredAnnouncement.type}</span>
+                            <span>Status: {featuredAnnouncement.status}</span>
                           </div>
-                          {featuredAnnouncement.image && (
+                          {featuredAnnouncement.image_url && (
                             <div className="mt-4">
                               <img
-                                src={featuredAnnouncement.image}
+                                src={featuredAnnouncement.image_url}
                                 alt={featuredAnnouncement.title}
                                 className="w-32 h-20 object-cover rounded-lg border border-gray-300"
                               />
@@ -307,7 +316,6 @@ const NewsManagement = () => {
           )}
         </div>
       </div>
-
     </div>
   );
 };

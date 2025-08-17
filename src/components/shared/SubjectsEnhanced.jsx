@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import useToast from '../../hooks/useToast';
-import useAuditLog from '../../hooks/useAuditLog';
 
 import {
   getSubjects,
@@ -14,11 +13,10 @@ import SubjectForm from '../forms/SubjectForm';
 export default function SubjectsEnhanced({ department = null }) {
   const { isSuperAdmin } = useAuth();
   const { showToast } = useToast();
-  const { logActivity, AUDIT_ACTIONS } = useAuditLog();
   
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedDept, setSelectedDept] = useState(department || 'junior');
+  const [selectedDept, setSelectedDept] = useState(department || 'all');
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, subject: null });
   const [showForm, setShowForm] = useState(false);
   const [editingSubject, setEditingSubject] = useState(null);
@@ -26,20 +24,15 @@ export default function SubjectsEnhanced({ department = null }) {
   const fetchSubjects = useCallback(async () => {
     setLoading(true);
     try {
-      let result;
+      let data;
+      
       if (selectedDept === 'all') {
-        result = await getSubjects();
+        data = await getSubjects();
       } else {
-        const data = await getSubjectsByDepartment(selectedDept);
-        result = { success: true, data };
+        data = await getSubjectsByDepartment(selectedDept);
       }
       
-      if (result.success) {
-        setSubjects(result.data || []);
-      } else {
-        console.error('Error fetching subjects:', result.error);
-        setSubjects([]);
-      }
+      setSubjects(data || []);
     } catch (error) {
       console.error('Error fetching subjects:', error);
       setSubjects([]);
@@ -62,23 +55,10 @@ export default function SubjectsEnhanced({ department = null }) {
       try {
         await deleteSubject(subjectToDelete.id);
         
-        // Log subject deletion
-        await logActivity(
-          AUDIT_ACTIONS.SUBJECT_DELETE,
-          'subject',
-          {
-            resourceId: subjectToDelete.id,
-            details: {
-              subjectName: subjectToDelete.name,
-              subjectCode: subjectToDelete.code,
-              department: subjectToDelete.department,
-              isCore: subjectToDelete.is_core
-            },
-            description: `Deleted subject: ${subjectToDelete.name} (${subjectToDelete.code})`
-          }
+        // Remove from local state instead of fetching
+        setSubjects(prevSubjects => 
+          prevSubjects.filter(s => s.id !== subjectToDelete.id)
         );
-        
-        fetchSubjects();
         showToast(`${subjectToDelete.name} deleted successfully`, 'success');
       } catch (error) {
         console.error('Error deleting subject:', error);
@@ -94,47 +74,24 @@ export default function SubjectsEnhanced({ department = null }) {
   };
 
   const handleDepartmentChange = async (newDept) => {
-    const oldDept = selectedDept;
     setSelectedDept(newDept);
-    
-    // Log department view change
-    await logActivity(
-      AUDIT_ACTIONS.SYSTEM_VIEW_CHANGE,
-      'subject',
-      {
-        details: {
-          action: 'department_view_change',
-          fromDepartment: oldDept,
-          toDepartment: newDept,
-          fromDepartmentName: getDepartmentName(oldDept),
-          toDepartmentName: getDepartmentName(newDept)
-        },
-        description: `Switched subject view from ${getDepartmentName(oldDept)} to ${getDepartmentName(newDept)}`
-      }
-    );
   };
 
   const handleFormSuccess = async (subjectData) => {
-    // Log subject creation/update
-    await logActivity(
-      editingSubject ? AUDIT_ACTIONS.SUBJECT_UPDATE : AUDIT_ACTIONS.SUBJECT_CREATE,
-      'subject',
-      {
-        resourceId: subjectData.id,
-        details: {
-          subjectName: subjectData.name,
-          subjectCode: subjectData.code,
-          department: subjectData.department,
-          isCore: subjectData.is_core,
-          creditHours: subjectData.credit_hours
-        },
-        description: `${editingSubject ? 'Updated' : 'Created'} subject: ${subjectData.name} (${subjectData.code})`
-      }
-    );
-
+    // Reset form state
     setShowForm(false);
     setEditingSubject(null);
-    fetchSubjects();
+    
+    // Update local state without fetching
+    if (!editingSubject) {
+      // Adding new subject - add to list
+      setSubjects(prevSubjects => [...prevSubjects, subjectData]);
+    } else {
+      // Updating existing subject - update in list
+      setSubjects(prevSubjects => 
+        prevSubjects.map(s => s.id === subjectData.id ? subjectData : s)
+      );
+    }
   };
 
   const handleEdit = (subject) => {
@@ -216,7 +173,8 @@ export default function SubjectsEnhanced({ department = null }) {
       art: 'Arts Department',
       commercial: 'Commercial Department'
     };
-    return names[dept] || dept.toUpperCase();
+    if (dept == null || dept === '') return 'Unassigned';
+    return names[dept] || (typeof dept === 'string' ? dept.toUpperCase() : String(dept).toUpperCase());
   };
 
   if (showForm) {

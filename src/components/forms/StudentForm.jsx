@@ -265,7 +265,6 @@ const StudentForm = ({ onSubmit, defaultValues = {}, mode = "add" }) => {
       });
 
       await onSubmit(formDataWithImage);
-      setSubmitMessage("Student saved successfully!");
       if (mode === "add") {
         reset();
         setSelectedImage(null);
@@ -356,7 +355,7 @@ const StudentForm = ({ onSubmit, defaultValues = {}, mode = "add" }) => {
           className="bg-white rounded-2xl shadow-xl overflow-hidden"
         >
           {/* Profile Image Section */}
-          <div className="bg-gradient-to-r from-blue-400 to-indigo-500 px-8 py-12">
+          <div className="bg-gradient-to-r from-blue-400 to-indigo-500 px-8 py-4">
             <div className="text-center">
               <label className="block mb-4 text-lg font-semibold text-white">
                 Profile Picture

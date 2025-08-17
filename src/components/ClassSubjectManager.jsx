@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getAllTeachers } from '../services/supabase/teacherService';
+import { getAllTeachers } from '../services/supabase/migrationWrapper';
 import { getSubjectsByDepartment } from '../services/supabase/subjectService';
 
 const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
@@ -97,7 +97,7 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
 
   const getUnassignedSubjects = () => {
     const assignedSubjects = classSubjects.map(subject => subject.subjectName);
-    return availableSubjects.filter(subject => !assignedSubjects.includes(subject));
+    return availableSubjects.filter(subject => !assignedSubjects.includes(subject.name));
   };
 
   const handleSave = () => {
@@ -188,9 +188,12 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {classSubjects.map((subject, index) => {
-                      const subjectCategory = availableSubjects.includes(subject.subjectName) 
-                        ? (availableSubjects.slice(0, 5).includes(subject.subjectName) ? 'Core' : 
-                           classData.level === 'Junior' ? 'Junior' : classData.category)
+                      // Find the subject object to get its department
+                      const subjectObj = availableSubjects.find(s => s.name === subject.subjectName);
+                      const subjectCategory = subjectObj 
+                        ? (subjectObj.department === 'core' ? 'Core' : 
+                           subjectObj.department === 'junior' ? 'Junior' : 
+                           subjectObj.department.charAt(0).toUpperCase() + subjectObj.department.slice(1))
                         : 'Unknown';
                       
                       return (
@@ -276,9 +279,9 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">Select Subject</option>
-                  {getUnassignedSubjects().map((subjectName) => (
-                    <option key={subjectName} value={subjectName}>
-                      {subjectName}
+                  {getUnassignedSubjects().map((subject) => (
+                    <option key={subject.id || subject.name} value={subject.name}>
+                      {subject.name}
                     </option>
                   ))}
                 </select>

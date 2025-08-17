@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../contexts/SupabaseAuthContext";
+import { useAuth } from "../hooks/useAuth";
 import PasswordInput from "../components/ui/PasswordInput";
 import schoolLogo from "../assets/images/Logo.png";
 import toast from "react-hot-toast";

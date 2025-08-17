@@ -1,6 +1,6 @@
 // src/components/debug/AuthMigrationFixer.jsx
 import React, { useState, useEffect } from 'react'
-import { useAuth } from '../../contexts/SupabaseAuthContext'
+import { useAuth } from '../../hooks/useAuth'
 import authMigrationFix from '../../utils/authMigrationFix'
 
 const AuthMigrationFixer = () => {

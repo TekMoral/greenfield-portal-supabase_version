@@ -1,0 +1,19 @@
+// FIXED profilePayload object with proper syntax:
+
+const profilePayload = {
+  id: userId,
+  email: teacherData.email,
+  full_name: teacherData.name,
+  role: "teacher", // ✅ Explicitly set to teacher
+  phone_number: teacherData.phoneNumber,
+  employee_id: employeeId,
+  qualification: teacherData.qualification,
+  specialization: teacherData.subject,
+  hire_date: teacherData.dateHired,
+  gender: teacherData.gender, // ✅ Added gender field
+  profile_image: profileImageUrl,
+  is_active: true,
+  status: "active",
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+};

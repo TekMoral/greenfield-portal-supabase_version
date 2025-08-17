@@ -1,41 +1,59 @@
 import { supabase } from '../../lib/supabaseClient';
-import { uploadToCloudinary, validateFile } from '../../utils/cloudinaryUpload';
+import { directStorageClient } from '../../utils/directStorageClient';
 
 /**
- * Upload carousel image to Cloudinary and save metadata to Supabase
+ * Upload carousel image to Supabase Storage and save metadata to Supabase
  */
 export const uploadCarouselImage = async (file, imageData) => {
   try {
     // Validate the image file
-    const validation = validateFile(file, {
-      maxSize: 10 * 1024 * 1024, // 10MB max for carousel images
-      allowedTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
-    });
+    const maxSize = 10 * 1024 * 1024; // 10MB max for carousel images
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
-    if (!validation.isValid) {
+    if (file.size > maxSize) {
       return { 
         success: false, 
-        error: `Invalid file: ${validation.errors.join(', ')}` 
+        error: `File size too large. Maximum size is ${maxSize / (1024 * 1024)}MB` 
       };
     }
 
-    // Upload to Cloudinary with carousel-specific folder
-    const uploadOptions = {
-      folder: 'school/carousel',
-      tags: ['carousel', 'homepage', 'school']
-    };
+    if (!allowedTypes.includes(file.type)) {
+      return { 
+        success: false, 
+        error: `Invalid file type. Allowed types: ${allowedTypes.join(', ')}` 
+      };
+    }
 
-    const result = await uploadToCloudinary(file, uploadOptions);
+    // Generate unique filename
+    const timestamp = Date.now();
+    const fileExtension = file.name.split('.').pop();
+    const fileName = `carousel/${timestamp}_${Math.random().toString(36).substring(7)}.${fileExtension}`;
 
-    // Save image metadata to Supabase
+    // Upload to Supabase Storage
+    const { data: uploadData, error: uploadError } = await directStorageClient.upload(
+      'carousel-images', 
+      fileName, 
+      file
+    );
+
+    if (uploadError) {
+      console.error('Supabase Storage upload error:', uploadError);
+      return { success: false, error: uploadError };
+    }
+
+    // Get public URL
+    const publicUrl = directStorageClient.getPublicUrl('carousel-images', fileName);
+
+    // Save image metadata to Supabase database using actual schema
     const carouselDoc = {
-      src: result.url,
-      public_id: result.publicId,
-      alt: imageData.alt || '',
       title: imageData.title || '',
-      caption: imageData.caption || '',
+      description: imageData.caption || imageData.description || '',
+      image_path: fileName, // Store the file path for deletion
+      bucket_name: 'carousel-images',
+      link_url: imageData.link_url || null,
       is_active: imageData.isActive !== undefined ? imageData.isActive : true,
       display_order: imageData.order || 0,
+      created_by: null, // Will be set by RLS policy if auth is working
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
@@ -48,16 +66,21 @@ export const uploadCarouselImage = async (file, imageData) => {
 
     if (error) {
       console.error('Supabase error saving carousel image:', error);
+      // Try to clean up uploaded file if database save fails
+      await directStorageClient.remove('carousel-images', fileName);
       return { success: false, error: error.message };
     }
 
-    console.log('Carousel image uploaded and saved:', result.url);
+    console.log('Carousel image uploaded and saved:', publicUrl);
     return {
       success: true,
       data: {
         id: data.id,
         ...data,
-        src: result.url
+        src: publicUrl, // Add src for compatibility
+        caption: data.description, // Map description to caption for UI compatibility
+        alt: data.title || 'Carousel image', // Use title as alt
+        isActive: data.is_active // Map snake_case to camelCase
       }
     };
   } catch (error) {
@@ -82,16 +105,22 @@ export const getCarouselImages = async () => {
 
     if (error) {
       console.error('Supabase error fetching carousel images:', error);
-      return { success: false, error: error.message };
+      return [];
     }
 
-    return { success: true, data: data || [] };
+    // Map database fields to UI-compatible format
+    const imagesWithCompatibility = (data || []).map(image => ({
+      ...image,
+      src: directStorageClient.getPublicUrl(image.bucket_name || 'carousel-images', image.image_path),
+      caption: image.description || '',
+      alt: image.title || 'Carousel image',
+      isActive: image.is_active
+    }));
+
+    return imagesWithCompatibility;
   } catch (error) {
     console.error('Error fetching carousel images:', error);
-    return { 
-      success: false, 
-      error: `Failed to fetch carousel images: ${error.message}` 
-    };
+    return [];
   }
 };
 
@@ -109,16 +138,22 @@ export const getActiveCarouselImages = async () => {
 
     if (error) {
       console.error('Supabase error fetching active carousel images:', error);
-      return { success: false, error: error.message };
+      return [];
     }
 
-    return { success: true, data: data || [] };
+    // Map database fields to UI-compatible format
+    const imagesWithCompatibility = (data || []).map(image => ({
+      ...image,
+      src: directStorageClient.getPublicUrl(image.bucket_name || 'carousel-images', image.image_path),
+      caption: image.description || '',
+      alt: image.title || 'Carousel image',
+      isActive: image.is_active
+    }));
+
+    return imagesWithCompatibility;
   } catch (error) {
     console.error('Error fetching active carousel images:', error);
-    return { 
-      success: false, 
-      error: `Failed to fetch active carousel images: ${error.message}` 
-    };
+    return [];
   }
 };
 
@@ -127,12 +162,26 @@ export const getActiveCarouselImages = async () => {
  */
 export const updateCarouselImage = async (imageId, updateData) => {
   try {
+    // Map UI fields to database fields
+    const dbUpdateData = {
+      title: updateData.title,
+      description: updateData.caption || updateData.description,
+      link_url: updateData.link_url,
+      is_active: updateData.isActive !== undefined ? updateData.isActive : updateData.is_active,
+      display_order: updateData.order !== undefined ? updateData.order : updateData.display_order,
+      updated_at: new Date().toISOString()
+    };
+
+    // Remove undefined values
+    Object.keys(dbUpdateData).forEach(key => {
+      if (dbUpdateData[key] === undefined) {
+        delete dbUpdateData[key];
+      }
+    });
+
     const { data, error } = await supabase
       .from('carousel_images')
-      .update({
-        ...updateData,
-        updated_at: new Date().toISOString()
-      })
+      .update(dbUpdateData)
       .eq('id', imageId)
       .select()
       .single();
@@ -143,7 +192,16 @@ export const updateCarouselImage = async (imageId, updateData) => {
     }
 
     console.log('Carousel image updated:', imageId);
-    return { success: true, data };
+    return { 
+      success: true, 
+      data: {
+        ...data,
+        src: directStorageClient.getPublicUrl(data.bucket_name || 'carousel-images', data.image_path),
+        caption: data.description || '',
+        alt: data.title || 'Carousel image',
+        isActive: data.is_active
+      }
+    };
   } catch (error) {
     console.error('Error updating carousel image:', error);
     return { 
@@ -154,15 +212,14 @@ export const updateCarouselImage = async (imageId, updateData) => {
 };
 
 /**
- * Delete carousel image from Supabase
- * Note: This doesn't delete from Cloudinary - you might want to implement that separately
+ * Delete carousel image from both Supabase Storage and database
  */
 export const deleteCarouselImage = async (imageId) => {
   try {
-    // First get the image data to potentially delete from Cloudinary
+    // First get the image data to get the storage path
     const { data: imageData, error: fetchError } = await supabase
       .from('carousel_images')
-      .select('public_id')
+      .select('image_path, bucket_name')
       .eq('id', imageId)
       .single();
 
@@ -171,7 +228,20 @@ export const deleteCarouselImage = async (imageId) => {
       return { success: false, error: fetchError.message };
     }
 
-    // Delete from Supabase
+    // Delete from Supabase Storage
+    if (imageData.image_path) {
+      const { error: storageError } = await directStorageClient.remove(
+        imageData.bucket_name || 'carousel-images', 
+        imageData.image_path
+      );
+      
+      if (storageError) {
+        console.warn('Warning: Failed to delete image from storage:', storageError);
+        // Continue with database deletion even if storage deletion fails
+      }
+    }
+
+    // Delete from database
     const { error } = await supabase
       .from('carousel_images')
       .delete()
@@ -181,9 +251,6 @@ export const deleteCarouselImage = async (imageId) => {
       console.error('Supabase error deleting carousel image:', error);
       return { success: false, error: error.message };
     }
-
-    // TODO: Optionally delete from Cloudinary using imageData.public_id
-    // This would require implementing a Cloudinary delete function
 
     console.log('Carousel image deleted:', imageId);
     return { success: true };
@@ -254,7 +321,16 @@ export const toggleCarouselImageStatus = async (imageId, isActive) => {
       return { success: false, error: error.message };
     }
 
-    return { success: true, data };
+    return { 
+      success: true, 
+      data: {
+        ...data,
+        src: directStorageClient.getPublicUrl(data.bucket_name || 'carousel-images', data.image_path),
+        caption: data.description || '',
+        alt: data.title || 'Carousel image',
+        isActive: data.is_active
+      }
+    };
   } catch (error) {
     console.error('Error toggling carousel image status:', error);
     return { success: false, error: error.message };
@@ -280,7 +356,16 @@ export const getCarouselImageById = async (imageId) => {
       return { success: false, error: error.message };
     }
 
-    return { success: true, data };
+    return { 
+      success: true, 
+      data: {
+        ...data,
+        src: directStorageClient.getPublicUrl(data.bucket_name || 'carousel-images', data.image_path),
+        caption: data.description || '',
+        alt: data.title || 'Carousel image',
+        isActive: data.is_active
+      }
+    };
   } catch (error) {
     console.error('Error fetching carousel image:', error);
     return { success: false, error: error.message };
@@ -326,12 +411,26 @@ export const getCarouselStatistics = async () => {
 export const bulkUpdateCarouselImages = async (updates) => {
   try {
     const updatePromises = updates.map(({ id, ...updateData }) => {
+      // Map UI fields to database fields
+      const dbUpdateData = {
+        title: updateData.title,
+        description: updateData.caption || updateData.description,
+        link_url: updateData.link_url,
+        is_active: updateData.isActive !== undefined ? updateData.isActive : updateData.is_active,
+        display_order: updateData.order !== undefined ? updateData.order : updateData.display_order,
+        updated_at: new Date().toISOString()
+      };
+
+      // Remove undefined values
+      Object.keys(dbUpdateData).forEach(key => {
+        if (dbUpdateData[key] === undefined) {
+          delete dbUpdateData[key];
+        }
+      });
+
       return supabase
         .from('carousel_images')
-        .update({
-          ...updateData,
-          updated_at: new Date().toISOString()
-        })
+        .update(dbUpdateData)
         .eq('id', id)
         .select();
     });
@@ -368,7 +467,7 @@ export const searchCarouselImages = async (searchTerm) => {
     const { data, error } = await supabase
       .from('carousel_images')
       .select('*')
-      .or(`title.ilike.%${searchTerm}%,alt.ilike.%${searchTerm}%,caption.ilike.%${searchTerm}%`)
+      .or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`)
       .order('display_order', { ascending: true });
 
     if (error) {
@@ -376,7 +475,16 @@ export const searchCarouselImages = async (searchTerm) => {
       return { success: false, error: error.message };
     }
 
-    return { success: true, data: data || [] };
+    // Map database fields to UI-compatible format
+    const imagesWithCompatibility = (data || []).map(image => ({
+      ...image,
+      src: directStorageClient.getPublicUrl(image.bucket_name || 'carousel-images', image.image_path),
+      caption: image.description || '',
+      alt: image.title || 'Carousel image',
+      isActive: image.is_active
+    }));
+
+    return { success: true, data: imagesWithCompatibility };
   } catch (error) {
     console.error('Error searching carousel images:', error);
     return { success: false, error: error.message };

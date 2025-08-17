@@ -31,7 +31,7 @@ export const getClasses = async () => {
       .order('name');
 
     if (error) {
-      console.error('�� [getClasses] Error:', error);
+      console.error('❌ [getClasses] Error:', error);
       return { success: false, error: error.message };
     }
 
@@ -64,213 +64,62 @@ export const getClassById = async (classId) => {
   }
 }
 
-// ✅ Create new class
+// ✅ Create new class (via Edge Function)
 export const createClass = async (classData) => {
-  const timestamp = new Date().toISOString();
   try {
-    console.log("🔄 Creating class with data:", {
-      name: classData.name,
-      category: classData.category,
-      level: classData.level
+    const { data, error } = await supabase.functions.invoke('create-class', {
+      body: JSON.stringify(classData)
     });
-
-    // Validate teacher ID
-    const validatedTeacherId = validateTeacherId(classData.classTeacherId);
-
-    // Build common category filter
-    const categoryFilter = (query) => {
-      return classData.category
-        ? query.eq("category", classData.category)
-        : query.is("category", null);
-    };
-
-    // 💤 1. Check if inactive class exists (to reactivate)
-    let inactiveQuery = categoryFilter(
-      supabase
-        .from("classes")
-        .select("*")
-        .eq("name", classData.name)
-        .eq("status", "inactive")
-    );
-
-    const { data: inactiveClass, error: inactiveError } =
-      await inactiveQuery.single();
-
-    if (inactiveError && inactiveError.code !== "PGRST116") {
-      console.warn("⚠️ Error checking inactive class:", inactiveError.message);
+    if (error) {
+      console.error('❌ [createClass] Edge Function error:', error.message);
+      throw error;
     }
-
-    if (inactiveClass) {
-      // 🔁 Reactivate existing inactive class
-      console.log("🔄 Reactivating inactive class:", {
-        id: inactiveClass.id,
-        name: inactiveClass.name,
-        category: inactiveClass.category
-      });
-      
-      const updateData = {
-        level: classData.level,
-        category: classData.category || null,
-        capacity: classData.capacity || 30,
-        description: classData.description || "",
-        academic_year: classData.academic_year || "2024/2025",
-        class_teacher_id: validatedTeacherId,
-        status: "active",
-        updated_at: timestamp,
-      };
-
-      const { data: reactivatedClass, error: updateError } = await supabase
-        .from("classes")
-        .update(updateData)
-        .eq("id", inactiveClass.id)
-        .select()
-        .single();
-
-      if (updateError) {
-        console.error("❌ Error reactivating class:", updateError);
-        throw updateError;
-      }
-
-      console.log("✅ Reactivated class:", reactivatedClass);
-      return reactivatedClass;
+    if (data?.error) {
+      throw new Error(data.error);
     }
-
-    // 🟢 2. Check if active class with same name + category exists
-    let activeQuery = categoryFilter(
-      supabase
-        .from("classes")
-        .select("id, name, category")
-        .eq("name", classData.name)
-        .eq("status", "active")
-    );
-
-    const { data: activeClass, error: activeError } =
-      await activeQuery.single();
-
-    if (activeClass) {
-      console.log("❌ Found existing active class:", {
-        id: activeClass.id,
-        name: activeClass.name,
-        category: activeClass.category
-      });
-      
-      const catText = classData.category
-        ? ` in category "${classData.category}"`
-        : " without a category";
-      throw new Error(
-        `A class named "${classData.name}"${catText} already exists`
-      );
-    }
-
-    if (activeError && activeError.code !== "PGRST116") {
-      console.error("❌ Error checking existing active class:", activeError);
-      throw activeError;
-    }
-
-    console.log("✅ No duplicate found, proceeding with creation");
-
-    // 🆕 3. Create new class
-    const insertData = {
-      name: classData.name,
-      level: classData.level,
-      category: classData.category || null,
-      capacity: classData.capacity || 30,
-      description: classData.description || "",
-      academic_year: classData.academic_year || "2024/2025",
-      class_teacher_id: validatedTeacherId,
-      status: "active",
-    };
-
-    console.log("🔄 Inserting class data:", insertData);
-
-    const { data: newClass, error: insertError } = await supabase
-      .from("classes")
-      .insert(insertData)
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error("❌ Database insert error:", insertError);
-      
-      if (insertError.code === "23505") {
-        // Check which constraint was violated
-        if (insertError.message.includes('classes_name_key')) {
-          throw new Error(
-            `❌ Database constraint: Class name "${classData.name}" must be unique. Please run the database migration to allow same names with different categories.`
-          );
-        } else if (insertError.message.includes('classes_name_category_unique')) {
-          const catText = classData.category ? ` in category "${classData.category}"` : " without a category";
-          throw new Error(
-            `A class named "${classData.name}"${catText} already exists`
-          );
-        } else {
-          throw new Error(
-            `Duplicate constraint violation: ${insertError.message}`
-          );
-        }
-      }
-      
-      throw insertError;
-    }
-
-    console.log("✅ Class created successfully:", newClass);
-    return newClass;
+    return data?.data || null;
   } catch (error) {
-    console.error("❌ [createClass] Failed:", error.message);
+    console.error('❌ [createClass] Failed:', error.message);
     throw error;
   }
 };
 
-// ✅ Update class
+// ✅ Update class (via Edge Function)
 export const updateClass = async (classId, updates) => {
   try {
-    // Validate teacher ID if provided in updates
-    if (updates.classTeacherId !== undefined) {
-      updates.class_teacher_id = validateTeacherId(updates.classTeacherId);
-      delete updates.classTeacherId; // Remove the old key
-    }
-
-    const { data, error } = await supabase
-      .from('classes')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', classId)
-      .select()
-      .single();
-
+    const payload = { id: classId, ...updates };
+    const { data, error } = await supabase.functions.invoke('update-class', {
+      body: JSON.stringify(payload)
+    });
     if (error) {
-      console.error('[updateClass] Error:', error);
+      console.error('[updateClass] Edge Function error:', error.message);
       throw error;
     }
-
-    return data;
+    if (data?.error) {
+      throw new Error(data.error);
+    }
+    return data?.data || null;
   } catch (error) {
     console.error('[updateClass] Error updating class:', error);
     throw error;
   }
 }
 
-// ✅ Delete class (soft delete)
+// ✅ Delete class (via Edge Function)
 export const deleteClass = async (classId) => {
   try {
-    const { data, error } = await supabase
-      .from('classes')
-      .update({
-        status: 'inactive',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', classId)
-      .select()
-      .single();
-
+    const payload = { id: classId };
+    const { data, error } = await supabase.functions.invoke('delete-class', {
+      body: JSON.stringify(payload)
+    });
     if (error) {
-      console.error('[deleteClass] Error:', error);
+      console.error('[deleteClass] Edge Function error:', error.message);
       throw error;
     }
-
-    return data;
+    if (data?.error) {
+      throw new Error(data.error);
+    }
+    return data || null;
   } catch (error) {
     console.error('[deleteClass] Error deleting class:', error);
     throw error;

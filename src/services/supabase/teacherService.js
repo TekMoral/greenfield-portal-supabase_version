@@ -1,488 +1,3 @@
-// import { supabase } from '../../lib/supabaseClient';
-
-// // Helper function to generate employee ID
-// const generateEmployeeId = async () => {
-//   const year = new Date().getFullYear();
-//   const { count } = await supabase
-//     .from('user_profiles')
-//     .select('*', { count: 'exact', head: true })
-//     .eq('role', 'teacher');
-
-//   const nextNumber = (count || 0) + 1;
-//   return `TCH${year}${nextNumber.toString().padStart(4, '0')}`;
-// };
-
-// // Helper function to upload profile image
-// const uploadProfileImage = async (file, teacherId) => {
-//   if (!file) return null;
-
-//   try {
-//     const fileExt = file.name.split('.').pop();
-//     const fileName = `${teacherId}-${Date.now()}.${fileExt}`;
-//     const filePath = `teacher-profiles/${fileName}`;
-
-//     const { data, error } = await supabase.storage
-//       .from('profile-images')
-//       .upload(filePath, file);
-
-//     if (error) throw error;
-
-//     const { data: { publicUrl } } = supabase.storage
-//       .from('profile-images')
-//       .getPublicUrl(filePath);
-
-//     return publicUrl;
-//   } catch (error) {
-//     console.error('Error uploading profile image:', error);
-//     return null;
-//   }
-// };
-
-// // Teacher Service using Supabase
-// export const teacherService = {
-//   // Create a new teacher
-//   async createTeacher(teacherData) {
-//     try {
-//       console.log('🔄 Creating teacher with data:', teacherData);
-
-//       // Generate employee ID
-//       const employeeId = await generateEmployeeId();
-//       console.log('📝 Generated employee ID:', employeeId);
-
-//       // First create the auth user
-//       const { data: authData, error: authError } = await supabase.auth.signUp({
-//         email: teacherData.email,
-//         password: teacherData.password,
-//         options: {
-//           data: {
-//             full_name: teacherData.name,
-//             role: 'teacher'
-//           }
-//         }
-//       });
-
-//       if (authError) {
-//         console.error('❌ Auth error:', authError);
-//         throw authError;
-//       }
-
-//       console.log('✅ Auth user created:', authData.user.id);
-
-//       // Upload profile image if provided
-//       let profileImageUrl = null;
-//       if (teacherData.profileImage) {
-//         console.log('🔄 Uploading profile image...');
-//         profileImageUrl = await uploadProfileImage(teacherData.profileImage, authData.user.id);
-//         console.log('📸 Profile image uploaded:', profileImageUrl);
-//       }
-
-//       // Create/update user profile with teacher data
-//       const { data: profileData, error: profileError } = await supabase
-//         .from('user_profiles')
-//         .upsert({
-//           id: authData.user.id,
-//           email: teacherData.email,
-//           full_name: teacherData.name,
-//           role: 'teacher',
-//           phone_number: teacherData.phoneNumber,
-//           employee_id: employeeId,
-//           qualification: teacherData.qualification,
-//           specialization: teacherData.subject, // Using subject as specialization
-//           hire_date: teacherData.dateHired,
-//           profile_image: profileImageUrl,
-//           is_active: true,
-//           status: 'active'
-//         })
-//         .select()
-//         .single();
-
-//       if (profileError) {
-//         console.error('❌ Profile error:', profileError);
-//         throw profileError;
-//       }
-
-//       console.log('✅ Teacher profile created:', profileData);
-
-//       // Return the teacher data in the format expected by the UI
-//       const result = {
-//         id: profileData.id,
-//         uid: profileData.id,
-//         name: profileData.full_name,
-//         email: profileData.email,
-//         phoneNumber: profileData.phone_number,
-//         subject: profileData.specialization,
-//         qualification: profileData.qualification,
-//         dateHired: profileData.hire_date,
-//         profileImageUrl: profileData.profile_image,
-//         isActive: profileData.is_active,
-//         employeeId: profileData.employee_id
-//       };
-
-//       return { success: true, data: result };
-//     } catch (error) {
-//       console.error('❌ Error creating teacher:', error);
-//       return { success: false, error: error.message };
-//     }
-//   },
-
-//   // Get all teachers
-//   async getAllTeachers() {
-//     try {
-//       console.log('🔄 Fetching all teachers...');
-
-//       const { data, error } = await supabase
-//         .from('user_profiles')
-//         .select('*')
-//         .eq('role', 'teacher')
-//         .eq('status', 'active')
-//         .order('created_at', { ascending: false });
-
-//       if (error) {
-//         console.error('❌ Error fetching teachers:', error);
-//         throw error;
-//       }
-
-//       console.log('✅ Teachers fetched:', data?.length || 0);
-
-//       // Transform data to match UI expectations
-//       const transformedData = data?.map(teacher => ({
-//         id: teacher.id,
-//         uid: teacher.id,
-//         name: teacher.full_name,
-//         email: teacher.email,
-//         phoneNumber: teacher.phone_number,
-//         subject: teacher.specialization,
-//         qualification: teacher.qualification,
-//         dateHired: teacher.hire_date,
-//         profileImageUrl: teacher.profile_image,
-//         isActive: teacher.is_active,
-//         employeeId: teacher.employee_id
-//       })) || [];
-
-//       return { success: true, data: transformedData };
-//     } catch (error) {
-//       console.error('��� Error fetching teachers:', error);
-//       return { success: false, error: error.message };
-//     }
-//   },
-
-//   // Get teacher by ID
-//   async getTeacherById(teacherId) {
-//     try {
-//       const { data, error } = await supabase
-//         .from('user_profiles')
-//         .select('*')
-//         .eq('id', teacherId)
-//         .eq('role', 'teacher')
-//         .single();
-
-//       if (error) throw error;
-
-//       // Transform data to match UI expectations
-//       const result = {
-//         id: data.id,
-//         uid: data.id,
-//         name: data.full_name,
-//         email: data.email,
-//         phoneNumber: data.phone_number,
-//         subject: data.specialization,
-//         qualification: data.qualification,
-//         dateHired: data.hire_date,
-//         profileImageUrl: data.profile_image,
-//         isActive: data.is_active,
-//         employeeId: data.employee_id
-//       };
-
-//       return { success: true, data: result };
-//     } catch (error) {
-//       console.error('Error fetching teacher:', error);
-//       return { success: false, error: error.message };
-//     }
-//   },
-
-//   // Get teacher by user ID (alias for getTeacherById)
-//   async getTeacherByUserId(userId) {
-//     return this.getTeacherById(userId);
-//   },
-
-//   // Get teacher by UID (alias for getTeacherById)
-//   async getTeacherByUid(uid) {
-//     return this.getTeacherById(uid);
-//   },
-
-//   // Get teacher by employee ID
-//   async getTeacherByEmployeeId(employeeId) {
-//     try {
-//       const { data, error } = await supabase
-//         .from('user_profiles')
-//         .select('*')
-//         .eq('employee_id', employeeId)
-//         .eq('role', 'teacher')
-//         .single();
-
-//       if (error) throw error;
-
-//       // Transform data to match UI expectations
-//       const result = {
-//         id: data.id,
-//         uid: data.id,
-//         name: data.full_name,
-//         email: data.email,
-//         phoneNumber: data.phone_number,
-//         subject: data.specialization,
-//         qualification: data.qualification,
-//         dateHired: data.hire_date,
-//         profileImageUrl: data.profile_image,
-//         isActive: data.is_active,
-//         employeeId: data.employee_id
-//       };
-
-//       return { success: true, data: result };
-//     } catch (error) {
-//       console.error('Error fetching teacher by employee ID:', error);
-//       return { success: false, error: error.message };
-//     }
-//   },
-
-//   // Update teacher
-//   async updateTeacher(teacherId, updateData) {
-//     try {
-//       console.log('🔄 Updating teacher:', teacherId, updateData);
-
-//       // Handle profile image upload if provided
-//       let profileImageUrl = updateData.profileImageUrl;
-//       if (updateData.profileImage && typeof updateData.profileImage !== 'string') {
-//         console.log('🔄 Uploading new profile image...');
-//         profileImageUrl = await uploadProfileImage(updateData.profileImage, teacherId);
-//         console.log('📸 New profile image uploaded:', profileImageUrl);
-//       }
-
-//       const { data, error } = await supabase
-//         .from('user_profiles')
-//         .update({
-//           full_name: updateData.name,
-//           email: updateData.email,
-//           phone_number: updateData.phoneNumber,
-//           specialization: updateData.subject,
-//           qualification: updateData.qualification,
-//           hire_date: updateData.dateHired,
-//           profile_image: profileImageUrl,
-//           is_active: updateData.isActive,
-//           updated_at: new Date().toISOString()
-//         })
-//         .eq('id', teacherId)
-//         .eq('role', 'teacher')
-//         .select()
-//         .single();
-
-//       if (error) throw error;
-
-//       console.log('✅ Teacher updated:', data);
-
-//       // Transform data to match UI expectations
-//       const result = {
-//         id: data.id,
-//         uid: data.id,
-//         name: data.full_name,
-//         email: data.email,
-//         phoneNumber: data.phone_number,
-//         subject: data.specialization,
-//         qualification: data.qualification,
-//         dateHired: data.hire_date,
-//         profileImageUrl: data.profile_image,
-//         isActive: data.is_active,
-//         employeeId: data.employee_id
-//       };
-
-//       return { success: true, data: result };
-//     } catch (error) {
-//       console.error('❌ Error updating teacher:', error);
-//       return { success: false, error: error.message };
-//     }
-//   },
-
-//   // Delete teacher (soft delete)
-//   async deleteTeacher(teacherId) {
-//     try {
-//       console.log('🔄 Deleting teacher:', teacherId);
-
-//       const { data, error } = await supabase
-//         .from('user_profiles')
-//         .update({
-//           status: 'inactive',
-//           is_active: false,
-//           updated_at: new Date().toISOString()
-//         })
-//         .eq('id', teacherId)
-//         .eq('role', 'teacher')
-//         .select()
-//         .single();
-
-//       if (error) throw error;
-
-//       console.log('✅ Teacher deleted (soft delete):', data);
-//       return { success: true, data };
-//     } catch (error) {
-//       console.error('❌ Error deleting teacher:', error);
-//       return { success: false, error: error.message };
-//     }
-//   },
-
-//   // Get teacher's subjects and classes
-//   async getTeacherSubjects(teacherId) {
-//     try {
-//       const { data, error } = await supabase
-//         .from('teacher_assignments')
-//         .select(`
-//           *,
-//           subjects (
-//             id,
-//             name,
-//             code,
-//             department
-//           ),
-//           classes (
-//             id,
-//             name,
-//             description
-//           )
-//         `)
-//         .eq('teacher_id', teacherId)
-//         .eq('is_active', true);
-
-//       if (error) throw error;
-//       return { success: true, data };
-//     } catch (error) {
-//       console.error('Error fetching teacher subjects:', error);
-//       return { success: false, error: error.message };
-//     }
-//   },
-
-//   // Assign subject to teacher
-//   async assignSubjectToTeacher(teacherId, subjectId, classId, academicYear = null, term = null) {
-//     try {
-//       const { data, error } = await supabase
-//         .from('teacher_assignments')
-//         .insert({
-//           teacher_id: teacherId,
-//           subject_id: subjectId,
-//           class_id: classId,
-//           academic_year: academicYear,
-//           term: term,
-//           is_active: true
-//         })
-//         .select(`
-//           *,
-//           subjects (
-//             id,
-//             name,
-//             code,
-//             department
-//           ),
-//           classes (
-//             id,
-//             name,
-//             description
-//           )
-//         `)
-//         .single();
-
-//       if (error) throw error;
-//       return { success: true, data };
-//     } catch (error) {
-//       console.error('Error assigning subject to teacher:', error);
-//       return { success: false, error: error.message };
-//     }
-//   },
-
-//   // Remove subject from teacher
-//   async removeSubjectFromTeacher(teacherAssignmentId) {
-//     try {
-//       const { data, error } = await supabase
-//         .from('teacher_assignments')
-//         .update({ is_active: false })
-//         .eq('id', teacherAssignmentId)
-//         .select()
-//         .single();
-
-//       if (error) throw error;
-//       return { success: true, data };
-//     } catch (error) {
-//       console.error('Error removing subject from teacher:', error);
-//       return { success: false, error: error.message };
-//     }
-//   },
-
-//   // Get teacher dashboard stats
-//   async getTeacherStats(teacherId) {
-//     try {
-//       // Get classes count
-//       const { count: classCount } = await supabase
-//         .from('teacher_assignments')
-//         .select('class_id', { count: 'exact', head: true })
-//         .eq('teacher_id', teacherId)
-//         .eq('is_active', true);
-
-//       // Get subjects count
-//       const { count: subjectCount } = await supabase
-//         .from('teacher_assignments')
-//         .select('subject_id', { count: 'exact', head: true })
-//         .eq('teacher_id', teacherId)
-//         .eq('is_active', true);
-
-//       // Get students count (total across all classes)
-//       const { data: teacherClasses } = await supabase
-//         .from('teacher_assignments')
-//         .select('class_id')
-//         .eq('teacher_id', teacherId)
-//         .eq('is_active', true);
-
-//       let totalStudents = 0;
-//       if (teacherClasses?.length > 0) {
-//         const classIds = [...new Set(teacherClasses.map(tc => tc.class_id))];
-//         const { count: studentCount } = await supabase
-//           .from('user_profiles')
-//           .select('*', { count: 'exact', head: true })
-//           .in('class_id', classIds)
-//           .eq('role', 'student')
-//           .eq('status', 'active');
-//         totalStudents = studentCount || 0;
-//       }
-
-//       return {
-//         success: true,
-//         data: {
-//           totalClasses: classCount || 0,
-//           totalSubjects: subjectCount || 0,
-//           totalStudents: totalStudents
-//         }
-//       };
-//     } catch (error) {
-//       console.error('Error fetching teacher stats:', error);
-//       return { success: false, error: error.message };
-//     }
-//   }
-// };
-
-// // Export individual functions for backward compatibility
-// export const {
-//   createTeacher,
-//   getAllTeachers,
-//   getTeacherById,
-//   getTeacherByUserId,
-//   getTeacherByEmployeeId,
-//   updateTeacher,
-//   deleteTeacher,
-//   getTeacherSubjects,
-//   assignSubjectToTeacher,
-//   removeSubjectFromTeacher,
-//   getTeacherStats
-// } = teacherService;
-
-// // Legacy function names for compatibility
-// export const addTeacher = createTeacher;
-// export const getTeacher = getTeacherById;
-// export const getTeacherByUid = getTeacherByUserId;
 
 
 import { supabase } from "../../lib/supabaseClient";
@@ -617,97 +132,161 @@ export const teacherService = {
         subject: teacherData.subject,
       });
 
-      const [employeeId, authResult] = await Promise.all([
-        generateEmployeeId(),
-        supabase.auth.signUp({
-          email: teacherData.email,
-          password: teacherData.password,
-          options: {
-            data: {
-              full_name: teacherData.name,
-              role: "teacher", // ✅ Explicitly set to teacher
-            },
-          },
-        }),
-      ]);
-
-      if (authResult.error) {
-        console.error("❌ Auth error:", authResult.error);
-        throw authResult.error;
+      // Validate required fields
+      if (
+        !teacherData.email ||
+        !teacherData.name ||
+        !teacherData.subject ||
+        !teacherData.qualification
+      ) {
+        const missingFields = [];
+        if (!teacherData.email) missingFields.push("email");
+        if (!teacherData.name) missingFields.push("name");
+        if (!teacherData.subject) missingFields.push("subject");
+        if (!teacherData.qualification) missingFields.push("qualification");
+        throw new Error(`Missing required fields: ${missingFields.join(", ")}`);
       }
 
-      const userId = authResult.data.user.id;
-      console.log("✅ Auth user created with ID:", userId);
-      console.log("🔍 Auth user metadata:", authResult.data.user.user_metadata);
+      // Check for existing email
+      const { data: existingEmail, error: emailCheckError } = await supabase
+        .from("user_profiles")
+        .select("email, id, role")
+        .eq("email", teacherData.email)
+        .limit(1);
+
+      if (emailCheckError) {
+        console.error("❌ Error checking existing email:", emailCheckError);
+        throw emailCheckError;
+      }
+
+      if (existingEmail && existingEmail.length > 0) {
+        throw new Error(
+          `A user with email ${teacherData.email} already exists`
+        );
+      }
+
+      // Generate employee ID
+      const employeeId = await generateEmployeeId();
+      console.log("✅ Employee ID generated:", employeeId);
+
+      // Create auth user with fallback password
+      const authPassword = teacherData.password || "defaultPassword123";
+
+      console.log("🔄 Creating auth user...");
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: teacherData.email,
+        password: authPassword,
+        options: {
+          data: {
+            full_name: teacherData.name,
+            role: "teacher",
+          },
+        },
+      });
+
+      if (authError) {
+        console.error("❌ Auth signup error:", authError);
+        if (
+          authError.message.includes("already registered") ||
+          authError.message.includes("already been registered")
+        ) {
+          throw new Error("A user with this email is already registered");
+        }
+        if (authError.message.includes("Password should be at least")) {
+          throw new Error("Password must be at least 6 characters long");
+        }
+        throw authError;
+      }
+
+      if (!authData.user) {
+        throw new Error("Failed to create authentication user");
+      }
+
+      console.log("✅ Auth user created:", authData.user.id);
+
+      // Wait a moment for the database trigger to create the basic profile
+      console.log("⏳ Waiting for database trigger to create profile...");
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Check if a profile was automatically created by the trigger
+      const { data: autoCreatedProfile, error: autoCheckError } = await supabase
+        .from("user_profiles")
+        .select("id, email, role, full_name")
+        .eq("id", authData.user.id)
+        .single();
+
+      if (autoCheckError && autoCheckError.code !== "PGRST116") {
+        console.error("❌ Error checking for auto-created profile:", autoCheckError);
+        throw new Error("Failed to find auto-created profile. Database trigger may not be working.");
+      }
+
+      if (!autoCreatedProfile) {
+        throw new Error("Database trigger did not create profile. Please check trigger configuration.");
+      }
+
+      console.log("✅ Auto-created profile found:", autoCreatedProfile);
 
       // Upload image if provided
       const profileImageUrl = teacherData.profileImage
-        ? await uploadProfileImage(teacherData.profileImage, userId)
+        ? await uploadProfileImage(teacherData.profileImage, authData.user.id)
         : null;
 
-      // Prepare profile data
-      const profilePayload = {
-        id: userId,
-        email: teacherData.email,
-        full_name: teacherData.name,
-        role: "teacher", // ✅ Explicitly set to teacher
-        phone_number: teacherData.phoneNumber,
+      // Prepare teacher-specific profile data to update the auto-created profile
+      const teacherProfileData = {
+        phone_number: teacherData.phoneNumber || null,
         employee_id: employeeId,
-        qualification: teacherData.qualification,
-        specialization: teacherData.subject,
-        hire_date: teacherData.dateHired,
+        qualification: teacherData.qualification || null,
+        specialization: teacherData.subject || null,
+        hire_date: teacherData.dateHired || new Date().toISOString().split("T")[0],
         profile_image: profileImageUrl,
-        is_active: true,
-        status: "active",
+        updated_at: new Date().toISOString(),
       };
 
-      console.log("📝 Creating profile with payload:", {
-        id: profilePayload.id,
-        role: profilePayload.role,
-        employee_id: profilePayload.employee_id,
-        full_name: profilePayload.full_name,
+      // Remove any undefined values
+      Object.keys(teacherProfileData).forEach((key) => {
+        if (teacherProfileData[key] === undefined) {
+          delete teacherProfileData[key];
+        }
       });
 
-      const { data: profileData, error: profileError } = await supabase
+      console.log("🔄 Updating profile with teacher-specific data...");
+      const { data: updatedRecord, error: updateError } = await supabase
         .from("user_profiles")
-        .insert(profilePayload)
-        .select()
+        .update(teacherProfileData)
+        .eq("id", authData.user.id)
+        .select("*")
         .single();
 
-      if (profileError) {
-        console.error("❌ Profile creation error:", profileError);
-        throw profileError;
+      if (updateError) {
+        console.error("❌ Profile update error:", updateError);
+        throw new Error(`Failed to update teacher profile: ${updateError.message}`);
       }
 
-      console.log("✅ Profile created successfully:", {
-        id: profileData.id,
-        role: profileData.role,
-        employee_id: profileData.employee_id,
-        full_name: profileData.full_name,
-      });
-
-      // Verify the created profile
-      const { data: verifyData, error: verifyError } = await supabase
-        .from("user_profiles")
-        .select("id, role, full_name, employee_id")
-        .eq("id", userId)
-        .single();
-
-      if (verifyError) {
-        console.warn("⚠️ Could not verify profile creation:", verifyError);
-      } else {
-        console.log("🔍 Verification - Profile in DB:", verifyData);
+      if (!updatedRecord) {
+        throw new Error("Teacher record was not updated properly");
       }
 
       // Invalidate cache after successful creation
       cache.teacherCount = null;
       cache.cacheTime = null;
 
-      console.log("✅ Teacher created successfully:", employeeId);
-      return { success: true, data: transformTeacherData(profileData) };
+      console.log("✅ Teacher created successfully");
+      return { success: true, data: transformTeacherData(updatedRecord) };
+
     } catch (error) {
       console.error("❌ Error creating teacher:", error);
-      return { success: false, error: error.message };
+
+      // Return more specific error messages
+      let errorMessage = error.message;
+      if (error.message.includes("already registered")) {
+        errorMessage = "A user with this email is already registered.";
+      } else if (error.message.includes("Password should be at least")) {
+        errorMessage = "Password must be at least 6 characters long.";
+      } else if (error.message.includes("Database trigger")) {
+        errorMessage = "Database configuration issue: Please contact system administrator.";
+      }
+
+      return { success: false, error: errorMessage };
     }
   },
 

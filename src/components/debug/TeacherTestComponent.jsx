@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getAllTeachers, createTeacher } from '../../services/supabase/teacherService';
+import { getAllTeachers, createTeacher } from '../../services/supabase/migrationWrapper';
 
 const TeacherTestComponent = () => {
   const [teachers, setTeachers] = useState([]);

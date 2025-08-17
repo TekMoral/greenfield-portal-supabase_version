@@ -296,8 +296,8 @@ export const assignmentService = {
         .eq('assignment_id', assignmentId)
         .not('score', 'is', null);
 
-      const averageScore = scores?.length > 0 
-        ? scores.reduce((sum, submission) => sum + submission.score, 0) / scores.length 
+      const averageScore = scores?.length > 0
+        ? scores.reduce((sum, submission) => sum + submission.score, 0) / scores.length
         : 0;
 
       return {
@@ -390,3 +390,73 @@ export const {
   updateAssignment,
   deleteAssignment
 } = assignmentService;
+
+// Get assignments for student (standalone function)
+export const getAssignmentsForStudent = async (studentId) => {
+  try {
+    // First get the student's class
+    const { data: studentData, error: studentError } = await supabase
+      .from('user_profiles')
+      .select('class_id')
+      .eq('id', studentId)
+      .eq('role', 'student')
+      .single();
+
+    if (studentError) throw studentError;
+    
+    if (!studentData) {
+      return [];
+    }
+
+    // Get assignments for the student's class
+    const { data: assignments, error: assignmentsError } = await supabase
+      .from('assignments')
+      .select(`
+        *,
+        subjects (
+          id,
+          name,
+          code
+        ),
+        classes (
+          id,
+          name
+        ),
+        assignment_submissions (
+          id,
+          student_id,
+          submission_text,
+          attachment_url,
+          score,
+          feedback,
+          status,
+          submitted_at,
+          graded_at
+        )
+      `)
+      .eq('class_id', studentData.class_id)
+      .eq('status', 'active')
+      .order('due_date', { ascending: true });
+
+    if (assignmentsError) throw assignmentsError;
+
+    // Filter and format assignments with submission data for this student
+    const formattedAssignments = (assignments || []).map(assignment => {
+      const studentSubmission = assignment.assignment_submissions?.find(
+        sub => sub.student_id === studentId
+      );
+
+      return {
+        ...assignment,
+        submissions: studentSubmission ? [studentSubmission] : [],
+        subject_name: assignment.subjects?.name,
+        class_name: assignment.classes?.name
+      };
+    });
+
+    return formattedAssignments;
+  } catch (error) {
+    console.error('Error fetching assignments for student:', error);
+    return [];
+  }
+};

@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../../../hooks/useAuth";
-import { getTeacherClassesAndSubjects, getStudentsByTeacherSubject, getStudentsByTeacherSubjectAndClasses } from "../../../services/teacherStudentService";
+import { getTeacherClassesAndSubjects, getStudentsByTeacherSubject, getStudentsByTeacherSubjectAndClasses } from "../../../services/supabase/teacherStudentService";
 import { getFullName, getInitials, nameMatchesSearch } from "../../../utils/nameUtils";
-import { getAssignmentsByTeacher } from "../../../services/assignmentService";
-import { collection, query, where, getDocs, addDoc } from "firebase/firestore";
-import { db } from "../../../firebase/config";
+import { getAssignmentsByTeacher } from "../../../services/supabase/assignmentService";
+import { supabase } from "../../../lib/supabaseClient";
 
 const Students = () => {
   const { user } = useAuth();
@@ -265,22 +264,30 @@ const Students = () => {
     setSendingMessage(true);
     try {
       const messageData = {
-        from: user.uid,
-        fromName: user.displayName || 'Teacher',
-        fromEmail: user.email,
-        to: selectedStudent.id,
-        toName: getFullName(selectedStudent),
-        toEmail: selectedStudent.email,
-        subject: messageForm.subject.trim(),
+        sender_id: user.id,
+        recipient_id: selectedStudent.id,
+        title: messageForm.subject.trim(),
         message: messageForm.message.trim(),
         priority: messageForm.priority,
         type: 'teacher_to_student',
-        status: 'sent',
-        createdAt: new Date(),
-        readAt: null
+        status: 'unread',
+        metadata: {
+          fromName: user.full_name || 'Teacher',
+          fromEmail: user.email,
+          toName: getFullName(selectedStudent),
+          toEmail: selectedStudent.email,
+          subject: selectedSubject
+        },
+        created_at: new Date().toISOString()
       };
 
-      await addDoc(collection(db, 'messages'), messageData);
+      const { error } = await supabase
+        .from('notifications')
+        .insert([messageData]);
+
+      if (error) {
+        throw error;
+      }
       
       alert('Message sent successfully!');
       setShowMessageModal(false);

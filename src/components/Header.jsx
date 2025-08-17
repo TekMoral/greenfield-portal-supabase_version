@@ -1,6 +1,6 @@
 import React, { useState, useEffect, forwardRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/SupabaseAuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { COMPONENT_COLORS } from '../constants/colors';
 import schoolLogo from '../assets/images/Logo.png';
 

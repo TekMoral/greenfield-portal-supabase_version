@@ -29,5 +29,4 @@ dist-ssr
 .env.production
 .env.development
 *.key
-*.pem
 /sql-private/

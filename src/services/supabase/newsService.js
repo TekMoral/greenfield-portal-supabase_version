@@ -76,27 +76,12 @@ export const getNewsById = async (newsId) => {
   }
 }
 
-// ✅ Create news/event
+// ✅ Create news/event - using only existing columns
 export const createNews = async (newsData, imageFile = null) => {
   try {
-    let imageUrl = null
-
-    // Upload image if provided
-    if (imageFile) {
-      const fileName = `news-${Date.now()}-${imageFile.name}`
-      const { data: uploadData, error: uploadError } = await directStorageClient.upload(
-        'news-images',
-        fileName,
-        imageFile
-      )
-
-      if (uploadError) {
-        throw new Error(`Image upload failed: ${uploadError}`)
-      }
-
-      imageUrl = directStorageClient.getPublicUrl('news-images', fileName)
-    }
-
+    // Note: Not storing image since image_url column doesn't exist
+    // Images can be handled separately or stored in content as base64/URL
+    
     const { data, error } = await supabase
       .from('news_events')
       .insert({
@@ -104,7 +89,6 @@ export const createNews = async (newsData, imageFile = null) => {
         content: newsData.content,
         type: newsData.type || 'news',
         status: newsData.status || 'draft',
-        image_url: imageUrl,
         author_id: newsData.author_id,
         published_at: newsData.status === 'published' ? new Date().toISOString() : null,
         created_at: new Date().toISOString(),
@@ -125,30 +109,14 @@ export const createNews = async (newsData, imageFile = null) => {
   }
 }
 
-// ✅ Update news/event
+// ✅ Update news/event - using only existing columns
 export const updateNews = async (newsId, updates, imageFile = null) => {
   try {
-    let imageUrl = updates.image_url
-
-    // Upload new image if provided
-    if (imageFile) {
-      const fileName = `news-${Date.now()}-${imageFile.name}`
-      const { data: uploadData, error: uploadError } = await directStorageClient.upload(
-        'news-images',
-        fileName,
-        imageFile
-      )
-
-      if (uploadError) {
-        throw new Error(`Image upload failed: ${uploadError}`)
-      }
-
-      imageUrl = directStorageClient.getPublicUrl('news-images', fileName)
-    }
-
     const updateData = {
-      ...updates,
-      image_url: imageUrl,
+      title: updates.title,
+      content: updates.content,
+      type: updates.type,
+      status: updates.status,
       updated_at: new Date().toISOString()
     }
 
@@ -156,6 +124,13 @@ export const updateNews = async (newsId, updates, imageFile = null) => {
     if (updates.status === 'published' && !updates.published_at) {
       updateData.published_at = new Date().toISOString()
     }
+
+    // Remove undefined values
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined) {
+        delete updateData[key];
+      }
+    });
 
     const { data, error } = await supabase
       .from('news_events')
@@ -226,7 +201,7 @@ export const getNewsByType = async (type, limit = null) => {
   }
 }
 
-// ✅ Search news/events
+// ✅ Search news/events - using only existing columns
 export const searchNews = async (searchTerm) => {
   try {
     const { data, error } = await supabase

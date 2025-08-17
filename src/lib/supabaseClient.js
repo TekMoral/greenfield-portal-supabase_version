@@ -1,5 +1,3 @@
-
-
 // src/lib/supabaseClient.js
 import { createClient } from '@supabase/supabase-js'
 
@@ -49,16 +47,16 @@ if (!supabaseAnonKey.startsWith('eyJ')) {
   console.warn('VITE_SUPABASE_ANON_KEY does not appear to be a valid JWT token.')
 }
 
-// Create Supabase client with optimized configuration
+// Create Supabase client with configuration optimized for Edge Functions
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    autoRefreshToken: true,
+    autoRefreshToken: true, // Enable auto-refresh for Edge Function calls
     persistSession: true,
-    detectSessionInUrl: true,
+    detectSessionInUrl: false, // Disable URL detection
     flowType: 'pkce',
     storage: customStorage,
     storageKey: 'sb-auth-token',
-    debug: false // Completely disable debug logging
+    debug: false
   },
   db: {
     schema: 'public'
@@ -70,20 +68,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 })
 
-// Minimal session monitoring (only log important events)
-supabase.auth.onAuthStateChange((event, session) => {
-  // Only log significant auth events, not routine checks
-  if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
-    console.log(`🔄 Auth: ${event}`, {
-      hasSession: !!session,
-      userId: session?.user?.id
-    })
-  }
-
-  if (event === 'INITIAL_SESSION' && !session) {
-    console.warn('⚠️ No initial session found')
-  }
-})
+// Remove the global auth state listener to prevent conflicts with AuthContext
+// The AuthContext will handle all auth state changes
 
 // Helper function to get current user
 export const getCurrentUser = async () => {
@@ -115,7 +101,7 @@ export const getUserProfile = async (userId, signal) => {
       if (abortController) {
         abortController.abort()
       }
-    }, 10000)
+    }, 5000) // Reduced timeout to 5 seconds
 
     try {
       const { data, error } = await supabase
@@ -209,4 +195,23 @@ export const supabaseConfig = {
   url: supabaseUrl,
   hasAnonKey: !!supabaseAnonKey,
   environment: import.meta.env.MODE || 'development'
+}
+
+// Expose Supabase client globally in the browser for debugging/tests
+// This lets you use `window.supabase` in the devtools console
+if (typeof window !== 'undefined') {
+  try {
+    if (!window.supabase) {
+      window.supabase = supabase;
+    }
+    // Useful non-sensitive config for console usage
+    if (!window.supabaseConfig) {
+      window.supabaseConfig = { url: supabaseUrl, environment: import.meta.env.MODE || 'development' };
+    }
+    if (!window.supabaseUrl) {
+      window.supabaseUrl = supabaseUrl;
+    }
+  } catch (_) {
+    // Ignore if window is not writable
+  }
 }

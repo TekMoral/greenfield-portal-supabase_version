@@ -65,6 +65,7 @@ export default function Classes() {
     setLoading(true);
     try {
       const result = await getAllClasses();
+      console.log('Fetched classes:', result.data);
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to fetch classes');

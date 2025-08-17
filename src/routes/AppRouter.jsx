@@ -16,7 +16,6 @@ import StudentLayout from "../layouts/StudentLayout";
 import TeacherLayout from "../layouts/TeacherLayout";
 
 // Lazy loaded components
-// students routes
 const Login = lazy(() => import("../pages/Login"));
 const Unauthorized = lazy(() => import("../pages/Unauthorized"));
 const CreateAdmin = lazy(() => import("../pages/CreateAdmin"));
@@ -28,8 +27,11 @@ const AuthSessionDebug = lazy(() =>
 const TeacherTestComponent = lazy(() =>
   import("../components/debug/TeacherTestComponent")
 );
+const NewsSchemaTest = lazy(() =>
+  import("../components/debug/NewsSchemaTest")
+);
 
-const StudentDashboard = lazy(() => import("../pages/student/Dashboard")); // Student landing
+const StudentDashboard = lazy(() => import("../pages/student/Dashboard"));
 const Profile = lazy(() => import("../pages/student/Profile"));
 const Results = lazy(() => import("../pages/student/Results"));
 const Timetable = lazy(() => import("../pages/student/Timetable"));
@@ -40,7 +42,7 @@ const StudentExamResults = lazy(() => import("../pages/student/ExamResults"));
 // Teacher routes
 const TeacherDashboard = lazy(() =>
   import("../pages/dashboard/teacher/Dashboard")
-); // Teacher landing
+);
 const MyClasses = lazy(() => import("../pages/dashboard/teacher/MyClasses"));
 const TeacherStudents = lazy(() =>
   import("../pages/dashboard/teacher/Students")
@@ -65,7 +67,7 @@ const TeacherExamResults = lazy(() =>
 );
 
 //Admin Dashboard routes
-const Overview = lazy(() => import("../pages/dashboard/Overview")); //Admin landing
+const Overview = lazy(() => import("../pages/dashboard/Overview"));
 const Students = lazy(() => import("../pages/dashboard/Students"));
 const Teachers = lazy(() => import("../pages/dashboard/Teachers"));
 const Classes = lazy(() => import("../pages/dashboard/Classes"));
@@ -470,6 +472,14 @@ const AppRouter = () => (
       element={
         <Suspense fallback={<LoadingFallback />}>
           <TeacherTestComponent />
+        </Suspense>
+      }
+    />
+    <Route
+      path="/debug/news-schema"
+      element={
+        <Suspense fallback={<LoadingFallback />}>
+          <NewsSchemaTest />
         </Suspense>
       }
     />

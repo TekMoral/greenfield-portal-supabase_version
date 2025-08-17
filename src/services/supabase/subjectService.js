@@ -43,83 +43,65 @@ export const getSubjectById = async (subjectId) => {
   }
 }
 
-// ✅ Create new subject
+// ✅ Create new subject (via Edge Function)
 export const createSubject = async (subjectData) => {
   try {
-    const { data, error } = await supabase
-      .from('subjects')
-      .insert({
-        name: subjectData.name,
-        code: subjectData.code,
-        description: subjectData.description || '',
-        department: subjectData.department || '',
-        credit_hours: subjectData.credit_hours || 1,
-        status: 'active',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single()
-
+    const { data, error } = await supabase.functions.invoke('create-subject', {
+      body: JSON.stringify(subjectData)
+    });
     if (error) {
-      console.error('[createSubject] Error:', error)
-      throw error
+      console.error('❌ [createSubject] Edge Function error:', error.message);
+      throw error;
     }
-
-    return data
+    if (data?.error) {
+      throw new Error(data.error);
+    }
+    return data?.data || null;
   } catch (error) {
-    console.error('[createSubject] Error creating subject:', error)
-    throw error
+    console.error('❌ [createSubject] Failed:', error.message);
+    throw error;
   }
 }
 
-// ✅ Update subject
+// ✅ Update subject (via Edge Function)
 export const updateSubject = async (subjectId, updates) => {
   try {
-    const { data, error } = await supabase
-      .from('subjects')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', subjectId)
-      .select()
-      .single()
-
+    const payload = { id: subjectId, ...updates };
+    const { data, error } = await supabase.functions.invoke('update-subject', {
+      body: JSON.stringify(payload)
+    });
     if (error) {
-      console.error('[updateSubject] Error:', error)
-      throw error
+      console.error('[updateSubject] Edge Function error:', error.message);
+      throw error;
     }
-
-    return data
+    if (data?.error) {
+      throw new Error(data.error);
+    }
+    return data?.data || null;
   } catch (error) {
-    console.error('[updateSubject] Error updating subject:', error)
-    throw error
+    console.error('[updateSubject] Error updating subject:', error);
+    throw error;
   }
 }
 
-// ✅ Delete subject (soft delete)
+// ✅ Delete subject (via Edge Function)
 export const deleteSubject = async (subjectId) => {
   try {
-    const { data, error } = await supabase
-      .from('subjects')
-      .update({
-        status: 'inactive',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', subjectId)
-      .select()
-      .single()
-
+    const payload = { id: subjectId };
+    const { data, error } = await supabase.functions.invoke('delete-subject', {
+      body: JSON.stringify(payload)
+    });
     if (error) {
-      console.error('[deleteSubject] Error:', error)
-      throw error
+      console.error('[deleteSubject] Edge Function error:', error.message);
+      throw error;
     }
-
-    return data
+    if (data?.error) {
+      throw new Error(data.error);
+    }
+    return data || null;
   } catch (error) {
-    console.error('[deleteSubject] Error deleting subject:', error)
-    throw error
+    console.error('[deleteSubject] Error deleting subject:', error);
+    throw error;
   }
 }
 
@@ -191,66 +173,6 @@ export const getSubjectsByTeacher = async (teacherId) => {
   }
 }
 
-// ✅ Add subject to department (legacy compatibility function)
-export const addSubjectToDepartment = async (department, subjectName) => {
-  try {
-    // Generate a simple code from the subject name
-    const code = subjectName.toUpperCase().replace(/\s+/g, '_').substring(0, 10)
-    
-    const subjectData = {
-      name: subjectName,
-      code: code,
-      department: department,
-      description: `${subjectName} for ${department} department`,
-      credit_hours: 1,
-      status: 'active',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
-
-    const { data, error } = await supabase
-      .from('subjects')
-      .insert(subjectData)
-      .select()
-      .single()
-
-    if (error) {
-      console.error('[addSubjectToDepartment] Error:', error)
-      throw error
-    }
-
-    return data
-  } catch (error) {
-    console.error('[addSubjectToDepartment] Error adding subject:', error)
-    throw error
-  }
-}
-
-// ✅ Remove subject from department (legacy compatibility function)
-export const removeSubjectFromDepartment = async (department, subjectName) => {
-  try {
-    const { data, error } = await supabase
-      .from('subjects')
-      .update({
-        status: 'inactive',
-        updated_at: new Date().toISOString()
-      })
-      .eq('name', subjectName)
-      .eq('department', department)
-      .select()
-
-    if (error) {
-      console.error('[removeSubjectFromDepartment] Error:', error)
-      throw error
-    }
-
-    return data
-  } catch (error) {
-    console.error('[removeSubjectFromDepartment] Error removing subject:', error)
-    throw error
-  }
-}
-
 // ✅ Export service object for easier usage
 export const subjectService = {
   getSubjects,
@@ -260,7 +182,5 @@ export const subjectService = {
   deleteSubject,
   getSubjectsByDepartment,
   searchSubjects,
-  getSubjectsByTeacher,
-  addSubjectToDepartment,
-  removeSubjectFromDepartment
+  getSubjectsByTeacher
 }

@@ -1,6 +1,6 @@
 // src/routes/ProtectedRoutes.jsx
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "../contexts/SupabaseAuthContext";
+import { useAuth } from "../hooks/useAuth";
 
 const ProtectedRoutes = ({ children }) => {
   const { user, loading } = useAuth();

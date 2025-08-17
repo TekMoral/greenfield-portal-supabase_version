@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabaseClient'
-import { useAuth } from '../../contexts/SupabaseAuthContext'
+import { useAuth } from '../../hooks/useAuth'
 
 const AuthSessionDebug = () => {
   const [sessionData, setSessionData] = useState(null)

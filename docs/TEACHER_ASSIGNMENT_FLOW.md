@@ -15,7 +15,7 @@ This guide explains the complete process from registering a teacher to students 
    - **Subject**: Enter the main subject they teach (e.g., "Physics", "English Language")
    - Date Hired, Profile Image
 
-2. **System Action**: 
+2. **System Action**:
    - Creates teacher account in Firebase Auth
    - Stores teacher data in `users` collection with `role: "teacher"`
    - Teacher can now login to their dashboard
@@ -25,7 +25,7 @@ This guide explains the complete process from registering a teacher to students 
 
 1. **Create Classes**:
    - Name: "Grade 11A"
-   - Level: "Senior" 
+   - Level: "Senior"
    - Category: "Science" (for Senior classes)
    - Class Teacher ID (optional)
 
@@ -67,7 +67,7 @@ This guide explains the complete process from registering a teacher to students 
 
 1. **Teacher Options**:
    - **Subject**: Select from subjects they teach
-   - **Target Type**: 
+   - **Target Type**:
      - ✅ **All classes taking [Subject]** (e.g., all Physics students)
      - ✅ **Specific classes only** (e.g., only Grade 11A)
 
@@ -95,7 +95,7 @@ This guide explains the complete process from registering a teacher to students 
 
 ### **Scenario 2: Category Subject Teacher (Physics)**
 
-1. **Registration**: Teacher registered with subject "Physics"  
+1. **Registration**: Teacher registered with subject "Physics"
 2. **Assignment**: Assigned to teach Physics in Grade 11A Science, 12A Science
 3. **Login**: Sees Science classes in "My Classes"
 4. **Assignment Options**:
@@ -118,8 +118,8 @@ This guide explains the complete process from registering a teacher to students 
 ```javascript
 // Class Document
 {
-  id: "grade11a_science",
-  name: "Grade 11A",
+  id: "SSS 1 science",
+  name: "SSS 1 science",
   level: "Senior",
   category: "Science",
   subjects: [
@@ -137,7 +137,7 @@ This guide explains the complete process from registering a teacher to students 
 const studentSubjects = [
   // Core subjects (all students)
   "English Language", "Mathematics", "Civic Education",
-  // Science subjects (Science category only)  
+  // Science subjects (Science category only)
   "Physics", "Chemistry", "Biology", "Further Mathematics"
 ];
 ```
@@ -151,10 +151,10 @@ const studentSubjects = [
   targetClasses: ["grade10a_science", "grade11a_science", "grade12a_science"]
 }
 
-// Class-specific assignment  
+// Class-specific assignment
 {
   subjectName: "Physics",
-  targetType: "class", 
+  targetType: "class",
   targetClasses: ["grade11a_science"]
 }
 ```

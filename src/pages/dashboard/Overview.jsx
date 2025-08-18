@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { getDashboardStats } from "../../services/supabase/dashboardService";
+import AuditLogsCard from "../../components/audit/AuditLogsCard";
+import { useAuditLog } from "../../hooks/useAuditLog";
 
 const Overview = () => {
   const { user } = useAuth();
@@ -17,6 +19,7 @@ const Overview = () => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { isSuperAdmin } = useAuditLog();
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -376,6 +379,8 @@ const Overview = () => {
           </div>
         </div>
       </div>
+
+      {isSuperAdmin && <AuditLogsCard />}
     </div>
   );
 };

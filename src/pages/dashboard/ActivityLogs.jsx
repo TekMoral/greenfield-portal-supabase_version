@@ -1,8 +1,12 @@
 import React from 'react';
-import ActivityLogger from '../../components/admin/ActivityLogger';
+import AuditLogsCard from '../../components/audit/AuditLogsCard';
 
 const ActivityLogs = () => {
-  return <ActivityLogger />;
+  return (
+    <div className="min-h-screen p-4">
+      <AuditLogsCard />
+    </div>
+  );
 };
 
 export default ActivityLogs;

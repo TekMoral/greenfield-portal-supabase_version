@@ -2,17 +2,24 @@ import React, { useEffect, useState, useMemo, useCallback } from "react";
 import StudentTable from "../../components/students/StudentTable";
 import StudentForm from "../../components/forms/StudentForm";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
+import PromotionModal from "../../components/modals/PromotionModal";
+import BulkPromotionModal from "../../components/modals/BulkPromotionModal";
 import toast, { Toaster } from "react-hot-toast";
 import { getAllStudents } from "../../services/supabase/migrationWrapper";
 import edgeFunctionsService from "../../services/supabase/edgeFunctions";
 import { getAllClasses } from "../../services/supabase/classService";
 import { uploadService } from "../../services/supabase/uploadService";
 import { useAuditLog } from "../../hooks/useAuditLog";
-import { EditButton, DeleteButton } from "../../components/ui/ActionButtons";
+import { EditButton, DeleteButton, CreateButton } from "../../components/ui/ActionButtons";
 
 const Students = () => {
   // Audit logging hook
   const { logStudentAction, AUDIT_ACTIONS, isAdmin } = useAuditLog();
+
+  // Bulk selection for bulk promotion
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   // Core state
   const [students, setStudents] = useState([]);
@@ -25,6 +32,9 @@ const Students = () => {
     create: false,
     update: false,
     delete: false,
+    promote: false,
+    suspend: false,
+    reactivate: false,
   });
 
   // Filter and search state
@@ -46,9 +56,24 @@ const Students = () => {
     studentName: "",
   });
 
+  // Promotion modal state
+  const [promotionModal, setPromotionModal] = useState({
+    isOpen: false,
+    student: null,
+  });
+
+  // Suspension confirmation state
+  const [suspendConfirm, setSuspendConfirm] = useState({
+    isOpen: false,
+    student: null,
+  });
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Current academic year - you can make this dynamic
+  const currentAcademicYear = "2024-2025";
 
   // Memoized enriched students with class data
   const enrichedStudents = useMemo(() => {
@@ -209,6 +234,51 @@ const Students = () => {
     }
   };
 
+  // --- Bulk Promotion Handlers ---
+  const handleToggleRow = (id) =>
+    setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  const handleToggleAll = (pageIds, selectAll) => setSelectedIds((prev) => {
+    const pageSet = new Set(pageIds);
+    if (selectAll) return Array.from(new Set([...prev, ...pageIds]));
+    return prev.filter((id) => !pageSet.has(id));
+  });
+  const handleBulkPromoteConfirm = async ({ toClassId, academicYear, promotionReason, promotionData }) => {
+    setBulkLoading(true);
+    try {
+      const promos = selectedIds.map((id) => {
+        const stu = students.find((s) => s.id === id);
+        return { studentId: id, fromClassId: stu.class_id, toClassId, promotionData };
+      });
+      const result = await edgeFunctionsService.bulkPromoteStudents(
+        promos,
+        academicYear,
+        null,
+        promotionReason
+      );
+      if (result.success) {
+        // Update all students locally
+        setStudents((prev) =>
+          prev.map((stu) =>
+            promos.some((p) => p.studentId === stu.id) ? { ...stu, class_id: toClassId } : stu
+          )
+        );
+        setSelectedIds([]);
+        setBulkModalOpen(false);
+        toast.success(result.message || 'Bulk promotion succeeded!');
+      } else {
+        // Partial or complete failure
+        (result.data?.failed || []).forEach((fail) => {
+          toast.error(`${fail.studentName || fail.studentId}: ${fail.error}`);
+        });
+        setSelectedIds((prev) => prev.filter((id) => (result.data?.failed || []).some((f) => f.studentId === id)));
+      }
+    } catch (err) {
+      toast.error(err.userMessage || err.responseJson?.error || err.message || 'Bulk promotion failed');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   // Event handlers
   const handleImageSelect = useCallback((e) => {
     const file = e.target.files[0];
@@ -285,243 +355,285 @@ const Students = () => {
     });
   }, []);
 
-  // const confirmDelete = async () => {
-  //   try { 
+  // Promotion handlers
+  const handlePromoteClick = useCallback((student) => {
+    console.log("🎓 Promote button clicked for student:", student);
+    setPromotionModal({
+      isOpen: true,
+      student: student,
+    });
+  }, []);
 
-  //     console.log("🔄 Deleting stude:", deleteConfirm.studentId);
+  const handlePromoteStudent = async (promotionData) => {
+    setOperationLoading(prev => ({ ...prev, promote: true }));
 
-  //     const result = await edgeFunctionsService.deleteStudent(
-  //       deleteConfirm.studentId
-  //     );
+    try {
+      console.log("🔄 Promoting student:", promotionData);
 
-  //     console.log("✅ Delete result:", result);
+      const result = await edgeFunctionsService.promoteStudent(
+        promotionData.studentId,
+        promotionData.fromClassId,
+        promotionData.toClassId,
+        promotionData.academicYear,
+        null, // promotedBy (will use current user)
+        promotionData.promotionReason,
+        promotionData.promotionData
+      );
 
-  //     // Check if the result indicates success
-  //     if (result && result.success !== false) {
-  //       // Log admin activity
-  //       if (isAdmin) {
-  //         await logStudentAction(
-  //           AUDIT_ACTIONS.STUDENT_DELETE,
-  //           deleteConfirm.studentId,
-  //           {
-  //             studentName: deleteConfirm.studentName,
-  //             deletedAt: new Date().toISOString(),
-  //           },
-  //           `Deleted student: ${deleteConfirm.studentName}`
-  //         );
-  //       }
-
-  //       // Remove from local state
-  //       setStudents((prev) =>
-  //         prev.filter((stu) => (stu.id || stu.uid) !== deleteConfirm.studentId)
-  //       );
-  //       setDeleteConfirm({ isOpen: false, studentId: null, studentName: "" });
-  //       toast.success(result?.message || "Student deleted successfully!");
-  //     } else {
-  //       throw new Error(result?.error || "Failed to delete student");
-  //     }
-  //   } catch (err) {
-  //     console.error("❌ Delete error:", err);
-  //     // Log enriched error details if available (from edgeFunctionsService)
-  //     console.error("❌ Edge Function error details:", {
-  //       name: err.name,
-  //       message: err.message,
-  //       status: err.status,
-  //       statusText: err.statusText,
-  //       functionName: err.functionName,
-  //       responseJson: err.responseJson,
-  //       responseBody: err.responseBody,
-  //       originalError: err.originalError,
-  //     });
-
-  //     let errorMessage = "Failed to delete student";
-
-  //     // Prefer structured JSON returned by the Edge Function
-  //     if (
-  //       err.responseJson &&
-  //       (err.responseJson.error || err.responseJson.message)
-  //     ) {
-  //       errorMessage = err.responseJson.error || err.responseJson.message;
-  //     } else if (
-  //       err.responseBody &&
-  //       typeof err.responseBody === "string" &&
-  //       err.responseBody.trim().length > 0
-  //     ) {
-  //       errorMessage = err.responseBody;
-  //     } else if (err.functionResponse && err.functionResponse.error) {
-  //       // Legacy fallback from older SDK error shape
-  //       errorMessage = err.functionResponse.error;
-  //     } else if (err.message) {
-  //       errorMessage = err.message;
-  //     }
-
-  //     // Map specific status codes to clearer messages
-  //     if (err.status === 401) {
-  //       errorMessage = "Authentication required to delete students";
-  //     } else if (err.status === 403) {
-  //       errorMessage =
-  //         "You don't have permission to delete students. Only administrators can delete students.";
-  //     } else if (err.status === 404) {
-  //       errorMessage = "Student not found";
-  //     }
-
-  //     // Keyword-based refinement
-  //     if (errorMessage) {
-  //       const msg = String(errorMessage).toLowerCase();
-  //       if (
-  //         msg.includes("cannot delete themselves") ||
-  //         msg.includes("delete themselves")
-  //       ) {
-  //         errorMessage = "You cannot delete yourself";
-  //       } else if (
-  //         msg.includes("permission") ||
-  //         msg.includes("only super") ||
-  //         msg.includes("unauthorized")
-  //       ) {
-  //         errorMessage =
-  //           "You don't have permission to delete students. Only administrators can delete students.";
-  //       } else if (
-  //         msg.includes("not found") ||
-  //         msg.includes("user not found") ||
-  //         msg.includes("student not found")
-  //       ) {
-  //         errorMessage = "Student not found";
-  //       } else if (msg.includes("missing authorization")) {
-  //         errorMessage = "Authentication required to delete students";
-  //       }
-  //     }
-
-  //     toast.error(errorMessage);
-  //     setDeleteConfirm({ isOpen: false, studentId: null, studentName: "" });
-  //   }
-  // };
-
-
-
-
-
-
-
-const confirmDelete = async () => {
-  // Set delete loading to true when operation starts
-  setOperationLoading((prev) => ({ ...prev, delete: true }));
-
-  // Show loading toast
-  const loadingToast = toast.loading(`Deleting ${deleteConfirm.studentName}...`);
-
-  try {
-    console.log("🔄 Deleting student:", deleteConfirm.studentId);
-
-    const result = await edgeFunctionsService.deleteStudent(deleteConfirm.studentId);
-
-    console.log("✅ Delete result:", result);
-
-    if (result && result.success !== false) {
-      // Log admin activity
-      if (isAdmin) {
-        await logStudentAction(
-          AUDIT_ACTIONS.STUDENT_DELETE,
-          deleteConfirm.studentId,
-          {
-            studentName: deleteConfirm.studentName,
-            deletedAt: new Date().toISOString(),
-          },
-          `Deleted student: ${deleteConfirm.studentName}`
+      if (result.success) {
+        console.log("✅ Student promoted successfully:", result.data);
+        
+        // Update local state
+        setStudents(prev => 
+          prev.map(student => 
+            student.id === promotionData.studentId 
+              ? { ...student, class_id: promotionData.toClassId }
+              : student
+          )
         );
+
+        // Close modal
+        setPromotionModal({ isOpen: false, student: null });
+        
+        toast.success(result.message);
+        
+        // Refresh data to get updated class information
+        await fetchData();
+      } else {
+        toast.error(result.error || 'Failed to promote student');
+      }
+    } catch (error) {
+      console.error('❌ Promotion error:', error);
+      toast.error('Failed to promote student');
+    } finally {
+      setOperationLoading(prev => ({ ...prev, promote: false }));
+    }
+  };
+
+  // Suspension handlers
+  const handleSuspendClick = useCallback((student) => {
+    console.log("⚠️ Suspend button clicked for student:", student);
+    setSuspendConfirm({
+      isOpen: true,
+      student: student,
+    });
+  }, []);
+
+  const handleSuspendStudent = async () => {
+    if (!suspendConfirm.student) return;
+
+    setOperationLoading(prev => ({ ...prev, suspend: true }));
+
+    try {
+      console.log('➡️ Suspending student:', {
+        id: suspendConfirm.student.id,
+        name: suspendConfirm.student.full_name,
+      });
+
+      const result = await edgeFunctionsService.suspendUser(
+        suspendConfirm.student.id,
+        'student',
+        'Suspended via admin panel',
+        null, // suspendedBy (will use current user)
+        null  // suspendedUntil (indefinite)
+      );
+
+      if (result && result.success) {
+        // Update local state
+        setStudents(prev => 
+          prev.map(student => 
+            student.id === suspendConfirm.student.id 
+              ? { ...student, status: 'suspended' }
+              : student
+          )
+        );
+
+        setSuspendConfirm({ isOpen: false, student: null });
+        toast.success(result.message || 'Student suspended successfully');
+      } else {
+        const errMsg = result?.error || 'Failed to suspend student';
+        console.warn('Suspend user failed (non-2xx):', result);
+        toast.error(errMsg);
+      }
+    } catch (error) {
+      console.error('❌ Suspension error:', error);
+      const detailed = error.userMessage || error.responseJson?.error || error.responseJson?.message || error.message || 'Failed to suspend student';
+      toast.error(detailed);
+    } finally {
+      setOperationLoading(prev => ({ ...prev, suspend: false }));
+    }
+  };
+
+  // Reactivation handlers
+  const handleReactivateClick = useCallback((student) => {
+    console.log("✅ Reactivate button clicked for student:", student);
+    handleReactivateStudent(student);
+  }, []);
+
+  const handleReactivateStudent = async (student) => {
+    setOperationLoading(prev => ({ ...prev, reactivate: true }));
+
+    try {
+      console.log('➡️ Reactivating student:', {
+        id: student.id,
+        name: student.full_name,
+      });
+
+      const result = await edgeFunctionsService.reactivateUser(
+        student.id,
+        'student',
+        null, // reactivatedBy (will use current user)
+        'Reactivated via admin panel'
+      );
+
+      if (result && result.success) {
+        // Update local state
+        setStudents(prev => 
+          prev.map(s => 
+            s.id === student.id 
+              ? { ...s, status: 'active', is_active: true }
+              : s
+          )
+        );
+
+        toast.success(result.message || 'Student reactivated successfully');
+      } else {
+        const errMsg = result?.error || 'Failed to reactivate student';
+        console.warn('Reactivate user failed (non-2xx):', result);
+        toast.error(errMsg);
+      }
+    } catch (error) {
+      console.error('❌ Reactivation error:', error);
+      const detailed = error.userMessage || error.responseJson?.error || error.responseJson?.message || error.message || 'Failed to reactivate student';
+      toast.error(detailed);
+    } finally {
+      setOperationLoading(prev => ({ ...prev, reactivate: false }));
+    }
+  };
+
+  const confirmDelete = async () => {
+    // Set delete loading to true when operation starts
+    setOperationLoading((prev) => ({ ...prev, delete: true }));
+
+    // Show loading toast
+    const loadingToast = toast.loading(`Deleting ${deleteConfirm.studentName}...`);
+
+    try {
+      console.log("🔄 Deleting student:", deleteConfirm.studentId);
+
+      const result = await edgeFunctionsService.deleteStudent(deleteConfirm.studentId);
+
+      console.log("✅ Delete result:", result);
+
+      if (result && result.success !== false) {
+        // Log admin activity
+        if (isAdmin) {
+          await logStudentAction(
+            AUDIT_ACTIONS.STUDENT_DELETE,
+            deleteConfirm.studentId,
+            {
+              studentName: deleteConfirm.studentName,
+              deletedAt: new Date().toISOString(),
+            },
+            `Deleted student: ${deleteConfirm.studentName}`
+          );
+        }
+
+        // Remove from local state
+        setStudents((prev) =>
+          prev.filter((stu) => (stu.id || stu.uid) !== deleteConfirm.studentId)
+        );
+        setDeleteConfirm({ isOpen: false, studentId: null, studentName: "" });
+
+        // Success toast
+        toast.dismiss(loadingToast);
+        toast.success(result?.message || `${deleteConfirm.studentName} deleted successfully!`);
+      } else {
+        throw new Error(result?.error || "Failed to delete student");
+      }
+    } catch (err) {
+      console.error("❌ Delete error:", err);
+      console.error("❌ Edge Function error details:", {
+        name: err.name,
+        message: err.message,
+        status: err.status,
+        statusText: err.statusText,
+        functionName: err.functionName,
+        responseJson: err.responseJson,
+        responseBody: err.responseBody,
+        originalError: err.originalError,
+      });
+
+      let errorMessage = "Failed to delete student";
+
+      // Prefer structured JSON returned by the Edge Function
+      if (err.responseJson && (err.responseJson.error || err.responseJson.message)) {
+        errorMessage = err.responseJson.error || err.responseJson.message;
+      } else if (err.responseBody && typeof err.responseBody === "string" && err.responseBody.trim().length > 0) {
+        errorMessage = err.responseBody;
+      } else if (err.functionResponse && err.functionResponse.error) {
+        errorMessage = err.functionResponse.error;
+      } else if (err.message) {
+        errorMessage = err.message;
       }
 
-      // Remove from local state
-      setStudents((prev) =>
-        prev.filter((stu) => (stu.id || stu.uid) !== deleteConfirm.studentId)
-      );
-      setDeleteConfirm({ isOpen: false, studentId: null, studentName: "" });
+      if (err.status === 401) {
+        errorMessage = "Authentication required to delete students";
+      } else if (err.status === 403) {
+        errorMessage = "You don't have permission to delete students. Only administrators can delete students.";
+      } else if (err.status === 404) {
+        errorMessage = "Student not found";
+      }
 
-      // Success toast
+      const msg = String(errorMessage).toLowerCase();
+      if (msg.includes("cannot delete themselves") || msg.includes("delete themselves")) {
+        errorMessage = "You cannot delete yourself";
+      } else if (msg.includes("permission") || msg.includes("only super") || msg.includes("unauthorized")) {
+        errorMessage = "You don't have permission to delete students. Only administrators can delete students.";
+      } else if (msg.includes("not found") || msg.includes("user not found") || msg.includes("student not found")) {
+        errorMessage = "Student not found";
+      } else if (msg.includes("missing authorization")) {
+        errorMessage = "Authentication required to delete students";
+      }
+
       toast.dismiss(loadingToast);
-      toast.success(result?.message || `${deleteConfirm.studentName} deleted successfully!`);
-    } else {
-      throw new Error(result?.error || "Failed to delete student");
+      toast.error(errorMessage);
+
+      setDeleteConfirm({ isOpen: false, studentId: null, studentName: "" });
+    } finally {
+      // Always reset loading state
+      setOperationLoading((prev) => ({ ...prev, delete: false }));
     }
-  } catch (err) {
-    console.error("❌ Delete error:", err);
-    console.error("❌ Edge Function error details:", {
-      name: err.name,
-      message: err.message,
-      status: err.status,
-      statusText: err.statusText,
-      functionName: err.functionName,
-      responseJson: err.responseJson,
-      responseBody: err.responseBody,
-      originalError: err.originalError,
-    });
-
-    let errorMessage = "Failed to delete student";
-
-    // Prefer structured JSON returned by the Edge Function
-    if (err.responseJson && (err.responseJson.error || err.responseJson.message)) {
-      errorMessage = err.responseJson.error || err.responseJson.message;
-    } else if (err.responseBody && typeof err.responseBody === "string" && err.responseBody.trim().length > 0) {
-      errorMessage = err.responseBody;
-    } else if (err.functionResponse && err.functionResponse.error) {
-      errorMessage = err.functionResponse.error;
-    } else if (err.message) {
-      errorMessage = err.message;
-    }
-
-    if (err.status === 401) {
-      errorMessage = "Authentication required to delete students";
-    } else if (err.status === 403) {
-      errorMessage = "You don't have permission to delete students. Only administrators can delete students.";
-    } else if (err.status === 404) {
-      errorMessage = "Student not found";
-    }
-
-    const msg = String(errorMessage).toLowerCase();
-    if (msg.includes("cannot delete themselves") || msg.includes("delete themselves")) {
-      errorMessage = "You cannot delete yourself";
-    } else if (msg.includes("permission") || msg.includes("only super") || msg.includes("unauthorized")) {
-      errorMessage = "You don't have permission to delete students. Only administrators can delete students.";
-    } else if (msg.includes("not found") || msg.includes("user not found") || msg.includes("student not found")) {
-      errorMessage = "Student not found";
-    } else if (msg.includes("missing authorization")) {
-      errorMessage = "Authentication required to delete students";
-    }
-
-    toast.dismiss(loadingToast);
-    toast.error(errorMessage);
-
-    setDeleteConfirm({ isOpen: false, studentId: null, studentName: "" });
-  } finally {
-    // Always reset loading state
-    setOperationLoading((prev) => ({ ...prev, delete: false }));
-  }
-};
-
-
-
-
-
+  };
 
   const cancelDelete = useCallback(() => {
     setDeleteConfirm({ isOpen: false, studentId: null, studentName: "" });
   }, []);
 
   const handleFormSubmit = async (formData) => {
+    // Set create loading to true when operation starts
+    setOperationLoading((prev) => ({ ...prev, create: !editStudent, update: !!editStudent }));
+
+    // Show loading toast
+    const loadingToast = toast.loading(
+      editStudent ? `Updating ${formData.first_name} ${formData.surname}...` : `Creating ${formData.first_name} ${formData.surname}...`
+    );
+
     try {
       console.log("🔄 Starting form submission with data:", formData);
       let imageUrl = null;
 
       if (selectedImage && formData.admission_number) {
-        const loadingToast = toast.loading("Uploading image...");
+        const imageLoadingToast = toast.loading("Uploading image...");
         try {
           imageUrl = await uploadService.uploadStudentImage(
             selectedImage,
             formData.admission_number
           );
-          toast.dismiss(loadingToast);
+          toast.dismiss(imageLoadingToast);
           console.log("✅ Image uploaded successfully:", imageUrl);
         } catch (uploadError) {
-          toast.dismiss(loadingToast);
+          toast.dismiss(imageLoadingToast);
           toast.error("Failed to upload image, but student data will be saved");
           console.error("❌ Image upload error:", uploadError);
         }
@@ -580,7 +692,9 @@ const confirmDelete = async () => {
               stu.id === editStudent.id ? { ...stu, ...studentData } : stu
             )
           );
-          toast.success("Student updated successfully!");
+
+          toast.dismiss(loadingToast);
+          toast.success(`${formData.first_name} ${formData.surname} updated successfully!`);
         } else {
           throw new Error(result.error || "Failed to update student");
         }
@@ -609,7 +723,9 @@ const confirmDelete = async () => {
 
           // Refresh data to get the new student
           await fetchData();
-          toast.success("Student added successfully!");
+
+          toast.dismiss(loadingToast);
+          toast.success(`${formData.first_name} ${formData.surname} created successfully!`);
         } else {
           console.error("❌ Failed to create student:", result.error);
           throw new Error(result.error || "Failed to create student");
@@ -619,7 +735,11 @@ const confirmDelete = async () => {
       handleFormCancel();
     } catch (err) {
       console.error("❌ Form submission error:", err);
+      toast.dismiss(loadingToast);
       toast.error(`Failed to save student: ${err.message}`);
+    } finally {
+      // Always reset loading state
+      setOperationLoading((prev) => ({ ...prev, create: false, update: false }));
     }
   };
 
@@ -713,10 +833,10 @@ const confirmDelete = async () => {
               Student Management
             </h1>
             <p className="text-gray-600 mt-1">
-              Manage student records and information
+              Manage student records, promotions, and status
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 items-center">
             <select
               value={selectedClassId}
               onChange={(e) => setSelectedClassId(e.target.value)}
@@ -729,25 +849,23 @@ const confirmDelete = async () => {
                 </option>
               ))}
             </select>
-            <button
+            <CreateButton
               onClick={handleAddClick}
-              className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm"
+              loading={operationLoading.create}
+              disabled={operationLoading.create}
             >
-              <svg
-                className="w-4 h-4 mr-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
               Add Student
-            </button>
+            </CreateButton>
+            {isAdmin && (
+              <button
+                className="ml-2 px-4 py-2 rounded-lg bg-blue-600 text-white font-medium disabled:opacity-30"
+                disabled={selectedIds.length === 0}
+                onClick={() => setBulkModalOpen(true)}
+                type="button"
+              >
+                Promote Selected ({selectedIds.length})
+              </button>
+            )}
           </div>
         </div>
 
@@ -828,10 +946,10 @@ const confirmDelete = async () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">
-                  Filtered Results
+                  Active Students
                 </p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {filteredAndSortedStudents.length}
+                  {students.filter(s => s.status === 'active' || !s.status).length}
                 </p>
               </div>
             </div>
@@ -856,10 +974,10 @@ const confirmDelete = async () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">
-                  Current Page
+                  Academic Year
                 </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {currentPage} of {totalPages || 1}
+                <p className="text-xl font-bold text-gray-900">
+                  {currentAcademicYear}
                 </p>
               </div>
             </div>
@@ -879,12 +997,26 @@ const confirmDelete = async () => {
           />
         )}
 
+        {/* Promotion Modal */}
+        <PromotionModal
+          isOpen={promotionModal.isOpen}
+          onClose={() => setPromotionModal({ isOpen: false, student: null })}
+          onPromote={handlePromoteStudent}
+          student={promotionModal.student}
+          classes={classes}
+          loading={operationLoading.promote}
+          currentAcademicYear={currentAcademicYear}
+        />
+
         {/* Student Table */}
         <StudentTable
           students={paginatedStudents}
           allStudents={filteredAndSortedStudents}
           onEdit={handleEditClick}
           onDelete={handleDeleteClick}
+          onPromote={handlePromoteClick}
+          onSuspend={handleSuspendClick}
+          onReactivate={handleReactivateClick}
           searchTerm={searchTerm}
           setSearchTerm={setSearchTerm}
           sortBy={sortBy}
@@ -899,6 +1031,20 @@ const confirmDelete = async () => {
           endItem={endItem}
           totalItems={filteredAndSortedStudents.length}
           operationLoading={operationLoading} 
+          showSelection={isAdmin}
+          selectedIds={selectedIds}
+          onToggleRow={handleToggleRow}
+          onToggleAll={handleToggleAll}
+        />
+        <BulkPromotionModal
+          isOpen={bulkModalOpen}
+          onClose={() => setBulkModalOpen(false)}
+          onConfirm={handleBulkPromoteConfirm}
+          selectedCount={selectedIds.length}
+          classes={classes}
+          currentAcademicYear={currentAcademicYear}
+          loading={bulkLoading}
+          selectedStudents={students.filter(s => selectedIds.includes(s.id))}
         />
 
         {/* Delete Confirmation Dialog */}
@@ -908,11 +1054,23 @@ const confirmDelete = async () => {
           onConfirm={confirmDelete}
           title="Delete Student"
           message={`Are you sure you want to delete ${deleteConfirm.studentName}? This action cannot be undone.`}
-          //confirmText="Delete"
-            confirmText={operationLoading.delete ? "Deleting..." : "Delete"} 
-              loading={operationLoading.delete}  
+          confirmText={operationLoading.delete ? "Deleting..." : "Delete"} 
+          loading={operationLoading.delete}  
           cancelText="Cancel"
           type="danger"
+        />
+
+        {/* Suspend Confirmation Dialog */}
+        <ConfirmDialog
+          isOpen={suspendConfirm.isOpen}
+          onClose={() => setSuspendConfirm({ isOpen: false, student: null })}
+          onConfirm={handleSuspendStudent}
+          title="Suspend Student"
+          message={`Are you sure you want to suspend ${suspendConfirm.student?.full_name}? They will not be able to access the system until reactivated.`}
+          confirmText={operationLoading.suspend ? "Suspending..." : "Suspend"} 
+          loading={operationLoading.suspend}  
+          cancelText="Cancel"
+          type="warning"
         />
 
         {/* Toast Notifications */}

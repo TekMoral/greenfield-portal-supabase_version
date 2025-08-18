@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 
+
 const DashboardLayout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const mobileHeaderRef = useRef(null);

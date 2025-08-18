@@ -118,3 +118,75 @@ export const CancelButton = ({ onClick, disabled = false, size = 'md', ...props 
     </Button>
   );
 };
+
+// Promote Button
+export const PromoteButton = ({ onClick, loading = false, disabled = false, size = 'sm', ...props }) => {
+  const promoteIcon = (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+    </svg>
+  );
+
+  return (
+    <Button
+      variant="primary"
+      size={size}
+      onClick={onClick}
+      loading={loading}
+      disabled={disabled}
+      loadingText="Promoting..."
+      icon={promoteIcon}
+      {...props}
+    >
+      Promote
+    </Button>
+  );
+};
+
+// Suspend Button
+export const SuspendButton = ({ onClick, loading = false, disabled = false, size = 'sm', ...props }) => {
+  const suspendIcon = (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18 12M6 6l6 6" />
+    </svg>
+  );
+
+  return (
+    <Button
+      variant="warning"
+      size={size}
+      onClick={onClick}
+      loading={loading}
+      disabled={disabled}
+      loadingText="Suspending..."
+      icon={suspendIcon}
+      {...props}
+    >
+      Suspend
+    </Button>
+  );
+};
+
+// Reactivate Button
+export const ReactivateButton = ({ onClick, loading = false, disabled = false, size = 'sm', ...props }) => {
+  const reactivateIcon = (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  );
+
+  return (
+    <Button
+      variant="success"
+      size={size}
+      onClick={onClick}
+      loading={loading}
+      disabled={disabled}
+      loadingText="Reactivating..."
+      icon={reactivateIcon}
+      {...props}
+    >
+      Reactivate
+    </Button>
+  );
+};

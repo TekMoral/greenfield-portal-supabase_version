@@ -160,38 +160,123 @@ serve(async (req) => {
       }
     }
 
-    // Log the user update
+    // Log the user update (aligned with create/delete student audit format)
     try {
-      await serviceClient
-        .from('audit_logs')
-        .insert({
-          user_id: user.id,
-          action: `${body.userType.toUpperCase()}_UPDATE`,
-          target_id: body.userId,
-          target_type: 'user',
-          details: {
-            userType: body.userType,
-            userName: updatedUser.full_name,
-            userEmail: updatedUser.email,
-            updatedFields: Object.keys(body.updateData),
-            updatedBy: profile.full_name,
-            previousData: {
-              full_name: currentUser.full_name,
-              email: currentUser.email,
-              is_active: currentUser.is_active,
-              status: currentUser.status
-            },
-            newData: {
-              full_name: updatedUser.full_name,
-              email: updatedUser.email,
-              is_active: updatedUser.is_active,
-              status: updatedUser.status
-            }
-          },
-          description: `Updated ${body.userType}: ${updatedUser.full_name} (${updatedUser.email})`,
-          ip_address: req.headers.get('x-forwarded-for') || 'unknown',
-          user_agent: req.headers.get('user-agent') || 'unknown',
-        })
+      const { data: { user: actingAuthUser } } = await userClient.auth.getUser();
+
+      // Normalize request IP and User-Agent for inet compatibility
+      const xf = req.headers.get('x-forwarded-for') || '';
+      const ipAddr = xf.split(',')[0]?.trim() || null; // inet must be valid IP or null
+      const userAgent = req.headers.get('user-agent') || null;
+
+      if (body.userType === 'student') {
+        // Human-readable class info before/after
+        let newClassInfo: { id: string | null; name: string | null } = { id: (updatedUser as any).class_id || null, name: null };
+        let oldClassInfo: { id: string | null; name: string | null } = { id: (currentUser as any).class_id || null, name: null };
+        try {
+          if ((updatedUser as any).class_id) {
+            const { data: classNew } = await serviceClient
+              .from('classes')
+              .select('id, name')
+              .eq('id', (updatedUser as any).class_id)
+              .single();
+            if (classNew) newClassInfo = { id: classNew.id, name: classNew.name };
+          }
+          if ((currentUser as any).class_id) {
+            const { data: classOld } = await serviceClient
+              .from('classes')
+              .select('id, name')
+              .eq('id', (currentUser as any).class_id)
+              .single();
+            if (classOld) oldClassInfo = { id: classOld.id, name: classOld.name };
+          }
+        } catch (_) { /* ignore class lookup errors */ }
+
+        // Determine actual changed fields by comparing previous vs updated values
+        const candidateFields = Object.keys(body.updateData);
+        const normalize = (v: any) => (v === undefined ? null : v);
+        const changedFields = candidateFields.filter((key) => {
+          const before = normalize((currentUser as any)[key]);
+          const after = normalize((updatedUser as any)[key]);
+          return JSON.stringify(before) !== JSON.stringify(after);
+        });
+
+        const oldValues: Record<string, any> = {};
+        const newValues: Record<string, any> = {};
+        for (const key of changedFields) {
+          oldValues[key] = normalize((currentUser as any)[key]);
+          newValues[key] = normalize((updatedUser as any)[key]);
+        }
+
+        // Only include class details if class_id changed
+        const classChanged = changedFields.includes('class_id');
+        const details: Record<string, any> = {
+          updated_by: actingAuthUser?.email ?? null,
+          updated_fields: changedFields,
+          changes: changedFields.map((f) => ({ field: f, before: oldValues[f], after: newValues[f] }))
+        };
+        if (classChanged) {
+          details.class_before = oldClassInfo;
+          details.class_after = newClassInfo;
+        }
+        // Include email/admission_number only if they changed
+        if (changedFields.includes('email')) details.email = (updatedUser as any).email;
+        if (changedFields.includes('admission_number')) details.admission_number = (updatedUser as any).admission_number || null;
+
+        await serviceClient.from('audit_logs').insert([
+          {
+            user_id: actingAuthUser?.id ?? user.id ?? null,
+            action: 'update_student',
+            resource_type: 'student',
+            resource_id: body.userId,
+            details,
+            old_values: oldValues,
+            new_values: newValues,
+            ip_address: ipAddr,
+            user_agent: userAgent,
+            created_at: new Date().toISOString()
+          }
+        ]);
+      } else {
+        // Generic logging for non-student updates in a consistent shape
+        const candidateFields2 = Object.keys(body.updateData);
+        const normalize2 = (v: any) => (v === undefined ? null : v);
+        const changedFields2 = candidateFields2.filter((key) => {
+          const before = normalize2((currentUser as any)[key]);
+          const after = normalize2((updatedUser as any)[key]);
+          return JSON.stringify(before) !== JSON.stringify(after);
+        });
+
+        const oldValues2: Record<string, any> = {};
+        const newValues2: Record<string, any> = {};
+        for (const key of changedFields2) {
+          oldValues2[key] = normalize2((currentUser as any)[key]);
+          newValues2[key] = normalize2((updatedUser as any)[key]);
+        }
+
+        const detailsGeneric: Record<string, any> = {
+          name: (updatedUser as any).full_name,
+          email: (updatedUser as any).email,
+          updated_by: actingAuthUser?.email ?? null,
+          updated_fields: changedFields2,
+          changes: changedFields2.map((f) => ({ field: f, before: oldValues2[f], after: newValues2[f] }))
+        };
+
+        await serviceClient.from('audit_logs').insert([
+          {
+            user_id: actingAuthUser?.id ?? user.id ?? null,
+            action: `update_${body.userType}`,
+            resource_type: body.userType,
+            resource_id: body.userId,
+            details: detailsGeneric,
+            old_values: oldValues2,
+            new_values: newValues2,
+            ip_address: ipAddr,
+            user_agent: userAgent,
+            created_at: new Date().toISOString()
+          }
+        ]);
+      }
     } catch (auditError) {
       console.warn('Failed to log user update:', auditError)
       // Don't fail the operation for audit logging

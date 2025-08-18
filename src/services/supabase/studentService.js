@@ -10,7 +10,7 @@ export const studentService = {
         .from("user_profiles")
         .select("*")
         .eq("role", "student")
-        .eq("is_active", true)
+        .neq("status", "deleted")
         .order("created_at", { ascending: false });
 
       if (studentsError) {
@@ -198,7 +198,7 @@ export const studentService = {
         .select("*")
         .eq("class_id", classId)
         .eq("role", "student")
-        .eq("is_active", true)
+        .neq("status", "deleted")
         .order("full_name", { ascending: true });
 
       if (studentsError) throw studentsError;

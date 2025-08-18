@@ -208,6 +208,7 @@ export const useAuditLog = () => {
     
     // User info
     isAdmin,
+    isSuperAdmin,
     canLog
   };
 };

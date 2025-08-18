@@ -29,7 +29,7 @@ serve(async (req) => {
 
     // Create user client to verify permissions
     const userClient = createUserClient(authHeader)
-    await verifyUserRole(userClient, ['admin', 'super_admin'])
+    const { user, profile } = await verifyUserRole(userClient, ['admin', 'super_admin'])
 
     // Parse request body
     const body: CreateTeacherRequest = await req.json()
@@ -161,6 +161,38 @@ serve(async (req) => {
     }
 
     console.log('✅ Teacher creation completed:', teacherData)
+
+    // Audit log for teacher creation (aligned with pattern)
+    try {
+      const xf = req.headers.get('x-forwarded-for') || ''
+      const ipAddr = xf.split(',')[0]?.trim() || null
+      const userAgent = req.headers.get('user-agent') || null
+
+      await serviceClient
+        .from('audit_logs')
+        .insert([
+          {
+            user_id: user.id,
+            action: 'create_teacher',
+            resource_type: 'teacher',
+            resource_id: authData.user.id,
+            details: {
+              email: body.email,
+              employee_id: employeeId,
+              subject: body.subject,
+              qualification: body.qualification,
+              phone: body.phoneNumber || null,
+              hire_date: body.dateHired || new Date().toISOString().split('T')[0],
+              created_by: user.email || null
+            },
+            ip_address: ipAddr,
+            user_agent: userAgent,
+            created_at: new Date().toISOString()
+          }
+        ])
+    } catch (auditError) {
+      console.error('Error logging teacher creation:', auditError)
+    }
 
     return new Response(
       JSON.stringify({ success: true, data: teacherData }),

@@ -161,6 +161,31 @@ serve(async (req) => {
       classes: classData,
     }
 
+    // Insert audit log entry for student creation
+    try {
+      // Identify the authenticated admin/super-admin performing this action
+      const { data: { user: actingAuthUser } } = await userClient.auth.getUser();
+
+      await serviceClient.from("audit_logs").insert([
+        {
+          user_id: actingAuthUser?.id ?? null, // ID of admin/superadmin performing the creation
+          action: "create_student",
+          resource_type: "student",
+          resource_id: profile.id,
+          details: {
+            email: body.email,
+            admission_number: body.admission_number,
+            class: { id: classData.id, name: classData.name },
+            created_by: actingAuthUser?.email ?? null
+          },
+          created_at: new Date().toISOString(),
+        }
+      ])
+    } catch (e) {
+      // For now just log the error, do not fail the flow
+      console.error('Failed to insert audit log for student creation:', e)
+    }
+
     return new Response(
       JSON.stringify({ success: true, data: studentData }),
       {

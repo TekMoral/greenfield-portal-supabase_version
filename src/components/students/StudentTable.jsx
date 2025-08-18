@@ -2,13 +2,16 @@ import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import ProfileImage from "../common/ProfileImage";
 import ImageModal from "../common/ImageModal";
-import { EditButton, DeleteButton } from "../ui/ActionButtons";
+import { EditButton, DeleteButton, PromoteButton, SuspendButton, ReactivateButton } from "../ui/ActionButtons";
 
 const StudentTable = ({
   students = [],
   allStudents = [],
   onEdit,
   onDelete,
+  onPromote,
+  onSuspend,
+  onReactivate,
   searchTerm = "",
   setSearchTerm,
   sortBy = "name",
@@ -19,10 +22,15 @@ const StudentTable = ({
   itemsPerPage = 10,
   setItemsPerPage,
   onPageChange,
-  operationLoading = { create: false, update: false, delete: false },
+  operationLoading = { create: false, update: false, delete: false, promote: false, suspend: false, reactivate: false },
   startItem = 0,
   endItem = 0,
   totalItems = 0,
+  // Bulk selection props
+  showSelection = false,
+  selectedIds = [],
+  onToggleRow = () => {},
+  onToggleAll = () => {},
 }) => {
   const { userRole, isSuperAdmin } = useAuth();
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -30,6 +38,13 @@ const StudentTable = ({
   const [viewMode, setViewMode] = useState("auto");
   const [searchFocused, setSearchFocused] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+
+  // Selection helpers
+  const selectedSet = useMemo(() => new Set(selectedIds || []), [selectedIds]);
+  const allSelectedOnPage = useMemo(
+    () => showSelection && students.length > 0 && students.every((s) => selectedSet.has(s.id)),
+    [showSelection, students, selectedSet]
+  );
 
   // Check if mobile on mount and resize
   useEffect(() => {
@@ -154,14 +169,22 @@ const StudentTable = ({
     student,
     onEdit,
     onDelete,
+    onPromote,
+    onSuspend,
+    onReactivate,
     isMobile = false,
     isDesktopCard = false,
-    operationLoading = { create: false, update: false, delete: false },
+    operationLoading = { create: false, update: false, delete: false, promote: false, suspend: false, reactivate: false },
   }) => {
     const { userRole, isSuperAdmin } = useAuth();
 
-    // Hide edit and delete buttons for admin and student users (only show for super admins)
-    if ((userRole === "admin" || userRole === "student") && !isSuperAdmin) {
+    // Check permissions
+    const canEdit = userRole === "super_admin" || isSuperAdmin;
+    const canDelete = userRole === "super_admin" || isSuperAdmin;
+    const canPromote = ["super_admin", "admin"].includes(userRole) || isSuperAdmin;
+    const canSuspend = ["super_admin", "admin"].includes(userRole) || isSuperAdmin;
+
+    if (!canEdit && !canDelete && !canPromote && !canSuspend) {
       return (
         <div className="text-center">
           <span className="text-gray-400 text-sm">No Permission</span>
@@ -169,50 +192,131 @@ const StudentTable = ({
       );
     }
 
+    const studentStatus = student?.status || 'active';
+
     if (isMobile || isDesktopCard) {
       return (
-        <div className="flex space-x-2">
-          <EditButton
-            onClick={() => onEdit(student)}
-            loading={operationLoading?.update}
-            disabled={operationLoading?.update}
-            className="flex-1"
-          />
-          <DeleteButton
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              console.log("🔴 Delete button clicked for student:", student);
-              console.log("🔴 onDelete function:", onDelete);
-              onDelete(student);
-            }}
-            loading={operationLoading?.delete}
-            disabled={operationLoading?.delete}
-            className="flex-1"
-          />
+        <div className="flex flex-wrap gap-2">
+          {canEdit && (
+            <EditButton
+              onClick={() => onEdit(student)}
+              loading={operationLoading?.update}
+              disabled={operationLoading?.update}
+              className="flex-1 min-w-0"
+              size="xs"
+            />
+          )}
+          
+          {canPromote && studentStatus === 'active' && onPromote && (
+            <PromoteButton
+              onClick={() => onPromote(student)}
+              loading={operationLoading?.promote}
+              disabled={operationLoading?.promote}
+              className="flex-1 min-w-0"
+              size="xs"
+            />
+          )}
+          
+          {canSuspend && studentStatus === 'active' && onSuspend && (
+            <SuspendButton
+              onClick={() => onSuspend(student)}
+              loading={operationLoading?.suspend}
+              disabled={operationLoading?.suspend}
+              className="flex-1 min-w-0"
+              size="xs"
+            />
+          )}
+          
+          {canSuspend && studentStatus === 'suspended' && onReactivate && (
+            <ReactivateButton
+              onClick={() => onReactivate(student)}
+              loading={operationLoading?.reactivate}
+              disabled={operationLoading?.reactivate}
+              className="flex-1 min-w-0"
+              size="xs"
+            />
+          )}
+          
+          {canDelete && (
+            <DeleteButton
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onDelete(student);
+              }}
+              loading={operationLoading?.delete}
+              disabled={operationLoading?.delete}
+              className="flex-1 min-w-0"
+              size="xs"
+            />
+          )}
         </div>
       );
     }
 
     return (
-      <div className="flex items-center space-x-2">
-        <EditButton
-          onClick={() => onEdit(student)}
-          loading={operationLoading?.update}
-          disabled={operationLoading?.update}
-        />
-        <DeleteButton
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            console.log("🔴 Delete button clicked for student (table view):", student);
-            console.log("🔴 onDelete function:", onDelete);
-            onDelete(student);
-          }}
-          loading={operationLoading?.delete}
-          disabled={operationLoading?.delete}
-        />
+      <div className="flex items-center space-x-1">
+        {canEdit && (
+          <EditButton
+            onClick={() => onEdit(student)}
+            loading={operationLoading?.update}
+            disabled={operationLoading?.update}
+          />
+        )}
+        
+        {canPromote && studentStatus === 'active' && onPromote && (
+          <PromoteButton
+            onClick={() => onPromote(student)}
+            loading={operationLoading?.promote}
+            disabled={operationLoading?.promote}
+          />
+        )}
+        
+        {canSuspend && studentStatus === 'active' && onSuspend && (
+          <SuspendButton
+            onClick={() => onSuspend(student)}
+            loading={operationLoading?.suspend}
+            disabled={operationLoading?.suspend}
+          />
+        )}
+        
+        {canSuspend && studentStatus === 'suspended' && onReactivate && (
+          <ReactivateButton
+            onClick={() => onReactivate(student)}
+            loading={operationLoading?.reactivate}
+            disabled={operationLoading?.reactivate}
+          />
+        )}
+        
+        {canDelete && (
+          <DeleteButton
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onDelete(student);
+            }}
+            loading={operationLoading?.delete}
+            disabled={operationLoading?.delete}
+          />
+        )}
       </div>
+    );
+  };
+
+  const StatusBadge = ({ status }) => {
+    const statusConfig = {
+      active: { color: 'green', text: 'Active' },
+      suspended: { color: 'red', text: 'Suspended' },
+      graduated: { color: 'blue', text: 'Graduated' },
+      deleted: { color: 'gray', text: 'Deleted' }
+    };
+
+    const config = statusConfig[status] || statusConfig.active;
+
+    return (
+      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-${config.color}-100 text-${config.color}-800`}>
+        {config.text}
+      </span>
     );
   };
 
@@ -248,6 +352,7 @@ const StudentTable = ({
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                 {student?.classes?.name || "N/A"}
               </span>
+              <StatusBadge status={student?.status || 'active'} />
               {student?.gender && (
                 <span
                   className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -365,6 +470,9 @@ const StudentTable = ({
           student={student}
           onEdit={onEdit}
           onDelete={onDelete}
+          onPromote={onPromote}
+          onSuspend={onSuspend}
+          onReactivate={onReactivate}
           isMobile={true}
           operationLoading={operationLoading}
         />
@@ -540,158 +648,275 @@ const StudentTable = ({
       ) : (
         <>
           {/* Table View - Desktop */}
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Photo
-                  </th>
-                  <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <SortButton field="name">Student</SortButton>
-                  </th>
-                  <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <SortButton field="admission">Admission No.</SortButton>
-                  </th>
-                  <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <SortButton field="class">Class</SortButton>
-                  </th>
-                  <th className="hidden lg:table-cell px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Gender
-                  </th>
-                  <th className="hidden xl:table-cell px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <SortButton field="date_of_birth">Date of Birth</SortButton>
-                  </th>
-                  <th className="hidden xl:table-cell px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Guardian & Phone
-                  </th>
-                  <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {students.map((student, index) => (
-                  <tr
-                    key={student?.id || index}
-                    className="hover:bg-gray-50 transition-colors"
-                  >
-                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                      <div
-                        className={`${
-                          (userRole === "admin" || isSuperAdmin) &&
-                          student?.profile_image
-                            ? "cursor-pointer hover:opacity-80 transition-opacity"
-                            : ""
-                        }`}
-                        onClick={() => handleImageClick(student)}
-                        title={
-                          (userRole === "admin" || isSuperAdmin) &&
-                          student?.profile_image
-                            ? "Click to view larger image"
-                            : ""
-                        }
-                      >
-                        <ProfileImage
-                          src={student?.profile_image}
-                          alt={student?.full_name || "Student"}
-                          size="sm"
-                          fallbackName={student?.full_name || ""}
+          {actualViewMode === "table" && (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 sm:px-3 py-3 text-left">
+                      {showSelection ? (
+                        <input
+                          type="checkbox"
+                          aria-label="Select all on page"
+                          checked={allSelectedOnPage}
+                          onChange={() => {
+                            const ids = students.map((s) => s.id).filter(Boolean);
+                            // If already all selected on page, unselect; otherwise select
+                            onToggleAll(ids, !allSelectedOnPage);
+                          }}
                         />
-                      </div>
-                    </td>
-                    <td className="px-4 sm:px-6 py-4">
-                      <div className="flex flex-col">
-                        <div className="text-sm font-medium text-gray-900 truncate max-w-[200px]">
-                          {student?.full_name || "N/A"}
-                        </div>
-                        <div className="text-sm text-gray-500 truncate max-w-[200px]">
-                          {student?.email || "No email"}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {student?.admission_number || "N/A"}
-                    </td>
-                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        {student?.classes?.name || "N/A"}
-                      </span>
-                    </td>
-                    <td className="hidden lg:table-cell px-4 sm:px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          student?.gender?.toLowerCase() === "male"
-                            ? "bg-blue-100 text-blue-800"
-                            : student?.gender?.toLowerCase() === "female"
-                            ? "bg-pink-100 text-pink-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}
-                      >
-                        {student?.gender || "N/A"}
-                      </span>
-                    </td>
-                    <td className="hidden xl:table-cell px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {student?.date_of_birth
-                        ? new Date(student.date_of_birth).toLocaleDateString()
-                        : "N/A"}
-                    </td>
-                    <td className="hidden xl:table-cell px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <div className="flex flex-col">
-                        <div className="truncate max-w-[150px]">
-                          {student?.guardian_name || "N/A"}
-                        </div>
-                        {(student?.guardian_phone ||
-                          student?.contact ||
-                          student?.phone_number) && (
-                          <div className="text-xs text-gray-500 flex items-center mt-1">
-                            <svg
-                              className="w-3 h-3 mr-1"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                              />
-                            </svg>
-                            {student.guardian_phone ||
-                              student.contact ||
-                              student.phone_number}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <ActionsCell
-                        student={student}
-                        onEdit={onEdit}
-                        onDelete={onDelete}
-                        operationLoading={operationLoading}
-                      />
-                    </td>
+                      ) : null}
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Photo
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <SortButton field="name">Student</SortButton>
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <SortButton field="admission">Admission No.</SortButton>
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <SortButton field="class">Class</SortButton>
+                    </th>
+                    <th className="hidden lg:table-cell px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="hidden lg:table-cell px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Gender
+                    </th>
+                    <th className="hidden xl:table-cell px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <SortButton field="date_of_birth">Date of Birth</SortButton>
+                    </th>
+                    <th className="hidden xl:table-cell px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Guardian & Phone
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {students.map((student, index) => (
+                    <tr
+                      key={student?.id || index}
+                      className="hover:bg-gray-50 transition-colors"
+                    >
+                      <td className="px-4 sm:px-3 py-4 whitespace-nowrap align-middle">
+                        {showSelection ? (
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${student?.full_name || 'student'}`}
+                            checked={!!student?.id && selectedSet.has(student.id)}
+                            onChange={() => student?.id && onToggleRow(student.id)}
+                          />
+                        ) : null}
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                        <div
+                          className={`${
+                            (userRole === "admin" || isSuperAdmin) &&
+                            student?.profile_image
+                              ? "cursor-pointer hover:opacity-80 transition-opacity"
+                              : ""
+                          }`}
+                          onClick={() => handleImageClick(student)}
+                          title={
+                            (userRole === "admin" || isSuperAdmin) &&
+                            student?.profile_image
+                              ? "Click to view larger image"
+                              : ""
+                          }
+                        >
+                          <ProfileImage
+                            src={student?.profile_image}
+                            alt={student?.full_name || "Student"}
+                            size="sm"
+                            fallbackName={student?.full_name || ""}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-4 sm:px-6 py-4">
+                        <div className="flex flex-col">
+                          <div className="text-sm font-medium text-gray-900 truncate max-w-[200px]">
+                            {student?.full_name || "N/A"}
+                          </div>
+                          <div className="text-sm text-gray-500 truncate max-w-[200px]">
+                            {student?.email || "No email"}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {student?.admission_number || "N/A"}
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          {student?.classes?.name || "N/A"}
+                        </span>
+                      </td>
+                      <td className="hidden lg:table-cell px-4 sm:px-6 py-4 whitespace-nowrap">
+                        <StatusBadge status={student?.status || 'active'} />
+                      </td>
+                      <td className="hidden lg:table-cell px-4 sm:px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            student?.gender?.toLowerCase() === "male"
+                              ? "bg-blue-100 text-blue-800"
+                              : student?.gender?.toLowerCase() === "female"
+                              ? "bg-pink-100 text-pink-800"
+                              : "bg-gray-100 text-gray-800"
+                          }`}
+                        >
+                          {student?.gender || "N/A"}
+                        </span>
+                      </td>
+                      <td className="hidden xl:table-cell px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {student?.date_of_birth
+                          ? new Date(student.date_of_birth).toLocaleDateString()
+                          : "N/A"}
+                      </td>
+                      <td className="hidden xl:table-cell px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <div className="flex flex-col">
+                          <div className="truncate max-w-[150px]">
+                            {student?.guardian_name || "N/A"}
+                          </div>
+                          {(student?.guardian_phone ||
+                            student?.contact ||
+                            student?.phone_number) && (
+                            <div className="text-xs text-gray-500 flex items-center mt-1">
+                              <svg
+                                className="w-3 h-3 mr-1"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                                />
+                              </svg>
+                              {student.guardian_phone ||
+                                student.contact ||
+                                student.phone_number}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <ActionsCell
+                          student={student}
+                          onEdit={onEdit}
+                          onDelete={onDelete}
+                          onPromote={onPromote}
+                          onSuspend={onSuspend}
+                          onReactivate={onReactivate}
+                          operationLoading={operationLoading}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Card Views */}
-          <div className="p-4">
-            <div className="space-y-4">
-              {students.map((student, index) => (
-                <MobileStudentCard
-                  key={student?.id || index}
-                  student={student}
-                  index={index}
-                />
-              ))}
+          {actualViewMode === "cards" && (
+            <div className="p-4">
+              <div className="space-y-4">
+                {students.map((student, index) => (
+                  <MobileStudentCard
+                    key={student?.id || index}
+                    student={student}
+                    index={index}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Enhanced Pagination */}
+      {totalPages > 1 && (
+        <div className="px-4 sm:px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="text-sm text-gray-700 text-center sm:text-left">
+              Page <span className="font-medium">{currentPage}</span> of{" "}
+              <span className="font-medium">{totalPages}</span>
+            </div>
+
+            <div className="flex items-center justify-center space-x-1">
+              {/* Previous button */}
+              <button
+                onClick={() => onPageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-l-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <span className="hidden sm:inline">Previous</span>
+                <svg
+                  className="w-4 h-4 sm:hidden"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+              </button>
+
+              {/* Page numbers */}
+              <div className="flex">
+                {pageNumbers.map((page, index) => (
+                  <button
+                    key={index}
+                    onClick={() =>
+                      typeof page === "number" && onPageChange(page)
+                    }
+                    disabled={page === "..."}
+                    className={`px-3 py-2 text-sm font-medium border-t border-b border-r border-gray-300 transition-colors ${
+                      page === currentPage
+                        ? "bg-green-600 text-white border-green-600"
+                        : page === "..."
+                        ? "bg-white text-gray-400 cursor-default"
+                        : "bg-white text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+
+              {/* Next button */}
+              <button
+                onClick={() => onPageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-r-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <span className="hidden sm:inline">Next</span>
+                <svg
+                  className="w-4 h-4 sm:hidden"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </button>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* Image Modal */}

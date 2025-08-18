@@ -93,23 +93,49 @@ serve(async (req) => {
       console.warn('Failed to update auth user metadata for soft delete:', authError);
     }
 
-    // Log deletion in audit_logs
+    // Log deletion in audit_logs (aligned with create-student logging)
     try {
-      await serviceClient.from('audit_logs').insert({
-        user_id: user.id,
-        action: 'STUDENT_DELETE',
-        target_id: studentId,
-        target_type: 'student',
-        details: {
-          studentName: student.full_name,
-          studentEmail: student.email,
-          deletedBy: profile.full_name,
-          deletionResult
-        },
-        description: `Soft deleted student: ${student.full_name} (${student.email})`,
-        ip_address: req.headers.get('x-forwarded-for') || 'unknown',
-        user_agent: req.headers.get('user-agent') || 'unknown'
-      });
+      // Identify acting admin/super-admin from auth token
+      const { data: { user: actingAuthUser } } = await userClient.auth.getUser();
+
+      // Fetch class info for human-readable context
+      let classInfo: { id: string | null; name: string | null } = { id: student.class_id || null, name: null };
+      try {
+        if (student.class_id) {
+          const { data: classData } = await serviceClient
+            .from('classes')
+            .select('id, name')
+            .eq('id', student.class_id)
+            .single();
+          if (classData) {
+            classInfo = { id: classData.id, name: classData.name };
+          }
+        }
+      } catch (_) { /* ignore class lookup issues */ }
+
+      // Normalize request IP and User-Agent for logging
+      const xf = req.headers.get('x-forwarded-for') || '';
+      const ipAddr = xf.split(',')[0]?.trim() || null; // inet field: must be a valid IP or null
+      const userAgent = req.headers.get('user-agent') || null;
+
+      await serviceClient.from('audit_logs').insert([
+        {
+          user_id: actingAuthUser?.id ?? user.id ?? null,
+          action: 'delete_student',
+          resource_type: 'student',
+          resource_id: student.id,
+          details: {
+            email: student.email,
+            admission_number: (student as any).admission_number || null,
+            class: classInfo,
+            deleted_by: actingAuthUser?.email ?? (profile as any)?.email ?? null,
+            method: deleteMethod
+          },
+          ip_address: ipAddr,
+          user_agent: userAgent,
+          created_at: new Date().toISOString()
+        }
+      ]);
     } catch (auditError) {
       console.warn('Failed to log student deletion:', auditError);
     }

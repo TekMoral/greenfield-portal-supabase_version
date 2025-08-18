@@ -295,7 +295,7 @@ export const teacherService = {
       console.log("🔄 Fetching all teachers...");
 
       const { data, error } = await dbOperations.queryTeachers(
-        { status: "active" },
+        {},
         { order: { field: "created_at", asc: false } }
       );
 

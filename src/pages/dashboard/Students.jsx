@@ -4,7 +4,7 @@ import StudentForm from "../../components/forms/StudentForm";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import PromotionModal from "../../components/modals/PromotionModal";
 import BulkPromotionModal from "../../components/modals/BulkPromotionModal";
-import toast, { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
 import { getAllStudents } from "../../services/supabase/migrationWrapper";
 import edgeFunctionsService from "../../services/supabase/edgeFunctions";
 import { getAllClasses } from "../../services/supabase/classService";
@@ -1073,25 +1073,7 @@ const Students = () => {
           type="warning"
         />
 
-        {/* Toast Notifications */}
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: "#363636",
-              color: "#fff",
-            },
-            success: {
-              duration: 3000,
-              theme: {
-                primary: "green",
-                secondary: "black",
-              },
-            },
-          }}
-        />
-      </div>
+              </div>
     </div>
   );
 };

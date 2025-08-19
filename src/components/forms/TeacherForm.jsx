@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import PasswordInput from "../ui/PasswordInput";
 import { SaveButton, CancelButton } from "../ui/ActionButtons";
 
-const TeacherForm = ({ onSubmit, onCancel, error, loading = false }) => {
+const TeacherForm = ({ onSubmit, onCancel, error, loading = false, mode = 'add', defaultValues = {} }) => {
   const [imagePreview, setImagePreview] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
 
@@ -13,7 +13,7 @@ const TeacherForm = ({ onSubmit, onCancel, error, loading = false }) => {
     formState: { errors },
     reset,
     setValue,
-  } = useForm();
+  } = useForm({ defaultValues });
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -44,6 +44,12 @@ const TeacherForm = ({ onSubmit, onCancel, error, loading = false }) => {
     setValue("profileImage", null);
     document.getElementById("profileImage").value = "";
   };
+
+  React.useEffect(() => {
+    if (defaultValues && defaultValues.profileImageUrl && !selectedFile) {
+      setImagePreview(defaultValues.profileImageUrl);
+    }
+  }, [defaultValues, selectedFile]);
 
   const onSubmitForm = (data) => {
     const formData = {
@@ -86,8 +92,8 @@ const TeacherForm = ({ onSubmit, onCancel, error, loading = false }) => {
             </svg>
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-white mb-1">Add New Teacher</h2>
-            <p className="text-blue-100 text-sm">Fill in the details to create a new teacher profile</p>
+            <h2 className="text-2xl font-bold text-white mb-1">{mode === 'edit' ? 'Edit Teacher' : 'Add New Teacher'}</h2>
+            <p className="text-blue-100 text-sm">{mode === 'edit' ? 'Update the teacher profile details' : 'Fill in the details to create a new teacher profile'}</p>
           </div>
         </div>
       </div>
@@ -193,21 +199,23 @@ const TeacherForm = ({ onSubmit, onCancel, error, loading = false }) => {
             />
           </InputField>
 
-          <InputField label="Password" error={errors.password?.message}>
-            <PasswordInput
-              placeholder="Enter password"
-              {...register("password", {
-                required: "Password is required",
-                minLength: {
-                  value: 6,
-                  message: "Password must be at least 6 characters",
-                },
-              })}
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                errors.password ? "border-red-500 bg-red-50" : "border-gray-300"
-              }`}
-            />
-          </InputField>
+          {mode === 'add' && (
+            <InputField label="Password" error={errors.password?.message}>
+              <PasswordInput
+                placeholder="Enter password"
+                {...register("password", {
+                  required: "Password is required",
+                  minLength: {
+                    value: 6,
+                    message: "Password must be at least 6 characters",
+                  },
+                })}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
+                  errors.password ? "border-red-500 bg-red-50" : "border-gray-300"
+                }`}
+              />
+            </InputField>
+          )}
 
           <InputField label="Phone Number" error={errors.phoneNumber?.message}>
             <input

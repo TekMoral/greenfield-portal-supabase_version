@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getAllTeachers } from '../services/supabase/migrationWrapper';
-import { getSubjectsByDepartment } from '../services/supabase/subjectService';
+import { getSubjects } from '../services/supabase/subjectService';
 
 const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
   const [teachers, setTeachers] = useState([]);
@@ -20,27 +20,18 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
       try {
         setLoading(true);
         
-        // Get all teachers
-        const teachersData = await getAllTeachers();
-        setTeachers(teachersData);
-        
-        // Get subjects based on class level and category
-        let subjects = [];
-        
-        // Always include core subjects
-        const coreSubjects = await getSubjectsByDepartment('core');
-        subjects = [...coreSubjects];
-        
-        // Add level/category specific subjects
-        if (classData.level === 'Junior') {
-          const juniorSubjects = await getSubjectsByDepartment('junior');
-          subjects = [...subjects, ...juniorSubjects];
-        } else if (classData.level === 'Senior' && classData.category) {
-          const categorySubjects = await getSubjectsByDepartment(classData.category.toLowerCase());
-          subjects = [...subjects, ...categorySubjects];
+        // Get all teachers (handle migration wrapper response)
+        const teachersResult = await getAllTeachers();
+        if (teachersResult?.success) {
+          setTeachers(teachersResult.data || []);
+        } else {
+          console.error('Failed to fetch teachers:', teachersResult?.error);
+          setTeachers([]);
         }
         
-        setAvailableSubjects(subjects);
+        // Get all active subjects to ensure full list is available regardless of class level/category
+        const subjects = await getSubjects();
+        setAvailableSubjects(subjects || []);
         
         // Initialize classSubjects with existing data (if any)
         setClassSubjects(classData.subjects || []);
@@ -60,9 +51,19 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
       return;
     }
 
-    // Check if subject is already assigned
-    if (classSubjects.some(subject => subject.subjectName === newSubject.subjectName)) {
-      alert('This subject is already assigned to a teacher');
+    // Count current assignments for this subject
+    const subjectCount = classSubjects.filter(subject => subject.subjectName === newSubject.subjectName).length;
+    if (subjectCount >= 2) {
+      alert('A maximum of 2 teachers can be assigned to the same subject in a class.');
+      return;
+    }
+
+    // Prevent duplicate assignment of the same teacher to the same subject
+    const duplicatePair = classSubjects.some(
+      subject => subject.subjectName === newSubject.subjectName && subject.teacherId === newSubject.teacherId
+    );
+    if (duplicatePair) {
+      alert('This teacher is already assigned to this subject in this class.');
       return;
     }
 
@@ -96,8 +97,12 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
   };
 
   const getUnassignedSubjects = () => {
-    const assignedSubjects = classSubjects.map(subject => subject.subjectName);
-    return availableSubjects.filter(subject => !assignedSubjects.includes(subject.name));
+    // Allow up to 2 teachers per subject; filter out only subjects that already have 2 assignments
+    const counts = classSubjects.reduce((acc, s) => {
+      acc[s.subjectName] = (acc[s.subjectName] || 0) + 1;
+      return acc;
+    }, {});
+    return availableSubjects.filter(subject => (counts[subject.name] || 0) < 2);
   };
 
   const handleSave = () => {

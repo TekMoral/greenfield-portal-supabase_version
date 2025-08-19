@@ -19,10 +19,20 @@ const Admins = () => {
 
   const fetchAdmins = async () => {
     try {
-      const adminList = await getAllAdmins();
-      setAdmins(adminList);
+      const result = await getAllAdmins();
+      if (result && result.success) {
+        const list = (result.data || []).map((a) => ({
+          ...a,
+          name: a.full_name || a.name,
+          isActive: typeof a.is_active === 'boolean' ? a.is_active : a.isActive,
+        }));
+        setAdmins(list);
+      } else {
+        throw new Error(result?.error || 'Failed to fetch admins');
+      }
     } catch (err) {
       setError(err.message);
+      setAdmins([]);
     } finally {
       setLoading(false);
     }

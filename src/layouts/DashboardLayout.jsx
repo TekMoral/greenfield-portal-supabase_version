@@ -1,13 +1,14 @@
 // File: src/layouts/DashboardLayout.jsx
 
 import { useState, useEffect, useRef } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 
 
 const DashboardLayout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const mobileHeaderRef = useRef(null);
+  const location = useLocation();
 
   // Set --mobile-header-height (fallback if you want to reference it independently)
   useEffect(() => {
@@ -49,7 +50,7 @@ const DashboardLayout = () => {
         <div className="flex-1 flex flex-col min-w-0">
           {/* Main Content Area */}
           <main className="flex-1 overflow-auto p-6">
-            <Outlet />
+            <Outlet key={location.pathname} />
           </main>
         </div>
       </div>
@@ -88,7 +89,7 @@ const DashboardLayout = () => {
           className="flex-1 overflow-auto p-4"
           style={{ paddingTop: "var(--header-height, 90px)" }}
         >
-          <Outlet />
+          <Outlet key={location.pathname} />
         </main>
       </div>
     </div>

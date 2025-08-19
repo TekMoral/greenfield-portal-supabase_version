@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { getAllTeachers, createTeacher, deleteTeacher } from '../../services/supabase/migrationWrapper';
+import edgeFunctionsService from '../../services/supabase/edgeFunctions';
 import TeacherForm from '../../components/forms/TeacherForm';
 import TeacherTable from '../../components/teachers/TeacherTable';
 import { CreateButton } from '../../components/ui/ActionButtons';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import useAuditLog from '../../hooks/useAuditLog';
 import { toast } from 'react-hot-toast';
 
@@ -11,7 +13,9 @@ const Teachers = () => {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState('');
-  const [operationLoading, setOperationLoading] = useState({ create: false });
+  const [operationLoading, setOperationLoading] = useState({ create: false, update: false, suspend: false, delete: false });
+  const [editTeacher, setEditTeacher] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, teacherId: null, teacherName: '' });
 
   const { logTeacherAction, AUDIT_ACTIONS } = useAuditLog();
 
@@ -44,8 +48,47 @@ const Teachers = () => {
 
   const handleCancelForm = () => {
     setShowForm(false);
-    setOperationLoading((prev) => ({ ...prev, create: false }));
+    setEditTeacher(null);
+    setOperationLoading((prev) => ({ ...prev, create: false, update: false }));
     setError('');
+  };
+
+  const handleDelete = (teacherId) => {
+    const teacherToDelete = teachers.find((t) => t.id === teacherId);
+    setDeleteConfirm({ isOpen: true, teacherId, teacherName: teacherToDelete ? teacherToDelete.name : 'this teacher' });
+  };
+
+  const confirmDelete = async () => {
+    setError('');
+    setOperationLoading((prev) => ({ ...prev, delete: true }));
+    const teacherId = deleteConfirm.teacherId;
+    const teacherToDelete = teachers.find((t) => t.id === teacherId);
+    try {
+      await deleteTeacher(teacherId);
+      try {
+        await logTeacherAction(
+          AUDIT_ACTIONS.TEACHER_DELETE,
+          teacherId,
+          {
+            teacherName: teacherToDelete ? teacherToDelete.name : 'Unknown Teacher',
+            email: teacherToDelete?.email,
+            subject: teacherToDelete?.subject,
+            qualification: teacherToDelete?.qualification,
+            totalTeachersAfterDeletion: Math.max(teachers.length - 1, 0)
+          },
+          `Deleted teacher: ${teacherToDelete ? teacherToDelete.name : 'Unknown Teacher'} (${teacherToDelete?.email || 'Unknown Email'})`
+        );
+      } catch (_) {}
+
+      setDeleteConfirm({ isOpen: false, teacherId: null, teacherName: '' });
+      await fetchTeachers();
+      toast.success('Teacher deleted successfully!');
+    } catch (err) {
+      setError(err.message || 'Failed to delete teacher');
+      toast.error(err.message || 'Failed to delete teacher');
+    } finally {
+      setOperationLoading((prev) => ({ ...prev, delete: false }));
+    }
   };
 
   const handleSubmit = async (formData) => {
@@ -88,37 +131,7 @@ const Teachers = () => {
     }
   };
 
-  const handleDelete = async (teacherId) => {
-    const teacherToDelete = teachers.find((t) => t.id === teacherId);
-    if (window.confirm('Are you sure you want to delete this teacher?')) {
-      try {
-        await deleteTeacher(teacherId);
-
-        // Best-effort audit log (ignore failures silently)
-        try {
-          await logTeacherAction(
-            AUDIT_ACTIONS.TEACHER_DELETE,
-            teacherId,
-            {
-              teacherName: teacherToDelete ? teacherToDelete.name : 'Unknown Teacher',
-              email: teacherToDelete?.email,
-              subject: teacherToDelete?.subject,
-              qualification: teacherToDelete?.qualification,
-              totalTeachersAfterDeletion: Math.max(teachers.length - 1, 0)
-            },
-            `Deleted teacher: ${teacherToDelete ? teacherToDelete.name : 'Unknown Teacher'} (${teacherToDelete?.email || 'Unknown Email'})`
-          );
-        } catch (_) {}
-
-        await fetchTeachers();
-        toast.success('Teacher deleted successfully!');
-      } catch (err) {
-        setError(err.message || 'Failed to delete teacher');
-        toast.error('Failed to delete teacher');
-      }
-    }
-  };
-
+  
   if (loading) return <div className="p-6">Loading...</div>;
 
   return (
@@ -151,14 +164,90 @@ const Teachers = () => {
       {/* Teacher Form */}
       {showForm && (
         <div className="mb-6">
-          <TeacherForm onSubmit={handleSubmit} onCancel={handleCancelForm} error={error} loading={operationLoading.create} />
+          <TeacherForm 
+            mode={editTeacher ? 'edit' : 'add'}
+            defaultValues={editTeacher ? {
+              name: editTeacher.name,
+              email: editTeacher.email,
+              phoneNumber: editTeacher.phoneNumber,
+              subject: editTeacher.subject,
+              qualification: editTeacher.qualification,
+              dateHired: editTeacher.dateHired ? editTeacher.dateHired.split('T')[0] : '',
+              profileImageUrl: editTeacher.profileImageUrl,
+            } : {}}
+            onSubmit={async (formData) => {
+              if (editTeacher) {
+                setOperationLoading((p) => ({ ...p, update: true }));
+                try {
+                  const updatePayload = {
+                    full_name: formData.name,
+                    email: formData.email,
+                    phone_number: formData.phoneNumber,
+                    subject: formData.subject,
+                    qualification: formData.qualification,
+                    date_hired: formData.dateHired,
+                  };
+                  if (formData.profileImageUrl) {
+                    updatePayload.profile_image = formData.profileImageUrl;
+                  }
+                  await edgeFunctionsService.updateUser(editTeacher.id, 'teacher', updatePayload);
+                  toast.success('Teacher updated successfully');
+                  setShowForm(false);
+                  setEditTeacher(null);
+                  await fetchTeachers();
+                } catch (e) {
+                  toast.error(e?.userMessage || e?.message || 'Failed to update teacher');
+                } finally {
+                  setOperationLoading((p) => ({ ...p, update: false }));
+                }
+              } else {
+                await handleSubmit(formData);
+              }
+            }} 
+            onCancel={handleCancelForm} 
+            error={error} 
+            loading={operationLoading.create || operationLoading.update} 
+          />
         </div>
       )}
 
       {/* Teachers Table */}
       <div className="bg-white rounded-lg shadow">
-        <TeacherTable teachers={teachers} onDelete={handleDelete} />
+        <TeacherTable 
+          teachers={teachers} 
+          onDelete={handleDelete}
+          onEdit={(t) => { setEditTeacher(t); setShowForm(true); }}
+          onSuspend={async (t) => {
+            try {
+              setOperationLoading((p) => ({ ...p, suspend: true }));
+              if (t.isActive) {
+                await edgeFunctionsService.suspendUser(t.id, 'teacher', 'Suspended via admin panel');
+                toast.success('Teacher suspended');
+              } else {
+                await edgeFunctionsService.reactivateUser(t.id, 'teacher');
+                toast.success('Teacher reactivated');
+              }
+              await fetchTeachers();
+            } catch (e) {
+              toast.error(e?.userMessage || e?.message || 'Operation failed');
+            } finally {
+              setOperationLoading((p) => ({ ...p, suspend: false }));
+            }
+          }}
+        />
       </div>
+
+      <ConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, teacherId: null, teacherName: '' })}
+        onConfirm={() => { if (!operationLoading.delete) confirmDelete(); }}
+        title="Delete Teacher"
+        message={`Are you sure you want to delete ${deleteConfirm.teacherName}? This action cannot be undone.`}
+        confirmText={operationLoading.delete ? 'Deleting...' : 'Delete'}
+        loading={operationLoading.delete}
+        cancelText="Cancel"
+        type="danger"
+      />
 
       {/* Status Information */}
       <div className="mt-6 text-sm text-gray-600">

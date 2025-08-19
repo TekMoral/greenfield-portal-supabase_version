@@ -85,7 +85,7 @@ const Dashboard = () => {
         <h2 className="text-lg sm:text-xl font-semibold text-slate-800 mb-2">Error Loading Dashboard</h2>
         <p className="text-sm sm:text-base text-slate-600 mb-3 sm:mb-4">{error}</p>
         <button
-          onClick={() => window.location.reload()}
+          onClick={() => navigate(0)}
           className="bg-slate-800 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-slate-700 transition-colors font-medium"
         >
           Try Again

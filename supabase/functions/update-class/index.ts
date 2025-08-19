@@ -1,161 +1,234 @@
-import { serve } from 'https://deno.land/std@0.192.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js'
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createServiceClient, createUserClient, verifyUserRole } from '../_shared/auth.ts'
+import { corsHeaders, handleCors } from '../_shared/cors.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+interface SubjectAssignment {
+  subjectName: string
+  teacherId: string
+  teacherName?: string | null
 }
 
-
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+interface UpdateClassRequest {
+  id: string
+  name?: string
+  level?: 'Junior' | 'Senior'
+  category?: 'Science' | 'Art' | 'Commercial' | null
+  capacity?: number
+  description?: string | null
+  academic_year?: string | null
+  class_teacher_id?: string | null
+  status?: string
   }
 
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  )
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const SENIOR_CATEGORIES = new Set(['Science', 'Art', 'Commercial'])
+
+serve(async (req) => {
+  // Handle CORS
+  if (req.method === 'OPTIONS') {
+    return handleCors(req)
+  }
 
   try {
-    let body
+    // Authorization
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(JSON.stringify({ success: false, error: 'Missing authorization header' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    const userClient = createUserClient(authHeader)
+    const { user } = await verifyUserRole(userClient, ['super_admin'])
+
+    // Parse JSON body
+    let body: UpdateClassRequest
     try {
       body = await req.json()
     } catch (_) {
-      return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { 
+      return new Response(JSON.stringify({ success: false, error: 'Invalid JSON body' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    const { id, ...updates } = body
-    const token = req.headers.get('Authorization')?.replace('Bearer ', '')
-
-    if (!token) {
-      return new Response(JSON.stringify({ error: 'Not authenticated' }), { 
-        status: 401,
+    if (!body.id) {
+      return new Response(JSON.stringify({ success: false, error: 'Class ID (id) is required' }), {
+        status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    // Get authenticated user
-    const {
-      data: { user },
-      error: userError
-    } = await supabase.auth.getUser(token)
+    const serviceClient = createServiceClient()
 
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid user session' }), { 
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    // Check if user is super_admin
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('role')
-      .eq('id', user.id)
+    // Fetch existing class for comparison and to infer rules
+    const { data: existingClass, error: fetchErr } = await serviceClient
+      .from('classes')
+      .select('*')
+      .eq('id', body.id)
       .single()
 
-    if (!profile || profile.role !== 'super_admin') {
-      return new Response(JSON.stringify({ error: 'Only super_admin can update classes' }), { 
-        status: 403,
+    if (fetchErr || !existingClass) {
+      return new Response(JSON.stringify({ success: false, error: 'Class not found' }), {
+        status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    // Validate input
-    if (!id) {
-      return new Response(JSON.stringify({ error: 'Class ID is required' }), { 
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+    const cleanUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+
+    // Validate and map fields if present
+    if (body.name !== undefined) {
+      if (typeof body.name !== 'string' || !body.name.trim()) {
+        return new Response(JSON.stringify({ success: false, error: 'name must be a non-empty string' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      cleanUpdates.name = body.name
     }
 
-    // Sanitize and validate updates
-    const allowedKeys = ['name','level','category','capacity','description','academic_year','class_teacher_id','status']
-    const cleanUpdates: Record<string, unknown> = Object.fromEntries(
-      Object.entries(updates).filter(([k, v]) => allowedKeys.includes(k) && v !== undefined)
-    )
+    // Handle level/category rules
+    let newLevel: 'Junior' | 'Senior' | undefined = body.level
+    let newCategory: UpdateClassRequest['category'] | undefined = body.category
 
-    // Normalize empty class_teacher_id to null and validate UUID if provided
-    if ('class_teacher_id' in cleanUpdates) {
-      if (cleanUpdates.class_teacher_id === '' || cleanUpdates.class_teacher_id === undefined) {
-        // @ts-ignore
-        cleanUpdates.class_teacher_id = null
-      } else if (cleanUpdates.class_teacher_id !== null) {
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-        if (!uuidRegex.test(String(cleanUpdates.class_teacher_id))) {
-          return new Response(JSON.stringify({ error: 'class_teacher_id must be a valid UUID or empty' }), {
+    const effectiveLevel: 'Junior' | 'Senior' = newLevel ?? existingClass.level
+    if (newLevel !== undefined) {
+      if (newLevel !== 'Junior' && newLevel !== 'Senior') {
+        return new Response(JSON.stringify({ success: false, error: "level must be 'Junior' or 'Senior'" }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      cleanUpdates.level = newLevel
+    }
+
+    if (effectiveLevel === 'Senior') {
+      // category required and must be valid
+      const cat = newCategory !== undefined ? newCategory : existingClass.category
+      if (!cat || !SENIOR_CATEGORIES.has(String(cat))) {
+        return new Response(JSON.stringify({ success: false, error: "category is required for Senior and must be one of: Science, Art, Commercial" }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      cleanUpdates.category = cat
+    } else {
+      // Junior -> category is null
+      cleanUpdates.category = null
+    }
+
+    if (body.capacity !== undefined) {
+      const n = Number(body.capacity)
+      if (!Number.isFinite(n) || n < 0) {
+        return new Response(JSON.stringify({ success: false, error: 'capacity must be a non-negative number' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      cleanUpdates.capacity = n
+    }
+
+    if (body.description !== undefined) {
+      cleanUpdates.description = body.description
+    }
+
+    if (body.academic_year !== undefined) {
+      cleanUpdates.academic_year = body.academic_year
+    }
+
+    if (body.class_teacher_id !== undefined) {
+      let classTeacherId = body.class_teacher_id
+      if (classTeacherId === '') classTeacherId = null
+      if (classTeacherId != null) {
+        if (!UUID_REGEX.test(String(classTeacherId))) {
+          return new Response(JSON.stringify({ success: false, error: 'class_teacher_id must be a valid UUID or null' }), {
             status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
         }
       }
+      cleanUpdates.class_teacher_id = classTeacherId
     }
 
-    // Validate capacity if provided
-    if ('capacity' in cleanUpdates) {
-      const n = Number((cleanUpdates as any).capacity)
-      if (!Number.isFinite(n) || n < 0) {
-        return new Response(JSON.stringify({ error: 'capacity must be a non-negative number' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
-      }
-      ;(cleanUpdates as any).capacity = n
+    if (body.status !== undefined) {
+      cleanUpdates.status = body.status
     }
 
-    // Ensure class exists before update
-    const { data: existingClass, error: existErr } = await supabase
-      .from('classes')
-      .select('id')
-      .eq('id', id)
-      .maybeSingle()
-
-    if (existErr) {
-      return new Response(JSON.stringify({ error: existErr.message }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-    if (!existingClass) {
-      return new Response(JSON.stringify({ error: 'Class not found' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    // Update class
-    const { data, error } = await supabase
+    
+    // Perform update
+    const { data: updated, error: updateErr } = await serviceClient
       .from('classes')
       .update(cleanUpdates)
-      .eq('id', id)
-      .select()
-      .maybeSingle()
+      .eq('id', body.id)
+      .select('*')
+      .single()
 
-    if (error) {
-      return new Response(JSON.stringify({ error: error.message }), { 
+    if (updateErr) {
+      return new Response(JSON.stringify({ success: false, error: updateErr.message }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
-    if (!data) {
-      return new Response(JSON.stringify({ error: 'Class not found' }), { 
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+
+    // Audit log - compute changes
+    try {
+      const { data: { user: actingAuthUser } } = await userClient.auth.getUser()
+
+      const candidateKeys = Object.keys(body).filter(k => k !== 'id')
+      const normalize = (v: any) => (v === undefined ? null : v)
+      const oldValues: Record<string, any> = {}
+      const newValues: Record<string, any> = {}
+      const changedFields: string[] = []
+      for (const key of candidateKeys) {
+        const before = normalize((existingClass as any)[key])
+        const after = normalize((updated as any)[key])
+        if (JSON.stringify(before) !== JSON.stringify(after)) {
+          changedFields.push(key)
+          oldValues[key] = before
+          newValues[key] = after
+        }
+      }
+
+      const xf = req.headers.get('x-forwarded-for') || ''
+      const ipAddr = xf.split(',')[0]?.trim() || null
+      const userAgent = req.headers.get('user-agent') || null
+
+      await serviceClient.from('audit_logs').insert([
+        {
+          user_id: actingAuthUser?.id ?? user.id ?? null,
+          action: 'update_class',
+          resource_type: 'class',
+          resource_id: body.id,
+          details: {
+            updated_by: actingAuthUser?.email ?? null,
+            updated_fields: changedFields,
+            name: updated.name,
+            level: updated.level,
+            category: updated.category,
+            capacity: updated.capacity,
+            academic_year: updated.academic_year,
+            class_teacher_id: updated.class_teacher_id,
+            },
+          old_values: oldValues,
+          new_values: newValues,
+          ip_address: ipAddr,
+          user_agent: userAgent,
+          created_at: new Date().toISOString()
+        }
+      ])
+    } catch (auditErr) {
+      console.warn('Failed to log update_class:', auditErr)
     }
 
-    return new Response(JSON.stringify({ data }), { 
+    return new Response(JSON.stringify({ success: true, data: updated }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
-  } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), { 
+  } catch (error) {
+    console.error('Error updating class:', error)
+    return new Response(JSON.stringify({ success: false, error: (error as Error).message || 'An unexpected error occurred' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })

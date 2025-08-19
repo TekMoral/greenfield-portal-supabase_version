@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../../hooks/useAuth";
 import { getTeacherClassesAndSubjects, getStudentsByTeacherSubject, getStudentsByTeacherSubjectAndClasses } from "../../../services/supabase/teacherStudentService";
 import { getFullName, getInitials, nameMatchesSearch } from "../../../utils/nameUtils";
@@ -9,6 +9,7 @@ import { supabase } from "../../../lib/supabaseClient";
 const Students = () => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [subjects, setSubjects] = useState([]);
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [students, setStudents] = useState([]);
@@ -351,7 +352,7 @@ const Students = () => {
             <p className="text-sm text-slate-600 mt-1">
               Showing students from {decodeURIComponent(urlClassName)} only
               <button
-                onClick={() => window.location.href = '/teacher/students'}
+                onClick={() => navigate('/teacher/students')}
                 className="ml-2 text-green-600 hover:text-green-800 underline"
               >
                 View all students

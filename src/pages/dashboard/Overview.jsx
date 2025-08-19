@@ -94,7 +94,7 @@ const Overview = () => {
           <div className="text-red-500 text-lg font-semibold mb-2">Error Loading Dashboard</div>
           <div className="text-gray-600 mb-4">{error}</div>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => navigate(0)}
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
           >
             Retry
@@ -332,6 +332,7 @@ const Overview = () => {
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
+              
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -380,7 +381,7 @@ const Overview = () => {
         </div>
       </div>
 
-      {isSuperAdmin && <AuditLogsCard />}
+      {isSuperAdmin && <AuditLogsCard />},
     </div>
   );
 };

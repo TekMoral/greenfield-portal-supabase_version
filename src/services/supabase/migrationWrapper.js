@@ -99,12 +99,8 @@ export const adminService = {
   async createAdmin(adminData) {
     if (getFeatureFlag('USE_EDGE_FUNCTIONS_FOR_ADMINS')) {
       console.log('🚀 Using Edge Function for admin creation');
-      try {
-        return await edgeFunctionsService.createAdmin(adminData);
-      } catch (error) {
-        console.warn('⚠️ Edge Function failed, falling back to legacy method');
-        return await legacyAdminService.createAdmin(adminData);
-      }
+      // Do not fallback to client-side admin API to avoid not_admin errors
+      return await edgeFunctionsService.createAdmin(adminData);
     } else {
       console.log('🔄 Using legacy method for admin creation');
       return await legacyAdminService.createAdmin(adminData);
@@ -114,12 +110,7 @@ export const adminService = {
   async updateAdminStatus(adminId, isActive) {
     if (getFeatureFlag('USE_EDGE_FUNCTIONS_FOR_ADMINS')) {
       console.log('🚀 Using Edge Function for admin status update');
-      try {
-        return await edgeFunctionsService.updateAdminStatus(adminId, isActive);
-      } catch (error) {
-        console.warn('⚠️ Edge Function failed, falling back to legacy method');
-        return await legacyAdminService.updateAdminStatus(adminId, isActive);
-      }
+      return await edgeFunctionsService.updateAdminStatus(adminId, isActive);
     } else {
       console.log('🔄 Using legacy method for admin status update');
       return await legacyAdminService.updateAdminStatus(adminId, isActive);
@@ -129,12 +120,7 @@ export const adminService = {
   async deleteAdmin(adminId) {
     if (getFeatureFlag('USE_EDGE_FUNCTIONS_FOR_ADMINS')) {
       console.log('🚀 Using Edge Function for admin deletion');
-      try {
-        return await edgeFunctionsService.deleteAdmin(adminId);
-      } catch (error) {
-        console.warn('⚠️ Edge Function failed, falling back to legacy method');
-        return await legacyAdminService.deleteAdmin(adminId);
-      }
+      return await edgeFunctionsService.deleteAdmin(adminId);
     } else {
       console.log('🔄 Using legacy method for admin deletion');
       return await legacyAdminService.deleteAdmin(adminId);
@@ -144,12 +130,7 @@ export const adminService = {
   async updateAdmin(adminId, updateData) {
     if (getFeatureFlag('USE_EDGE_FUNCTIONS_FOR_ADMINS')) {
       console.log('🚀 Using Edge Function for admin update');
-      try {
-        return await edgeFunctionsService.updateUser(adminId, 'admin', updateData);
-      } catch (error) {
-        console.warn('⚠️ Edge Function failed, falling back to legacy method');
-        return await legacyAdminService.updateAdmin(adminId, updateData);
-      }
+      return await edgeFunctionsService.updateUser(adminId, 'admin', updateData);
     } else {
       console.log('🔄 Using legacy method for admin update');
       return await legacyAdminService.updateAdmin(adminId, updateData);
@@ -238,5 +219,6 @@ export const {
   getAllAdmins,
   getAdminById,
   updateAdmin,
+  updateAdminStatus,
   deleteAdmin,
 } = adminService;

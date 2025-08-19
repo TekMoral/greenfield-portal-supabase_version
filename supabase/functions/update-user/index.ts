@@ -25,6 +25,7 @@ interface UpdateUserRequest {
     // Common fields
     status?: string
     notes?: string
+    profile_image?: string
   }
 }
 
@@ -105,13 +106,15 @@ serve(async (req) => {
     if (body.updateData.is_active !== undefined) updateFields.is_active = body.updateData.is_active
     if (body.updateData.status !== undefined) updateFields.status = body.updateData.status
     if (body.updateData.notes !== undefined) updateFields.notes = body.updateData.notes
+    if (body.updateData.profile_image !== undefined) updateFields.profile_image = body.updateData.profile_image
 
     // Map type-specific fields
     switch (body.userType) {
       case 'teacher':
-        if (body.updateData.subject !== undefined) updateFields.subject = body.updateData.subject
+        // Map to actual teacher profile columns
+        if (body.updateData.subject !== undefined) updateFields.specialization = body.updateData.subject
         if (body.updateData.qualification !== undefined) updateFields.qualification = body.updateData.qualification
-        if (body.updateData.date_hired !== undefined) updateFields.date_hired = body.updateData.date_hired
+        if (body.updateData.date_hired !== undefined) updateFields.hire_date = body.updateData.date_hired
         break
       
       case 'student':
@@ -296,9 +299,9 @@ serve(async (req) => {
       updatedAt: updatedUser.updated_at,
       // Include type-specific fields in response
       ...(body.userType === 'teacher' && {
-        subject: updatedUser.subject,
-        qualification: updatedUser.qualification,
-        dateHired: updatedUser.date_hired
+        subject: (updatedUser as any).specialization,
+        qualification: (updatedUser as any).qualification,
+        dateHired: (updatedUser as any).hire_date
       }),
       ...(body.userType === 'student' && {
         admissionNumber: updatedUser.admission_number,

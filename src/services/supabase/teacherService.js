@@ -295,7 +295,7 @@ export const teacherService = {
       console.log("🔄 Fetching all teachers...");
 
       const { data, error } = await dbOperations.queryTeachers(
-        {},
+        { is_active: true },
         { order: { field: "created_at", asc: false } }
       );
 
@@ -417,7 +417,6 @@ export const teacherService = {
       console.log("🔄 Soft deleting teacher:", teacherId);
 
       const { data, error } = await dbOperations.updateProfile(teacherId, {
-        status: "inactive",
         is_active: false,
       });
 

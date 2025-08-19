@@ -1,6 +1,6 @@
 import React from "react";
 
-const TeacherTable = ({ teachers, onDelete }) => {
+const TeacherTable = ({ teachers, onDelete, onEdit, onSuspend }) => {
   return (
     <>
       {/* Desktop Table View */}
@@ -137,16 +137,42 @@ const TeacherTable = ({ teachers, onDelete }) => {
                       </span>
                     </td>
                     <td className="px-6 py-5">
-                      <button
-                        onClick={() => onDelete(teacher.id)}
-                        className="inline-flex items-center px-3 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-all duration-200 focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                        title="Delete teacher"
-                      >
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                        Delete
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => onEdit && onEdit(teacher)}
+                          className="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                          title="Edit teacher"
+                        >
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5h2m-1-1v2m-7 7l6 6m0 0l7-7a2.828 2.828 0 10-4-4l-7 7zm0 0H5v-3" />
+                          </svg>
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => onSuspend && onSuspend(teacher)}
+                          className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 focus:ring-2 focus:ring-offset-2 ${
+                            teacher.isActive
+                              ? 'text-orange-700 bg-orange-50 hover:bg-orange-100 focus:ring-orange-500'
+                              : 'text-green-700 bg-green-50 hover:bg-green-100 focus:ring-green-500'
+                          }`}
+                          title={teacher.isActive ? 'Suspend teacher' : 'Reactivate teacher'}
+                        >
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-12.728 12.728M6 6l12 12" />
+                          </svg>
+                          {teacher.isActive ? 'Suspend' : 'Reactivate'}
+                        </button>
+                        <button
+                          onClick={() => onDelete(teacher.id)}
+                          className="inline-flex items-center px-3 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-all duration-200 focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                          title="Delete teacher"
+                        >
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -236,7 +262,29 @@ const TeacherTable = ({ teachers, onDelete }) => {
                       Hired: {teacher.dateHired ? new Date(teacher.dateHired).toLocaleDateString() : 'Not specified'}
                     </div>
                   </div>
-                  <div className="flex justify-end">
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => onEdit && onEdit(teacher)}
+                      className="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition-all duration-200"
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5h2m-1-1v2m-7 7l6 6m0 0l7-7a2.828 2.828 0 10-4-4l-7 7zm0 0H5v-3" />
+                      </svg>
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => onSuspend && onSuspend(teacher)}
+                      className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                        teacher.isActive
+                          ? 'text-orange-700 bg-orange-50 hover:bg-orange-100'
+                          : 'text-green-700 bg-green-50 hover:bg-green-100'
+                      }`}
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-12.728 12.728M6 6l12 12" />
+                      </svg>
+                      {teacher.isActive ? 'Suspend' : 'Reactivate'}
+                    </button>
                     <button
                       onClick={() => onDelete(teacher.id)}
                       className="inline-flex items-center px-3 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-all duration-200"

@@ -4,6 +4,7 @@ import  Principal from "../assets/images/Principal.jpg";
 import VicePrincipal from "../assets/images/VicePrincipal.jpg";
 import VICollege16 from "../assets/images/VICollege16.jpg";
 import { COMPONENT_COLORS, getButtonClasses, getHeadingClasses, getBadgeClasses } from "../constants/colors";
+import { Link } from "react-router-dom";
 
 const About = () => {
   const [isVisible, setIsVisible] = useState(false);
@@ -425,18 +426,18 @@ const About = () => {
             that prepares them for future success.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a
-              href="/admission"
+            <Link
+              to="/admission"
               className={getButtonClasses('accent')}
             >
               Learn About Admissions
-            </a>
-            <a
-              href="/contact"
+            </Link>
+            <Link
+              to="/contact"
               className={getButtonClasses('ghost')}
             >
               Contact Us
-            </a>
+            </Link>
           </div>
         </div>
       </section>

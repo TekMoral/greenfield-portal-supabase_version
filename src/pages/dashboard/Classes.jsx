@@ -1,15 +1,13 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  getAllClasses,
-  createClass,
-  updateClass,
-  deleteClass,
-} from "../../services/supabase/classService";
+import { getAllClasses } from "../../services/supabase/classService";
+import { createClass, updateClass, deleteClass } from "../../services/supabase/classAdminService";
 import { getStudentsByClass } from "../../services/supabase/studentService";
-import useToast from "../../hooks/useToast";
+import toast from "react-hot-toast";
 import { useAuth } from "../../hooks/useAuth";
 import useAuditLog from "../../hooks/useAuditLog";
+import { SaveButton, CancelButton, DeleteButton, EditButton, CreateButton } from "../../components/ui/ActionButtons";
+import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import ClassSubjectManager from "../../components/ClassSubjectManager";
 
 const LEVELS = ["Junior", "Senior"];
@@ -32,14 +30,27 @@ const generateSlug = (name, level, category = null) => {
     : `${baseName}-${levelSlug}`;
 };
 
+const getFriendlyError = (err) => {
+  const t = String(err || '').toLowerCase();
+  if (t.includes('already exists')) return 'A class with the same name, level, and category already exists.';
+  if (t.includes('not authenticated') || t.includes('invalid user session')) return 'You are not authenticated. Please sign in again.';
+  if (t.includes('only super_admin')) return 'Only super admins can perform this action.';
+  if (t.includes('class not found')) return 'Class not found.';
+  if (t.includes('capacity must be')) return 'Capacity must be a non-negative number.';
+  if (t.includes('category is required')) return 'Category is required for Senior level classes.';
+  return err || 'An unexpected error occurred';
+};
+
 export default function Classes() {
-  const { showToast } = useToast();
+  // Using react-hot-toast for notifications
   const navigate = useNavigate();
   const { isSuperAdmin } = useAuth();
   const { logClassAction, AUDIT_ACTIONS } = useAuditLog();
 
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState({ saving: false, deletingId: null });
+  const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, classId: null, className: "" });
 
   // Form state
   const [formOpen, setFormOpen] = useState(false);
@@ -103,12 +114,12 @@ export default function Classes() {
 
       setClasses(sortedClasses);
     } catch (error) {
-      showToast("Failed to fetch classes", "error");
+      toast.error("Failed to fetch classes");
       console.error("Error fetching classes:", error.message || error);
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, []);
 
   const navigateToClassStudents = (classItem) => {
     const slug =
@@ -129,7 +140,13 @@ export default function Classes() {
 
   const handleSubjectsUpdate = async (subjects) => {
     try {
-      await updateClass(selectedClass.id, { ...selectedClass, subjects });
+      const result = await updateClass(selectedClass.id, { subjects });
+      if (!result?.success) {
+        const msg = getFriendlyError(result?.error || 'Failed to update class subjects');
+        toast.error(msg);
+        console.error('Error updating class subjects:', msg);
+        return;
+      }
 
       // Log the class subjects update
       await logClassAction(
@@ -145,11 +162,11 @@ export default function Classes() {
         `Updated subjects for class: ${selectedClass.name} (${subjects.length} subjects)`
       );
 
-      showToast("Class subjects updated successfully", "success");
+      toast.success("Class subjects updated successfully");
       await fetchClasses();
       closeSubjectManager();
     } catch (error) {
-      showToast("Failed to update class subjects", "error");
+      toast.error("Failed to update class subjects");
       console.error("Error updating class subjects:", error);
     }
   };
@@ -276,6 +293,7 @@ export default function Classes() {
       return;
     }
 
+    setActionLoading((s) => ({ ...s, saving: true }));
     try {
       const classData = {
         ...formData,
@@ -285,7 +303,14 @@ export default function Classes() {
       };
 
       if (formMode === "add") {
-        const newClassRef = await createClass(classData);
+        const result = await createClass(classData);
+        if (!result?.success) {
+          const msg = getFriendlyError(result?.error || 'Failed to create class');
+          toast.error(msg);
+          console.error('Error creating class:', msg);
+          return;
+        }
+        const newClassRef = result.data;
 
         // Log class creation
         await logClassAction(
@@ -301,9 +326,15 @@ export default function Classes() {
           `Created new class: ${classData.name} (${classData.level}${classData.category ? ` - ${classData.category}` : ''})`
         );
 
-        showToast("Class added successfully", "success");
+        toast.success("Class added successfully");
       } else {
-        await updateClass(formData.id, classData);
+        const result = await updateClass(formData.id, classData);
+        if (!result?.success) {
+          const msg = getFriendlyError(result?.error || 'Failed to update class');
+          toast.error(msg);
+          console.error('Error updating class:', msg);
+          return;
+        }
 
         // Log class update
         await logClassAction(
@@ -319,48 +350,56 @@ export default function Classes() {
           `Updated class: ${classData.name} (${classData.level}${classData.category ? ` - ${classData.category}` : ''})`
         );
 
-        showToast("Class updated successfully", "success");
+        toast.success("Class updated successfully");
       }
       await fetchClasses(); // Refresh class counts
       closeForm();
     } catch (error) {
-      showToast("Failed to save class", "error");
-      console.error("Error saving class:", error.message || error);
+      const msg = getFriendlyError(error?.message || 'Failed to save class');
+      toast.error(msg);
+      console.error('Error saving class:', msg);
+    } finally {
+      setActionLoading((s) => ({ ...s, saving: false }));
     }
   };
 
   const handleDelete = async (id, className) => {
-    if (
-      window.confirm(
-        `Are you sure you want to delete "${className}" class? This action cannot be undone.`
-      )
-    ) {
-      try {
-        // Get class details before deletion for logging
-        const classToDelete = classes.find(cls => cls.id === id);
+    try {
+      setActionLoading((s) => ({ ...s, deletingId: id }));
+      // Get class details before deletion for logging
+      const classToDelete = classes.find(cls => cls.id === id);
 
-        await deleteClass(id);
-
-        // Log class deletion
-        await logClassAction(
-          AUDIT_ACTIONS.CLASS_DELETE,
-          id,
-          {
-            className: className,
-            level: classToDelete?.level,
-            category: classToDelete?.category,
-            studentCount: classToDelete?.studentCount || 0,
-            slug: classToDelete?.slug
-          },
-          `Deleted class: ${className} (${classToDelete?.level}${classToDelete?.category ? ` - ${classToDelete.category}` : ''}) with ${classToDelete?.studentCount || 0} students`
-        );
-
-        showToast("Class deleted successfully", "success");
-        fetchClasses();
-      } catch (error) {
-        showToast("Failed to delete class", "error");
-        console.error("Error deleting class:", error.message || error);
+      const result = await deleteClass(id);
+      if (!result?.success) {
+        const msg = getFriendlyError(result?.error || 'Failed to delete class');
+        toast.error(msg);
+        console.error('Error deleting class:', msg);
+        return;
       }
+
+      // Log class deletion
+      await logClassAction(
+        AUDIT_ACTIONS.CLASS_DELETE,
+        id,
+        {
+          className: className,
+          level: classToDelete?.level,
+          category: classToDelete?.category,
+          studentCount: classToDelete?.studentCount || 0,
+          slug: classToDelete?.slug
+        },
+        `Deleted class: ${className} (${classToDelete?.level}${classToDelete?.category ? ` - ${classToDelete.category}` : ''}) with ${classToDelete?.studentCount || 0} students`
+      );
+
+      toast.success('Class deleted successfully');
+      fetchClasses();
+    } catch (error) {
+      const msg = getFriendlyError(error?.message || 'Failed to delete class');
+      toast.error(msg);
+      console.error('Error deleting class:', msg);
+    } finally {
+      setActionLoading((s) => ({ ...s, deletingId: null }));
+      setDeleteConfirm({ isOpen: false, classId: null, className: '' });
     }
   };
 
@@ -377,25 +416,9 @@ export default function Classes() {
             </p>
           </div>
           {isSuperAdmin && (
-            <button
-              onClick={openAddForm}
-              className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center gap-2 font-medium"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                />
-              </svg>
+            <CreateButton onClick={openAddForm} disabled={formOpen || actionLoading.saving}>
               Add New Class
-            </button>
+            </CreateButton>
           )}
         </div>
 
@@ -576,44 +599,12 @@ export default function Classes() {
                                     />
                                   </svg>
                                 </button>
-                                <button
-                                  onClick={() => openEditForm(cls)}
-                                  className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors duration-200"
-                                  title="Edit class"
-                                >
-                                  <svg
-                                    className="w-4 h-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                    />
-                                  </svg>
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(cls.id, cls.name)}
-                                  className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors duration-200"
-                                  title="Delete class"
-                                >
-                                  <svg
-                                    className="w-4 h-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                    />
-                                  </svg>
-                                </button>
+                                <EditButton onClick={() => openEditForm(cls)} />
+                                <DeleteButton
+                                  onClick={() => setDeleteConfirm({ isOpen: true, classId: cls.id, className: cls.name })}
+                                  loading={actionLoading.deletingId === cls.id}
+                                  disabled={actionLoading.deletingId !== null}
+                                />
                               </div>
                             ) : (
                               <div className="flex items-center justify-center">
@@ -717,42 +708,12 @@ export default function Classes() {
                               />
                             </svg>
                           </button>
-                          <button
-                            onClick={() => openEditForm(cls)}
-                            className="p-2 text-blue-600 hover:bg-blue-100 rounded-xl transition-colors duration-200"
-                          >
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                              />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleDelete(cls.id, cls.name)}
-                            className="p-2 text-red-600 hover:bg-red-100 rounded-xl transition-colors duration-200"
-                          >
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
-                          </button>
+                          <EditButton onClick={() => openEditForm(cls)} />
+                          <DeleteButton
+                            onClick={() => setDeleteConfirm({ isOpen: true, classId: cls.id, className: cls.name })}
+                            loading={actionLoading.deletingId === cls.id}
+                            disabled={actionLoading.deletingId !== null}
+                          />
                         </div>
                       )}
                     </div>
@@ -924,19 +885,8 @@ export default function Classes() {
                 </div>
 
                 <div className="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200">
-                  <button
-                    type="button"
-                    onClick={closeForm}
-                    className="px-6 py-3 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition-all duration-200 font-medium"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-medium"
-                  >
-                    {formMode === "add" ? "✨ Create Class" : "💾 Save Changes"}
-                  </button>
+                  <CancelButton onClick={closeForm} disabled={actionLoading.saving} />
+                  <SaveButton type="submit" loading={actionLoading.saving} disabled={actionLoading.saving} />
                 </div>
               </form>
             </div>
@@ -951,7 +901,21 @@ export default function Classes() {
             onClose={closeSubjectManager}
           />
         )}
-      </div>
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDialog
+          isOpen={deleteConfirm.isOpen}
+          onClose={() => setDeleteConfirm({ isOpen: false, classId: null, className: '' })}
+          onConfirm={() => {
+            if (actionLoading.deletingId) return; // prevent double click
+            handleDelete(deleteConfirm.classId, deleteConfirm.className);
+          }}
+          title="Delete Class"
+          message={`Are you sure you want to delete "${deleteConfirm.className}"? This action cannot be undone.`}
+          confirmText={actionLoading.deletingId ? 'Deleting...' : 'Delete'}
+          type="danger"
+        />
+              </div>
     </div>
   );
 }

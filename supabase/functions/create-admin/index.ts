@@ -57,7 +57,17 @@ serve(async (req) => {
     // Create service client for admin operations
     const serviceClient = createServiceClient()
 
-    // Check for existing email
+    // Check for existing email in Auth (authoritative)
+    const { data: usersList, error: listErr } = await serviceClient.auth.admin.listUsers()
+    if (listErr) {
+      throw new Error(`Failed to check existing users: ${listErr.message}`)
+    }
+    const existingAuthUser = usersList.users?.find(u => u.email === body.email)
+    if (existingAuthUser) {
+      throw new Error(`A user with email ${body.email} already exists`)
+    }
+
+    // Check also in user_profiles for safety
     const { data: existingUser, error: existingError } = await serviceClient
       .from('user_profiles')
       .select('email')
@@ -84,6 +94,14 @@ serve(async (req) => {
       user_metadata: {
         full_name: body.name,
         role: adminRole,
+        phone_number: body.phoneNumber || null,
+        department: body.department || null,
+        position: body.position || null,
+        profile_data: {
+          is_active: true,
+          status: 'active',
+          created_via: 'edge_function'
+        }
       },
       email_confirm: true, // Auto-confirm email
     })
@@ -140,26 +158,31 @@ serve(async (req) => {
       }
     }
 
-    // Log admin creation activity
+    // Log admin creation activity (align with create_teacher style)
     try {
+      const xf = req.headers.get('x-forwarded-for') || ''
+      const ipAddr = xf.split(',')[0]?.trim() || null
+      const userAgent = req.headers.get('user-agent') || null
+
       await serviceClient
         .from('audit_logs')
         .insert({
           user_id: user.id,
-          action: 'ADMIN_CREATE',
-          target_id: authData.user.id,
-          target_type: 'user',
+          action: 'create_admin',
+          resource_type: 'admin',
+          resource_id: authData.user.id,
           details: {
-            adminName: body.name,
-            adminEmail: body.email,
-            adminRole: adminRole,
-            department: body.department,
-            position: body.position,
-            createdBy: profile.full_name,
+            name: body.name,
+            email: body.email,
+            role: adminRole,
+            department: body.department || null,
+            position: body.position || null,
+            created_by: user.email || null
           },
           description: `Created new ${adminRole}: ${body.name} (${body.email})`,
-          ip_address: req.headers.get('x-forwarded-for') || 'unknown',
-          user_agent: req.headers.get('user-agent') || 'unknown',
+          ip_address: ipAddr,
+          user_agent: userAgent,
+          created_at: new Date().toISOString()
         })
     } catch (auditError) {
       console.warn('Failed to log admin creation:', auditError)
@@ -186,7 +209,7 @@ serve(async (req) => {
       JSON.stringify({ success: true, data: adminData }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
+        status: 201,
       }
     )
 

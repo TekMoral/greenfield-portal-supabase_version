@@ -4,6 +4,7 @@ import VICollege24 from "../assets/images/VICollege24.jpg";
 import { COMPONENT_COLORS, getButtonClasses, getHeadingClasses, getBadgeClasses } from "../constants/colors";
 
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 
 const Home = () => {
   const [isVisible, setIsVisible] = useState(false);
@@ -169,12 +170,12 @@ const Home = () => {
             >
               Explore Campus
             </a>
-            <a
-              href="/about"
+            <Link
+              to="/about"
               className="bg-white/10 hover:bg-white/20 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-semibold transition-colors duration-200 border border-white/30 backdrop-blur-sm"
             >
               Learn More
-            </a>
+            </Link>
           </div>
         </div>
       </section>

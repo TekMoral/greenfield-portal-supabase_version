@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { getAllClasses } from "../../services/supabase/classService";
 import { createClass, updateClass, deleteClass } from "../../services/supabase/classAdminService";
 import { getStudentsByClass } from "../../services/supabase/studentService";
+import { supabase } from "../../lib/supabaseClient";
 import toast from "react-hot-toast";
 import { useAuth } from "../../hooks/useAuth";
 import useAuditLog from "../../hooks/useAuditLog";
 import { SaveButton, CancelButton, DeleteButton, EditButton, CreateButton } from "../../components/ui/ActionButtons";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import ClassSubjectManager from "../../components/ClassSubjectManager";
+import { formatClassName, sortClasses } from "../../utils/classNameFormatter";
 
 const LEVELS = ["Junior", "Senior"];
 const CATEGORIES = ["Science", "Art", "Commercial"];
@@ -98,19 +100,8 @@ export default function Classes() {
         })
       );
 
-      // Sort classes naturally
-      const sortedClasses = classesWithCount.sort((a, b) => {
-        // First sort by level (Junior before Senior)
-        if (a.level !== b.level) {
-          return a.level === "Junior" ? -1 : 1;
-        }
-
-        // Then sort by name using natural sort
-        return a.name.localeCompare(b.name, undefined, {
-          numeric: true,
-          sensitivity: "base",
-        });
-      });
+      // Sort classes with proper Nigerian school hierarchy using utility function
+      const sortedClasses = sortClasses(classesWithCount);
 
       setClasses(sortedClasses);
     } catch (error) {
@@ -140,12 +131,77 @@ export default function Classes() {
 
   const handleSubjectsUpdate = async (subjects) => {
     try {
+      console.log('🔄 Updating class subjects:', subjects);
+      console.log('🔄 Selected class:', selectedClass);
+
+      // Import the teacher service to create assignments
+      const { assignSubjectToTeacher } = await import('../../services/supabase/teacherService');
+      const { getSubjects } = await import('../../services/supabase/subjectService');
+
+      // Get all subjects to map names to IDs
+      const allSubjects = await getSubjects();
+      console.log('📚 All subjects:', allSubjects);
+
+      // First, deactivate existing assignments for this class
+      // (We'll implement a proper cleanup later, for now just create new ones)
+      
+      // Create teacher_assignments records for each subject-teacher pair using Edge Function
+      const assignmentPromises = subjects.map(async (subjectAssignment) => {
+        try {
+          // Find subject ID by name
+          const subjectRecord = allSubjects.find(s => s.name === subjectAssignment.subjectName);
+          if (!subjectRecord) {
+            console.error(`❌ Subject not found: ${subjectAssignment.subjectName}`);
+            return { success: false, error: `Subject not found: ${subjectAssignment.subjectName}` };
+          }
+
+          console.log(`🔄 Creating assignment via Edge Function: Teacher ${subjectAssignment.teacherId} -> Subject ${subjectRecord.id} (${subjectRecord.name}) -> Class ${selectedClass.id}`);
+
+          // Use Edge Function to create the teacher assignment (bypasses RLS)
+          const { data, error } = await supabase.functions.invoke('assign-teacher-subject', {
+            body: {
+              teacherId: subjectAssignment.teacherId,
+              subjectId: subjectRecord.id,
+              classId: selectedClass.id,
+              academicYear: new Date().getFullYear() + '/' + (new Date().getFullYear() + 1),
+              term: 1
+            }
+          });
+
+          if (error) {
+            console.error(`❌ Edge Function error for ${subjectAssignment.subjectName}:`, error);
+            return { success: false, error: error.message };
+          }
+
+          if (data?.error) {
+            console.error(`❌ Assignment failed for ${subjectAssignment.subjectName}:`, data.error);
+            return { success: false, error: data.error };
+          }
+
+          console.log(`✅ Assignment result:`, data);
+          return { success: true, data: data?.data };
+        } catch (error) {
+          console.error(`❌ Error creating assignment for ${subjectAssignment.subjectName}:`, error);
+          return { success: false, error: error.message };
+        }
+      });
+
+      // Wait for all assignments to complete
+      const results = await Promise.all(assignmentPromises);
+      console.log('📊 Assignment results:', results);
+
+      // Check if any assignments failed
+      const failures = results.filter(r => !r.success);
+      if (failures.length > 0) {
+        console.error('❌ Some assignments failed:', failures);
+        toast.error(`Failed to create ${failures.length} assignment(s). Check console for details.`);
+        return;
+      }
+
+      // Also update the class record with subjects for backward compatibility
       const result = await updateClass(selectedClass.id, { subjects });
       if (!result?.success) {
-        const msg = getFriendlyError(result?.error || 'Failed to update class subjects');
-        toast.error(msg);
-        console.error('Error updating class subjects:', msg);
-        return;
+        console.warn('⚠️ Failed to update class subjects field, but assignments were created');
       }
 
       // Log the class subjects update
@@ -157,12 +213,13 @@ export default function Classes() {
           level: selectedClass.level,
           category: selectedClass.category,
           subjectsCount: subjects.length,
-          subjects: subjects
+          subjects: subjects,
+          assignmentsCreated: results.filter(r => r.success).length
         },
-        `Updated subjects for class: ${selectedClass.name} (${subjects.length} subjects)`
+        `Updated subjects for class: ${selectedClass.name} (${subjects.length} subjects, ${results.filter(r => r.success).length} assignments created)`
       );
 
-      toast.success("Class subjects updated successfully");
+      toast.success(`Class subjects updated successfully! Created ${results.filter(r => r.success).length} teacher assignments.`);
       await fetchClasses();
       closeSubjectManager();
     } catch (error) {
@@ -509,7 +566,7 @@ export default function Classes() {
                               </div>
                               <div>
                                 <div className="text-sm font-semibold text-gray-900">
-                                  {cls.name}
+                                  {formatClassName(cls.name)}
                                 </div>
                                 <div className="text-xs text-gray-500 font-mono">
                                   {cls.slug ||
@@ -667,7 +724,7 @@ export default function Classes() {
                         </div>
                         <div>
                           <h3 className="text-lg font-semibold text-gray-900">
-                            {cls.name}
+                            {formatClassName(cls.name)}
                           </h3>
                           <div className="flex items-center gap-2 mt-1">
                             <span

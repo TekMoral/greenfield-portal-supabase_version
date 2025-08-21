@@ -11,6 +11,7 @@ import { getAllClasses } from "../../services/supabase/classService";
 import { uploadService } from "../../services/supabase/uploadService";
 import { useAuditLog } from "../../hooks/useAuditLog";
 import { EditButton, DeleteButton, CreateButton } from "../../components/ui/ActionButtons";
+import { formatClassName } from "../../utils/classNameFormatter";
 
 const Students = () => {
   // Audit logging hook

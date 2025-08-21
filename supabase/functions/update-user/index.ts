@@ -22,6 +22,8 @@ interface UpdateUserRequest {
     gender?: string
     // Admin specific
     role?: string
+    department?: string
+    position?: string
     // Common fields
     status?: string
     notes?: string
@@ -48,6 +50,8 @@ serve(async (req) => {
 
     // Parse request body
     const body: UpdateUserRequest = await req.json()
+    
+    console.log('🔍 Update-user received:', JSON.stringify(body, null, 2))
     
     // Validate required fields
     if (!body.userId || !body.userType || !body.updateData) {
@@ -79,8 +83,11 @@ serve(async (req) => {
       .eq('id', body.userId)
       .single()
 
+    console.log('🔍 Current user lookup:', { userId: body.userId, found: !!currentUser, error: currentUserError })
+    console.log('🔍 Current user data:', currentUser)
+
     if (currentUserError || !currentUser) {
-      throw new Error('User not found')
+      throw new Error(`User not found: ${currentUserError?.message || 'No user data'}`)
     }
 
     // Prevent users from updating their own critical fields inappropriately
@@ -127,8 +134,16 @@ serve(async (req) => {
       
       case 'admin':
         if (body.updateData.role !== undefined) updateFields.role = body.updateData.role
+        if (body.updateData.department !== undefined) updateFields.department = body.updateData.department
+        if (body.updateData.position !== undefined) updateFields.position = body.updateData.position
+        console.log('🔍 Admin fields mapped:', { 
+          department: body.updateData.department, 
+          position: body.updateData.position 
+        })
         break
     }
+
+    console.log('🔍 Final updateFields to database:', JSON.stringify(updateFields, null, 2))
 
     // Update the user profile
     const { data: updatedUser, error: updateError } = await serviceClient
@@ -139,8 +154,11 @@ serve(async (req) => {
       .single()
 
     if (updateError) {
+      console.error('🔍 Database update error:', updateError)
       throw new Error(`Failed to update user: ${updateError.message}`)
     }
+
+    console.log('🔍 Updated user from database:', JSON.stringify(updatedUser, null, 2))
 
     // Update auth user if email changed
     if (body.updateData.email && body.updateData.email !== currentUser.email) {
@@ -309,6 +327,11 @@ serve(async (req) => {
         guardianName: updatedUser.guardian_name,
         dateOfBirth: updatedUser.date_of_birth,
         gender: updatedUser.gender
+      }),
+      ...(body.userType === 'admin' && {
+        department: (updatedUser as any).department,
+        position: (updatedUser as any).position,
+        employeeId: (updatedUser as any).employee_id
       })
     }
 

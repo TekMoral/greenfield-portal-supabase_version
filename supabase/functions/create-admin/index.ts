@@ -38,6 +38,12 @@ serve(async (req) => {
     // Parse request body
     const body: CreateAdminRequest = await req.json()
     
+    // Debug log the received data
+    console.log('🔍 Edge Function received body:', JSON.stringify(body, null, 2))
+    console.log('🔍 Department:', body.department)
+    console.log('🔍 Position:', body.position)
+    console.log('🔍 PhoneNumber:', body.phoneNumber)
+    
     // Validate required fields
     if (!body.name || !body.email) {
       throw new Error('Missing required fields: name, email')
@@ -119,7 +125,7 @@ serve(async (req) => {
       phone_number: body.phoneNumber || null,
       employee_id: adminId,
       department: body.department || null,
-      qualification: body.position || null, // Using qualification field for position
+      position: body.position || null, 
       is_super_admin: adminRole === 'super_admin',
       is_active: true,
       status: 'active',
@@ -127,14 +133,101 @@ serve(async (req) => {
       updated_at: new Date().toISOString(),
     }
 
-    const { data: profile, error: profileError } = await serviceClient
+    // First check if profile already exists
+    const { data: existingProfile, error: existingProfileError } = await serviceClient
+      .from('user_profiles')
+      .select('*')
+      .eq('id', authData.user.id)
+      .single()
+
+    console.log('🔍 Existing profile check:', existingProfile)
+    console.log('🔍 Existing profile error:', existingProfileError)
+
+    if (existingProfile) {
+      console.log('🔍 Profile already exists, updating it with new data')
+      // Profile already exists, update it with our data
+      const { data: updatedProfile, error: updateError } = await serviceClient
+        .from('user_profiles')
+        .update({
+          full_name: body.name,
+          role: adminRole,
+          phone_number: body.phoneNumber || null,
+          employee_id: adminId,
+          department: body.department || null,
+          position: body.position || null,
+          is_super_admin: adminRole === 'super_admin',
+          is_active: true,
+          status: 'active',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', authData.user.id)
+        .select()
+        .single()
+
+      if (updateError) {
+        console.error('🔍 Failed to update existing profile:', updateError)
+        throw new Error(`Failed to update existing profile: ${updateError.message}`)
+      }
+
+      console.log('🔍 Updated profile:', updatedProfile)
+
+      const adminData = {
+        id: updatedProfile.id,
+        uid: updatedProfile.id,
+        name: updatedProfile.full_name,
+        email: updatedProfile.email,
+        phoneNumber: updatedProfile.phone_number,
+        role: updatedProfile.role,
+        department: updatedProfile.department,
+        position: updatedProfile.position,
+        employeeId: updatedProfile.employee_id,
+        isSuperAdmin: updatedProfile.is_super_admin,
+        isActive: updatedProfile.is_active,
+        createdAt: updatedProfile.created_at,
+      }
+      return new Response(
+        JSON.stringify({ success: true, data: adminData }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      )
+    }
+
+    // Profile doesn't exist, create it
+    const { data: createdProfile, error: profileError } = await serviceClient
       .from('user_profiles')
       .insert(profileData)
       .select()
       .single()
 
     if (profileError) {
-      // Clean up auth user if profile creation fails
+      // If insert failed, try one more time to get existing profile (race condition)
+      const { data: raceProfile } = await serviceClient
+        .from('user_profiles')
+        .select('*')
+        .eq('id', authData.user.id)
+        .single()
+
+      if (raceProfile) {
+        const adminData = {
+          id: raceProfile.id,
+          uid: raceProfile.id,
+          name: raceProfile.full_name,
+          email: raceProfile.email,
+          phoneNumber: raceProfile.phone_number,
+          role: raceProfile.role,
+          department: raceProfile.department,
+          position: raceProfile.position,
+          employeeId: raceProfile.employee_id,
+          isSuperAdmin: raceProfile.is_super_admin,
+          isActive: raceProfile.is_active,
+          createdAt: raceProfile.created_at,
+        }
+        return new Response(
+          JSON.stringify({ success: true, data: adminData }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        )
+      }
+
+      // Clean up auth user if profile creation fails and no existing profile
       await serviceClient.auth.admin.deleteUser(authData.user.id)
       throw new Error(`Failed to create profile: ${profileError.message}`)
     }
@@ -191,18 +284,18 @@ serve(async (req) => {
 
     // Transform data for response
     const adminData = {
-      id: profile.id,
-      uid: profile.id,
-      name: profile.full_name,
-      email: profile.email,
-      phoneNumber: profile.phone_number,
-      role: profile.role,
-      department: profile.department,
-      position: profile.qualification,
-      employeeId: profile.employee_id,
-      isSuperAdmin: profile.is_super_admin,
-      isActive: profile.is_active,
-      createdAt: profile.created_at,
+      id: createdProfile.id,
+      uid: createdProfile.id,
+      name: createdProfile.full_name,
+      email: createdProfile.email,
+      phoneNumber: createdProfile.phone_number,
+      role: createdProfile.role,
+      department: createdProfile.department,
+      position: createdProfile.position,
+      employeeId: createdProfile.employee_id,
+      isSuperAdmin: createdProfile.is_super_admin,
+      isActive: createdProfile.is_active,
+      createdAt: createdProfile.created_at,
     }
 
     return new Response(

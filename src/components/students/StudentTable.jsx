@@ -3,6 +3,7 @@ import { useAuth } from "../../hooks/useAuth";
 import ProfileImage from "../common/ProfileImage";
 import ImageModal from "../common/ImageModal";
 import { EditButton, DeleteButton, PromoteButton, SuspendButton, ReactivateButton } from "../ui/ActionButtons";
+import { formatClassName } from "../../utils/classNameFormatter";
 
 const StudentTable = ({
   students = [],
@@ -350,7 +351,7 @@ const StudentTable = ({
             </p>
             <div className="flex items-center space-x-2 mt-1">
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                {student?.classes?.name || "N/A"}
+                {formatClassName(student?.classes?.name) || "N/A"}
               </span>
               <StatusBadge status={student?.status || 'active'} />
               {student?.gender && (
@@ -751,7 +752,7 @@ const StudentTable = ({
                       </td>
                       <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          {student?.classes?.name || "N/A"}
+                          {formatClassName(student?.classes?.name) || "N/A"}
                         </span>
                       </td>
                       <td className="hidden lg:table-cell px-4 sm:px-6 py-4 whitespace-nowrap">

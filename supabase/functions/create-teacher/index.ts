@@ -65,12 +65,12 @@ serve(async (req) => {
 
     console.log('✅ Email is unique')
 
-    // Generate employee ID
-    const year = new Date().getFullYear()
-    const randomNum = Math.floor(Math.random() * 9000) + 1000
-    const employeeId = `TCH${year}${randomNum}`
-
-    console.log('✅ Generated employee ID:', employeeId)
+    // Generate employee ID via RPC backed by a sequence for uniqueness and atomicity
+    const { data: employeeId, error: empErr } = await serviceClient.rpc('generate_teacher_employee_id')
+    if (empErr || !employeeId) {
+      throw new Error(`Failed to generate employee ID: ${empErr?.message || 'no value returned'}`)
+    }
+    console.log('✅ Generated employee ID via RPC:', employeeId)
 
     // Create auth user using admin API (this works reliably)
     const { data: authData, error: authError } = await serviceClient.auth.admin.createUser({

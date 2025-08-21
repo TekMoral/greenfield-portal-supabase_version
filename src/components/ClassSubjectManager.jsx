@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getAllTeachers } from '../services/supabase/migrationWrapper';
 import { getSubjects } from '../services/supabase/subjectService';
+import { supabase } from '../lib/supabaseClient';
 
 const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
   const [teachers, setTeachers] = useState([]);
@@ -22,8 +23,12 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
         
         // Get all teachers (handle migration wrapper response)
         const teachersResult = await getAllTeachers();
+        console.log('🔍 Teachers fetch result:', teachersResult);
+        
         if (teachersResult?.success) {
-          setTeachers(teachersResult.data || []);
+          const teacherData = teachersResult.data || [];
+          console.log('👥 Teachers data:', teacherData);
+          setTeachers(teacherData);
         } else {
           console.error('Failed to fetch teachers:', teachersResult?.error);
           setTeachers([]);
@@ -31,10 +36,46 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
         
         // Get all active subjects to ensure full list is available regardless of class level/category
         const subjects = await getSubjects();
+        console.log('📚 Subjects data:', subjects);
         setAvailableSubjects(subjects || []);
         
-        // Initialize classSubjects with existing data (if any)
-        setClassSubjects(classData.subjects || []);
+        // Fetch existing teacher assignments for this class
+        console.log('🔍 Fetching existing assignments for class:', classData.id);
+        const { data: existingAssignments, error: assignmentsError } = await supabase
+          .from('teacher_assignments')
+          .select(`
+            id,
+            teacher_id,
+            subject_id,
+            is_active,
+            subjects!inner (id, name, department),
+            user_profiles!inner (id, full_name)
+          `)
+          .eq('class_id', classData.id)
+          .eq('is_active', true);
+
+        if (assignmentsError) {
+          console.error('❌ Error fetching assignments:', assignmentsError);
+        } else {
+          console.log('📋 Existing assignments:', existingAssignments);
+          
+          // Transform assignments to match the expected format
+          const transformedAssignments = (existingAssignments || []).map(assignment => ({
+            subjectName: assignment.subjects?.name || 'Unknown Subject',
+            teacherId: assignment.teacher_id,
+            teacherName: assignment.user_profiles?.full_name || 'Unknown Teacher',
+            assignmentId: assignment.id // Keep track of the assignment ID
+          }));
+          
+          console.log('🔄 Transformed assignments:', transformedAssignments);
+          setClassSubjects(transformedAssignments);
+        }
+        
+        // Also initialize with legacy data if no assignments found
+        if (!existingAssignments || existingAssignments.length === 0) {
+          console.log('📝 No database assignments found, using legacy class subjects');
+          setClassSubjects(classData.subjects || []);
+        }
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -45,36 +86,77 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
     fetchData();
   }, [classData]);
 
-  const addSubject = () => {
+  const addSubject = async () => {
     if (!newSubject.subjectName || !newSubject.teacherId) {
       alert('Please select both subject and teacher');
       return;
     }
 
-    // Count current assignments for this subject
-    const subjectCount = classSubjects.filter(subject => subject.subjectName === newSubject.subjectName).length;
-    if (subjectCount >= 2) {
-      alert('A maximum of 2 teachers can be assigned to the same subject in a class.');
-      return;
-    }
+    try {
+      // Find the subject ID from the subject name
+      const selectedSubject = availableSubjects.find(s => s.name === newSubject.subjectName);
+      if (!selectedSubject) {
+        alert('Selected subject not found');
+        return;
+      }
 
-    // Prevent duplicate assignment of the same teacher to the same subject
-    const duplicatePair = classSubjects.some(
-      subject => subject.subjectName === newSubject.subjectName && subject.teacherId === newSubject.teacherId
-    );
-    if (duplicatePair) {
-      alert('This teacher is already assigned to this subject in this class.');
-      return;
-    }
+      // Check global limit: max 2 unique teachers per subject across all classes
+      console.log(`🔍 Checking global limit for subject: ${selectedSubject.name} (ID: ${selectedSubject.id})`);
+      
+      const { data: existingAssignments, error } = await supabase
+        .from('teacher_assignments')
+        .select('teacher_id, class_id')
+        .eq('subject_id', selectedSubject.id)
+        .eq('is_active', true);
 
-    setClassSubjects(prevSubjects => [...prevSubjects, { ...newSubject }]);
-    
-    // Reset form
-    setNewSubject({
-      subjectName: '',
-      teacherId: '',
-      teacherName: ''
-    });
+      if (error) {
+        console.error('❌ Error checking existing assignments:', error);
+        alert('Error checking existing assignments. Please try again.');
+        return;
+      }
+
+      console.log(`📊 Existing assignments for ${selectedSubject.name}:`, existingAssignments);
+
+      // Count unique teachers for this subject
+      const uniqueTeachers = new Set(existingAssignments?.map(a => a.teacher_id) || []);
+      console.log(`👥 Unique teachers already assigned to ${selectedSubject.name}:`, Array.from(uniqueTeachers));
+      console.log(`📈 Current teacher count: ${uniqueTeachers.size}/2`);
+      
+      // Check if this teacher is already assigned to this subject
+      const teacherAlreadyAssigned = uniqueTeachers.has(newSubject.teacherId);
+      console.log(`🔍 Is teacher ${newSubject.teacherName} already assigned? ${teacherAlreadyAssigned}`);
+      
+      // If teacher not already assigned and we're at the limit, reject
+      if (!teacherAlreadyAssigned && uniqueTeachers.size >= 2) {
+        const currentTeachers = Array.from(uniqueTeachers);
+        console.log(`❌ LIMIT REACHED: Subject "${newSubject.subjectName}" already has 2 teachers:`, currentTeachers);
+        alert(`Subject "${newSubject.subjectName}" already has the maximum number of teachers (2) assigned across all classes.\n\nCurrent teachers: ${currentTeachers.length}`);
+        return;
+      }
+      
+      console.log(`✅ Global limit check passed. Proceeding with assignment...`);
+
+      // Prevent duplicate assignment of the same teacher to the same subject in this class
+      const duplicatePair = classSubjects.some(
+        subject => subject.subjectName === newSubject.subjectName && subject.teacherId === newSubject.teacherId
+      );
+      if (duplicatePair) {
+        alert('This teacher is already assigned to this subject in this class.');
+        return;
+      }
+
+      setClassSubjects(prevSubjects => [...prevSubjects, { ...newSubject }]);
+      
+      // Reset form
+      setNewSubject({
+        subjectName: '',
+        teacherId: '',
+        teacherName: ''
+      });
+    } catch (error) {
+      console.error('Error adding subject:', error);
+      alert('Error adding subject. Please try again.');
+    }
   };
 
   const removeSubject = (index) => {
@@ -88,8 +170,10 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
       
       // If teacher is selected, update teacher name
       if (field === 'teacherId') {
-        const teacher = teachers.find(t => t.uid === value);
+        // Try both uid and id fields to handle different data structures
+        const teacher = teachers.find(t => t.uid === value || t.id === value);
         updated.teacherName = teacher ? teacher.name : '';
+        console.log('🔍 Selected teacher:', teacher);
       }
       
       return updated;
@@ -97,12 +181,8 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
   };
 
   const getUnassignedSubjects = () => {
-    // Allow up to 2 teachers per subject; filter out only subjects that already have 2 assignments
-    const counts = classSubjects.reduce((acc, s) => {
-      acc[s.subjectName] = (acc[s.subjectName] || 0) + 1;
-      return acc;
-    }, {});
-    return availableSubjects.filter(subject => (counts[subject.name] || 0) < 2);
+    // Show all subjects - the global check will happen when adding
+    return availableSubjects;
   };
 
   const handleSave = () => {
@@ -115,12 +195,21 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
   };
 
   const getTeachersBySubject = (subjectName) => {
-    // Filter teachers who teach this subject or can teach any subject
-    return teachers.filter(teacher => 
-      teacher.subject === subjectName || 
-      teacher.subject === 'General' || 
-      !teacher.subject
-    );
+    console.log('🔍 Getting teachers for subject:', subjectName);
+    console.log('🔍 Available teachers:', teachers.length);
+    
+    // Show ALL active teachers - a teacher can teach multiple subjects
+    // We only need to filter out inactive teachers
+    const availableTeachers = teachers.filter(teacher => {
+      // Only filter out inactive teachers, not by subject specialization
+      const isActive = teacher.isActive !== false; // Default to true if not specified
+      
+      console.log(`🔍 Teacher ${teacher.name}: isActive=${isActive}`);
+      return isActive;
+    });
+    
+    console.log('✅ Available teachers for assignment:', availableTeachers.length);
+    return availableTeachers;
   };
 
   if (loading) {
@@ -303,11 +392,15 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
                   disabled={!newSubject.subjectName}
                 >
                   <option value="">Select Teacher</option>
-                  {newSubject.subjectName && getTeachersBySubject(newSubject.subjectName).map((teacher) => (
-                    <option key={teacher.uid} value={teacher.uid}>
-                      {teacher.name} {teacher.subject && `(${teacher.subject})`}
-                    </option>
-                  ))}
+                  {newSubject.subjectName && getTeachersBySubject(newSubject.subjectName).map((teacher) => {
+                    const teacherId = teacher.uid || teacher.id;
+                    const teacherKey = teacher.uid || teacher.id || teacher.name;
+                    return (
+                      <option key={teacherKey} value={teacherId}>
+                        {teacher.name} {teacher.subject && `(${teacher.subject})`}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             </div>

@@ -1,11 +1,41 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import PasswordInput from "../ui/PasswordInput";
 import { SaveButton, CancelButton } from "../ui/ActionButtons";
+import { getSubjects } from "../../services/supabase/subjectService";
 
 const TeacherForm = ({ onSubmit, onCancel, error, loading = false, mode = 'add', defaultValues = {} }) => {
   const [imagePreview, setImagePreview] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
+  const [subjects, setSubjects] = useState([]);
+  const [subjectsLoading, setSubjectsLoading] = useState(true);
+
+  // Predefined qualifications list
+  const qualifications = [
+    // Polytechnics
+    { value: "OND", label: "OND - Ordinary National Diploma", category: "Polytechnic" },
+    { value: "HND", label: "HND - Higher National Diploma", category: "Polytechnic" },
+    
+    // University - First Degrees
+    { value: "B.Ed", label: "B.Ed - Bachelor of Education", category: "University (First Degree)" },
+    { value: "B.Sc(Ed)", label: "B.Sc(Ed) - Bachelor of Science Education", category: "University (First Degree)" },
+    { value: "B.A(Ed)", label: "B.A(Ed) - Bachelor of Arts Education", category: "University (First Degree)" },
+    { value: "B.Sc", label: "B.Sc - Bachelor of Science", category: "University (First Degree)" },
+    { value: "B.A", label: "B.A - Bachelor of Arts", category: "University (First Degree)" },
+    { value: "B.Tech", label: "B.Tech - Bachelor of Technology", category: "University (First Degree)" },
+    { value: "LLB", label: "LLB - Bachelor of Laws", category: "University (First Degree)" },
+    { value: "BPharm", label: "BPharm - Bachelor of Pharmacy", category: "University (First Degree)" },
+    { value: "BEng", label: "BEng - Bachelor of Engineering", category: "University (First Degree)" },
+    
+    // Postgraduate
+    { value: "PGDE", label: "PGDE - Postgraduate Diploma in Education", category: "Postgraduate" },
+    { value: "M.Ed", label: "M.Ed - Master of Education", category: "Postgraduate" },
+    { value: "M.Sc", label: "M.Sc - Master of Science", category: "Postgraduate" },
+    { value: "M.A", label: "M.A - Master of Arts", category: "Postgraduate" },
+    
+    // Doctorate
+    { value: "PhD", label: "PhD - Doctor of Philosophy", category: "Doctorate" }
+  ];
 
   const {
     register,
@@ -44,6 +74,25 @@ const TeacherForm = ({ onSubmit, onCancel, error, loading = false, mode = 'add',
     setValue("profileImage", null);
     document.getElementById("profileImage").value = "";
   };
+
+  // Fetch subjects on component mount
+  useEffect(() => {
+    const fetchSubjects = async () => {
+      try {
+        setSubjectsLoading(true);
+        const subjectsData = await getSubjects();
+        console.log('📚 Fetched subjects for teacher form:', subjectsData);
+        setSubjects(subjectsData || []);
+      } catch (error) {
+        console.error('❌ Error fetching subjects:', error);
+        setSubjects([]);
+      } finally {
+        setSubjectsLoading(false);
+      }
+    };
+
+    fetchSubjects();
+  }, []);
 
   React.useEffect(() => {
     if (defaultValues && defaultValues.profileImageUrl && !selectedFile) {
@@ -220,48 +269,194 @@ const TeacherForm = ({ onSubmit, onCancel, error, loading = false, mode = 'add',
           <InputField label="Phone Number" error={errors.phoneNumber?.message}>
             <input
               type="tel"
-              placeholder="Enter phone number"
+              placeholder="Enter 11-digit phone number (e.g., 08012345678)"
               {...register("phoneNumber", {
                 required: "Phone number is required",
+                pattern: {
+                  value: /^[0-9]{11}$/,
+                  message: "Phone number must be exactly 11 digits (numbers only, no spaces or special characters)"
+                },
+                validate: {
+                  isNumeric: (value) => {
+                    if (!/^\d+$/.test(value)) {
+                      return "Phone number must contain only numbers";
+                    }
+                    return true;
+                  },
+                  correctLength: (value) => {
+                    if (value.length !== 11) {
+                      return "Phone number must be exactly 11 digits";
+                    }
+                    return true;
+                  },
+                  noSpaces: (value) => {
+                    if (/\s/.test(value)) {
+                      return "Phone number cannot contain spaces";
+                    }
+                    return true;
+                  },
+                  validNigerianNumber: (value) => {
+                    // Optional: Validate Nigerian phone number format (starts with 070, 080, 081, 090, 091, etc.)
+                    if (!/^0[7-9][0-1]\d{8}$/.test(value)) {
+                      return "Please enter a valid Nigerian phone number (e.g., 08012345678)";
+                    }
+                    return true;
+                  }
+                }
               })}
+              onInput={(e) => {
+                // Remove any non-numeric characters as user types
+                e.target.value = e.target.value.replace(/[^0-9]/g, '');
+                // Limit to 11 characters
+                if (e.target.value.length > 11) {
+                  e.target.value = e.target.value.slice(0, 11);
+                }
+              }}
+              maxLength="11"
               className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
                 errors.phoneNumber ? "border-red-500 bg-red-50" : "border-gray-300"
               }`}
             />
           </InputField>
 
-          <InputField label="Subject" error={errors.subject?.message}>
-            <input
-              type="text"
-              placeholder="Enter subject"
-              {...register("subject", { required: "Subject is required" })}
-              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                errors.subject ? "border-red-500 bg-red-50" : "border-gray-300"
-              }`}
-            />
+          <InputField label="Subject Specialization" error={errors.subject?.message}>
+            {subjectsLoading ? (
+              <div className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 flex items-center">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                <span className="text-gray-500">Loading subjects...</span>
+              </div>
+            ) : (
+              <select
+                {...register("subject", { required: "Subject specialization is required" })}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
+                  errors.subject ? "border-red-500 bg-red-50" : "border-gray-300"
+                }`}
+              >
+                <option value="">Select subject specialization</option>
+                <option value="General">General (Can teach any subject)</option>
+                {subjects.map((subject) => (
+                  <option key={subject.id} value={subject.name}>
+                    {subject.name} ({subject.department ? subject.department.charAt(0).toUpperCase() + subject.department.slice(1) : 'General'})
+                  </option>
+                ))}
+              </select>
+            )}
           </InputField>
 
           <InputField label="Qualification" error={errors.qualification?.message}>
-            <input
-              type="text"
-              placeholder="Enter qualification"
-              {...register("qualification", {
-                required: "Qualification is required",
-              })}
+            <select
+              {...register("qualification", { required: "Qualification is required" })}
               className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
                 errors.qualification ? "border-red-500 bg-red-50" : "border-gray-300"
               }`}
-            />
+            >
+              <option value="">Select qualification</option>
+              
+              {/* Polytechnic Qualifications */}
+              <optgroup label="📚 Polytechnic">
+                {qualifications
+                  .filter(q => q.category === "Polytechnic")
+                  .map((qual) => (
+                    <option key={qual.value} value={qual.value}>
+                      {qual.label}
+                    </option>
+                  ))}
+              </optgroup>
+              
+              {/* University First Degrees */}
+              <optgroup label="🎓 University (First Degree)">
+                {qualifications
+                  .filter(q => q.category === "University (First Degree)")
+                  .map((qual) => (
+                    <option key={qual.value} value={qual.value}>
+                      {qual.label}
+                    </option>
+                  ))}
+              </optgroup>
+              
+              {/* Postgraduate Qualifications */}
+              <optgroup label="🎯 Postgraduate">
+                {qualifications
+                  .filter(q => q.category === "Postgraduate")
+                  .map((qual) => (
+                    <option key={qual.value} value={qual.value}>
+                      {qual.label}
+                    </option>
+                  ))}
+              </optgroup>
+              
+              {/* Doctorate */}
+              <optgroup label="🏆 Doctorate">
+                {qualifications
+                  .filter(q => q.category === "Doctorate")
+                  .map((qual) => (
+                    <option key={qual.value} value={qual.value}>
+                      {qual.label}
+                    </option>
+                  ))}
+              </optgroup>
+            </select>
           </InputField>
 
           <InputField label="Date Hired" error={errors.dateHired?.message}>
             <input
               type="date"
-              {...register("dateHired", { required: "Date hired is required" })}
+              {...register("dateHired", {
+                required: "Date hired is required",
+                validate: {
+                  notFuture: (value) => {
+                    const selectedDate = new Date(value);
+                    const today = new Date();
+                    today.setHours(23, 59, 59, 999); // Set to end of today
+                    
+                    if (selectedDate > today) {
+                      return "Date hired cannot be in the future";
+                    }
+                    return true;
+                  },
+                  validDate: (value) => {
+                    const selectedDate = new Date(value);
+                    if (isNaN(selectedDate.getTime())) {
+                      return "Please enter a valid date";
+                    }
+                    return true;
+                  },
+                  validYear: (value) => {
+                    const year = new Date(value).getFullYear();
+                    const currentYear = new Date().getFullYear();
+                    
+                    // Check if year is 4 digits and reasonable range
+                    if (year < 1900) {
+                      return "Year must be 1900 or later";
+                    }
+                    if (year > currentYear) {
+                      return "Year cannot be in the future";
+                    }
+                    if (year.toString().length !== 4) {
+                      return "Year must be exactly 4 digits";
+                    }
+                    return true;
+                  },
+                  reasonableDate: (value) => {
+                    const selectedDate = new Date(value);
+                    const minDate = new Date('1900-01-01');
+                    
+                    if (selectedDate < minDate) {
+                      return "Date hired must be after January 1, 1900";
+                    }
+                    return true;
+                  }
+                }
+              })}
+              max={new Date().toISOString().split('T')[0]} // Set max to today's date
+              min="1900-01-01" // Set minimum date
               className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
                 errors.dateHired ? "border-red-500 bg-red-50" : "border-gray-300"
               }`}
             />
+            <p className="text-xs text-gray-500 mt-1">
+              Select the date when the teacher was hired (cannot be in the future)
+            </p>
           </InputField>
         </div>
 

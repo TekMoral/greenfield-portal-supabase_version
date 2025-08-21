@@ -4,6 +4,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { getStudent } from "../../services/studentService";
 import { getAllClasses } from "../../services/classService";
 import ProfileImage from "../../components/common/ProfileImage";
+import { formatFullClassName } from "../../utils/classNameFormatter";
 
 const Profile = () => {
   const { user } = useAuth();
@@ -116,7 +117,7 @@ const Profile = () => {
                   {student.firstName} {student.surname}
                 </h2>
                 <p className="text-green-100 text-lg">
-                  {student.class} {student.level} {student.category && `(${student.category})`}
+                  {formatFullClassName(student.class, student.level, student.category)}
                 </p>
                 <div className="mt-2">
                   <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(student.status)}`}>
@@ -169,8 +170,7 @@ const Profile = () => {
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Class & Level</p>
-                      <p className="font-semibold text-gray-900">{student.class} {student.level}</p>
-                      {student.category && <p className="text-sm text-gray-600">({student.category})</p>}
+                      <p className="font-semibold text-gray-900">{formatFullClassName(student.class, student.level, student.category)}</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-3">

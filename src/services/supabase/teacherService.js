@@ -33,31 +33,19 @@ const transformTeacherData = (profile) => {
   };
 };
 
-// Helper function to generate employee ID with caching
+// Helper function to generate employee ID using database RPC-backed sequence
 const generateEmployeeId = async () => {
-  const year = new Date().getFullYear();
-  const now = Date.now();
-
-  let count;
-  if (
-    cache.teacherCount !== null &&
-    cache.cacheTime &&
-    now - cache.cacheTime < cache.TTL
-  ) {
-    count = cache.teacherCount;
-  } else {
-    const { count: freshCount } = await supabase
-      .from("user_profiles")
-      .select("*", { count: "exact", head: true })
-      .eq("role", "teacher");
-
-    count = freshCount || 0;
-    cache.teacherCount = count;
-    cache.cacheTime = now;
+  try {
+    const { data, error } = await supabase.rpc('generate_teacher_employee_id');
+    if (error) throw error;
+    if (!data || typeof data !== 'string') {
+      throw new Error('Invalid employee ID generated');
+    }
+    return data;
+  } catch (err) {
+    console.error('❌ Failed to generate employee_id via RPC:', err);
+    throw new Error('Failed to generate unique employee ID');
   }
-
-  const nextNumber = count + 1;
-  return `TCH${year}${nextNumber.toString().padStart(4, "0")}`;
 };
 
 // Optimized profile image upload
@@ -98,7 +86,14 @@ const dbOperations = {
     console.log("🔍 Querying teachers with filters:", filters);
 
     Object.entries(filters).forEach(([key, value]) => {
-      if (value !== undefined) query = query.eq(key, value);
+      if (value !== undefined) {
+        if (typeof value === 'object' && value.neq) {
+          // Handle 'not equal' filters
+          query = query.neq(key, value.neq);
+        } else {
+          query = query.eq(key, value);
+        }
+      }
     });
 
     if (options.single) query = query.single();
@@ -294,14 +289,21 @@ export const teacherService = {
     try {
       console.log("🔄 Fetching all teachers...");
 
+      // Remove the is_active filter to show both active and suspended teachers
       const { data, error } = await dbOperations.queryTeachers(
-        { is_active: true },
+        { status: { neq: 'deleted' } }, // ✅ Exclude deleted teachers only
         { order: { field: "created_at", asc: false } }
       );
 
       if (error) throw error;
 
       console.log("✅ Teachers fetched:", data?.length || 0);
+      console.log("📊 Teacher status breakdown:", {
+        total: data?.length || 0,
+        active: data?.filter(t => t.is_active === true && t.status !== 'deleted').length || 0,
+        suspended: data?.filter(t => t.is_active === false && t.status !== 'deleted').length || 0,
+        deleted_excluded: "Deleted teachers are filtered out and not shown"
+      });
 
       // Debug: Log first teacher's role if any exist
       if (data && data.length > 0) {
@@ -309,6 +311,8 @@ export const teacherService = {
           name: data[0].full_name,
           role: data[0].role,
           employee_id: data[0].employee_id,
+          is_active: data[0].is_active,
+          status: data[0].status
         });
       }
 
@@ -418,14 +422,16 @@ export const teacherService = {
 
       const { data, error } = await dbOperations.updateProfile(teacherId, {
         is_active: false,
+        status: 'deleted' // ✅ Mark as deleted so they don't appear in lists
       });
 
       if (error) throw error;
 
-      console.log("✅ Teacher deactivated:", {
+      console.log("✅ Teacher deleted:", {
         id: data.id,
         employee_id: data.employee_id,
         status: data.status,
+        is_active: data.is_active
       });
 
       return { success: true, data };
@@ -511,6 +517,26 @@ export const teacherService = {
     term = null
   ) {
     try {
+      // Pre-check: no more than 2 unique teachers for the same subject globally
+      const { data: existingAssignments, error: countError } = await supabase
+        .from('teacher_assignments')
+        .select('teacher_id')
+        .eq('subject_id', subjectId)
+        .eq('is_active', true);
+
+      if (countError) throw countError;
+
+      // Count unique teachers for this subject
+      const uniqueTeachers = new Set(existingAssignments?.map(a => a.teacher_id) || []);
+      
+      // Check if this teacher is already assigned to this subject
+      const teacherAlreadyAssigned = uniqueTeachers.has(teacherId);
+      
+      // If teacher not already assigned and we're at the limit, reject
+      if (!teacherAlreadyAssigned && uniqueTeachers.size >= 2) {
+        throw new Error('Subject already has the maximum number of teachers (2) assigned across all classes');
+      }
+
       const { data, error } = await supabase
         .from("teacher_assignments")
         .insert({
@@ -530,7 +556,14 @@ export const teacherService = {
         )
         .single();
 
-      if (error) throw error;
+      if (error) {
+        const msg = error.message || '';
+        if (msg.includes('Cannot assign more than 2 different teachers')) {
+          throw new Error('Subject already has the maximum number of teachers (2) assigned across all classes');
+        }
+        throw error;
+      }
+
       return { success: true, data };
     } catch (error) {
       console.error("Error assigning subject to teacher:", error);

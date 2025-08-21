@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { getAllClasses } from "../../services/supabase/classService";
 import { createClass, updateClass, deleteClass } from "../../services/supabase/classAdminService";
@@ -50,7 +51,7 @@ export default function Classes() {
   const { logClassAction, AUDIT_ACTIONS } = useAuditLog();
 
   const [classes, setClasses] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // Local loading for legacy fetch function is no longer used for initial load
   const [actionLoading, setActionLoading] = useState({ saving: false, deletingId: null });
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, classId: null, className: "" });
 
@@ -74,43 +75,45 @@ export default function Classes() {
   const [subjectManagerOpen, setSubjectManagerOpen] = useState(false);
   const [selectedClass, setSelectedClass] = useState(null);
 
-  const fetchClasses = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await getAllClasses();
-      console.log('Fetched classes:', result.data);
+  const queryClient = useQueryClient();
 
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to fetch classes');
-      }
-
-      const data = result.data || [];
-
-      // Calculate student count for each class
-      const classesWithCount = await Promise.all(
-        data.map(async (cls) => {
-          try {
-            const studentsResult = await getStudentsByClass(cls.id);
-            const studentCount = studentsResult.success ? (studentsResult.data || []).length : 0;
-            return { ...cls, studentCount };
-          } catch (error) {
-            console.error(`❌ Error fetching students for ${cls.name}:`, error);
-            return { ...cls, studentCount: 0 };
-          }
-        })
-      );
-
-      // Sort classes with proper Nigerian school hierarchy using utility function
-      const sortedClasses = sortClasses(classesWithCount);
-
-      setClasses(sortedClasses);
-    } catch (error) {
-      toast.error("Failed to fetch classes");
-      console.error("Error fetching classes:", error.message || error);
-    } finally {
-      setLoading(false);
+  const fetchAdminClassesQuery = async () => {
+    const result = await getAllClasses();
+    let data = [];
+    if (Array.isArray(result)) {
+      data = result;
+    } else if (result?.success) {
+      data = result.data || [];
+    } else {
+      throw new Error(result?.error || 'Failed to fetch classes');
     }
-  }, []);
+
+    const classesWithCount = await Promise.all(
+      data.map(async (cls) => {
+        try {
+          const studentsResult = await getStudentsByClass(cls.id);
+          const studentCount = studentsResult.success ? (studentsResult.data || []).length : 0;
+          return { ...cls, studentCount };
+        } catch (error) {
+          return { ...cls, studentCount: 0 };
+        }
+      })
+    );
+
+    return sortClasses(classesWithCount);
+  };
+
+  const { data: classesQueryData, isLoading: classesLoading, error: classesError } = useQuery({ queryKey: ['classes', 'withCounts'], queryFn: fetchAdminClassesQuery });
+
+  useEffect(() => {
+    if (classesQueryData) setClasses(classesQueryData);
+  }, [classesQueryData]);
+
+  const fetchClassesRQ = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ['classes', 'withCounts'] });
+  }, [queryClient]);
+
+  // Legacy fetch function retained only for reference; React Query handles actual loads
 
   const navigateToClassStudents = (classItem) => {
     const slug =
@@ -220,7 +223,7 @@ export default function Classes() {
       );
 
       toast.success(`Class subjects updated successfully! Created ${results.filter(r => r.success).length} teacher assignments.`);
-      await fetchClasses();
+      await fetchClassesRQ();
       closeSubjectManager();
     } catch (error) {
       toast.error("Failed to update class subjects");
@@ -228,10 +231,7 @@ export default function Classes() {
     }
   };
 
-  // Fetch classes on mount
-  useEffect(() => {
-    fetchClasses();
-  }, [fetchClasses]);
+  // Data fetched via React Query
 
   const openAddForm = () => {
     setFormMode("add");
@@ -409,7 +409,7 @@ export default function Classes() {
 
         toast.success("Class updated successfully");
       }
-      await fetchClasses(); // Refresh class counts
+      await fetchClassesRQ(); // Refresh class counts
       closeForm();
     } catch (error) {
       const msg = getFriendlyError(error?.message || 'Failed to save class');
@@ -449,7 +449,7 @@ export default function Classes() {
       );
 
       toast.success('Class deleted successfully');
-      fetchClasses();
+      fetchClassesRQ();
     } catch (error) {
       const msg = getFriendlyError(error?.message || 'Failed to delete class');
       toast.error(msg);
@@ -480,7 +480,7 @@ export default function Classes() {
         </div>
 
         {/* Loading State */}
-        {loading ? (
+        {classesLoading ? (
           <div className="flex justify-center items-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             <span className="ml-2 text-gray-600">Loading classes...</span>

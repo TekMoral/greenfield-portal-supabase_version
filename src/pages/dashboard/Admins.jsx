@@ -4,11 +4,32 @@ import edgeFunctionsService from '../../services/supabase/edgeFunctions';
 import { useAuth } from '../../hooks/useAuth';
 import { toast } from 'react-hot-toast';
 import { EditButton, DeleteButton, SuspendButton, ReactivateButton, CreateButton } from '../../components/ui/ActionButtons';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 const Admins = () => {
   const { isSuperAdmin } = useAuth();
   const [admins, setAdmins] = useState([]);
   const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+
+  const fetchAdminsQuery = async () => {
+    const result = await getAllAdmins();
+    if (result && result.success) {
+      const list = (result.data || []).map((a) => ({
+        ...a,
+        name: a.full_name || a.name,
+        isActive: typeof a.is_active === 'boolean' ? a.is_active : a.isActive,
+      }));
+      return list;
+    }
+    throw new Error(result?.error || 'Failed to fetch admins');
+  };
+
+  const { data: adminsData, isLoading: adminsLoading, error: rqError } = useQuery({ queryKey: ['admins'], queryFn: fetchAdminsQuery });
+
+  useEffect(() => {
+    if (adminsData) setAdmins(adminsData);
+  }, [adminsData]);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ 
     name: '', 
@@ -37,24 +58,7 @@ const Admins = () => {
   }, []);
 
   const fetchAdmins = async () => {
-    try {
-      const result = await getAllAdmins();
-      if (result && result.success) {
-        const list = (result.data || []).map((a) => ({
-          ...a,
-          name: a.full_name || a.name,
-          isActive: typeof a.is_active === 'boolean' ? a.is_active : a.isActive,
-        }));
-        setAdmins(list);
-      } else {
-        throw new Error(result?.error || 'Failed to fetch admins');
-      }
-    } catch (err) {
-      setError(err.message);
-      setAdmins([]);
-    } finally {
-      setLoading(false);
-    }
+    await queryClient.invalidateQueries({ queryKey: ['admins'] });
   };
 
   const handleSubmit = async (e) => {
@@ -74,7 +78,7 @@ const Admins = () => {
           position: '' 
         });
         setShowForm(false);
-        fetchAdmins();
+        await fetchAdmins();
         toast.success('Admin created successfully!');
       } else {
         throw new Error(result.error || 'Failed to create admin');
@@ -100,7 +104,7 @@ const Admins = () => {
       setError('');
       const result = await edgeFunctionsService.deleteAdmin(adminId);
       if (result.success) {
-        fetchAdmins();
+        await fetchAdmins();
         setDeleteConfirm({ isOpen: false, admin: null });
         toast.success('Admin deleted successfully!');
       } else {
@@ -148,7 +152,7 @@ const Admins = () => {
       const result = await edgeFunctionsService.updateUser(editAdmin.id, 'admin', updateData);
 
       if (result && result.success) {
-        fetchAdmins();
+        await fetchAdmins();
         setShowEditForm(false);
         setEditAdmin(null);
         toast.success('Admin updated successfully!');
@@ -180,7 +184,7 @@ const Admins = () => {
         'Suspended via admin panel'
       );
       if (result.success) {
-        fetchAdmins();
+        await fetchAdmins();
         setSuspendConfirm({ isOpen: false, admin: null });
         toast.success('Admin suspended successfully!');
       } else {
@@ -210,7 +214,7 @@ const Admins = () => {
         'Reactivated via admin panel'
       );
       if (result.success) {
-        fetchAdmins();
+        await fetchAdmins();
         toast.success('Admin reactivated successfully!');
       } else {
         throw new Error(result.error || 'Failed to reactivate admin');
@@ -227,7 +231,7 @@ const Admins = () => {
     }
   };
 
-  if (loading) return <div className="p-6">Loading...</div>;
+  if (adminsLoading) return <div className="p-6">Loading...</div>;
 
   return (
     <div className="p-6">
@@ -240,9 +244,9 @@ const Admins = () => {
         )}
       </div>
 
-      {error && (
+      {(error || rqError) && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
+          {error || rqError?.message}
         </div>
       )}
 

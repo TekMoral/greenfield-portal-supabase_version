@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { getDashboardStats } from "../../services/supabase/dashboardService";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 const Overview = () => {
   const { user } = useAuth();
@@ -15,44 +16,30 @@ const Overview = () => {
     newTeachersThisMonth: 0,
     examsEndingThisWeek: 0
   });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const queryClient = useQueryClient();
+
+  const fetchOverviewQuery = async () => {
+    const result = await getDashboardStats();
+    if (!result.success) throw new Error(result.error || 'Failed to fetch dashboard stats');
+    const overview = result.data.overview || {};
+    return {
+      totalStudents: overview.totalStudents || 0,
+      totalTeachers: overview.totalTeachers || 0,
+      totalClasses: overview.totalClasses || 0,
+      activeExams: overview.totalExams || 0,
+      newStudentsThisMonth: overview.newStudentsThisMonth || 0,
+      newTeachersThisMonth: overview.newTeachersThisMonth || 0,
+      examsEndingThisWeek: overview.examsEndingThisWeek || 0
+    };
+  };
+
+  const { data: overviewData, isLoading, error } = useQuery({ queryKey: ['dashboard', 'overview'], queryFn: fetchOverviewQuery });
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-        console.log('🔄 Fetching dashboard data...');
-        
-        const result = await getDashboardStats();
-        
-        if (result.success) {
-          // Extract the overview data from the nested structure
-          const overview = result.data.overview;
-          setStats({
-            totalStudents: overview.totalStudents || 0,
-            totalTeachers: overview.totalTeachers || 0,
-            totalClasses: overview.totalClasses || 0,
-            activeExams: overview.totalExams || 0,
-            newStudentsThisMonth: overview.newStudentsThisMonth || 0,
-            newTeachersThisMonth: overview.newTeachersThisMonth || 0,
-            examsEndingThisWeek: overview.examsEndingThisWeek || 0
-          });
-          console.log('✅ Dashboard data loaded successfully:', overview);
-        } else {
-          throw new Error(result.error || 'Failed to fetch dashboard stats');
-        }
-        setError(null);
-      } catch (err) {
-        console.error('❌ Error fetching dashboard data:', err);
-        setError('Failed to load dashboard data. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (overviewData) setStats(overviewData);
+  }, [overviewData]);
 
-    fetchDashboardData();
-  }, []);
+  // Data fetched via React Query
 
   const handleQuickAction = (action) => {
     switch (action) {
@@ -73,7 +60,7 @@ const Overview = () => {
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -91,7 +78,7 @@ const Overview = () => {
           <div className="text-red-500 text-lg font-semibold mb-2">Error Loading Dashboard</div>
           <div className="text-gray-600 mb-4">{error}</div>
           <button
-            onClick={() => navigate(0)}
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['dashboard', 'overview'] })}
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
           >
             Retry

@@ -9,40 +9,36 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import SubjectForm from '../forms/SubjectForm';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 export default function SubjectsEnhanced({ department = null }) {
   const { isSuperAdmin } = useAuth();
   const { showToast } = useToast();
   
   const [subjects, setSubjects] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [selectedDept, setSelectedDept] = useState(department || 'all');
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, subject: null });
   const [showForm, setShowForm] = useState(false);
   const [editingSubject, setEditingSubject] = useState(null);
 
-  const fetchSubjects = useCallback(async () => {
-    setLoading(true);
-    try {
-      let data;
-      
-      if (selectedDept === 'all') {
-        data = await getSubjects();
-      } else {
-        data = await getSubjectsByDepartment(selectedDept);
-      }
-      
-      setSubjects(data || []);
-    } catch (error) {
-      console.error('Error fetching subjects:', error);
-      setSubjects([]);
-    }
-    setLoading(false);
-  }, [selectedDept]);
+  const queryClient = useQueryClient();
+
+  const subjectsQueryFn = async () => {
+    if (selectedDept === 'all') return await getSubjects();
+    return await getSubjectsByDepartment(selectedDept);
+  };
+
+  const { data: subjectsData, isLoading: subjectsLoading, error: subjectsError } = useQuery({ queryKey: ['subjects', selectedDept], queryFn: subjectsQueryFn });
+
+  useEffect(() => { if (subjectsData) setSubjects(subjectsData); }, [subjectsData]);
+
+  const refetchSubjects = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['subjects', selectedDept] });
+  };
 
   useEffect(() => {
-    fetchSubjects();
-  }, [selectedDept, fetchSubjects]);
+    // React Query handles fetching via selectedDept key
+  }, [selectedDept]);
 
   const handleDeleteClick = (subject) => {
     setConfirmDialog({ isOpen: true, subject });
@@ -54,11 +50,7 @@ export default function SubjectsEnhanced({ department = null }) {
     if (subjectToDelete) {
       try {
         await deleteSubject(subjectToDelete.id);
-        
-        // Remove from local state instead of fetching
-        setSubjects(prevSubjects => 
-          prevSubjects.filter(s => s.id !== subjectToDelete.id)
-        );
+        await refetchSubjects();
         showToast(`${subjectToDelete.name} deleted successfully`, 'success');
       } catch (error) {
         console.error('Error deleting subject:', error);
@@ -82,16 +74,8 @@ export default function SubjectsEnhanced({ department = null }) {
     setShowForm(false);
     setEditingSubject(null);
     
-    // Update local state without fetching
-    if (!editingSubject) {
-      // Adding new subject - add to list
-      setSubjects(prevSubjects => [...prevSubjects, subjectData]);
-    } else {
-      // Updating existing subject - update in list
-      setSubjects(prevSubjects => 
-        prevSubjects.map(s => s.id === subjectData.id ? subjectData : s)
-      );
-    }
+    // Invalidate query so server data is the source of truth
+    await refetchSubjects();
   };
 
   const handleEdit = (subject) => {
@@ -299,7 +283,7 @@ export default function SubjectsEnhanced({ department = null }) {
               </label>
             </div>
             
-            {loading ? (
+            {subjectsLoading ? (
               <div className="flex items-center justify-center py-16">
                 <div className="flex flex-col items-center space-y-4">
                   <div className="relative">

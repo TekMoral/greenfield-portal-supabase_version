@@ -1,54 +1,52 @@
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { useAuth } from "../../hooks/useAuth";
-import { getStudent } from "../../services/studentService";
-import { getAllClasses } from "../../services/classService";
+import { getStudentById as getStudent } from "../../services/supabase/studentService";
 import ProfileImage from "../../components/common/ProfileImage";
 import { formatFullClassName } from "../../utils/classNameFormatter";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 const Profile = () => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
-  const [student, setStudent] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const fetchStudentProfile = async () => {
+    const result = await getStudent(user.id);
+    if (result?.success && result.data) {
+      const s = result.data;
+      const fullName = s.full_name || '';
+      const first = fullName.split(' ')[0] || fullName || (user.email?.split('@')[0] || 'Student');
+      const rest = fullName.split(' ').slice(1).join(' ');
+      const cls = s.classes || null;
+      return {
+        firstName: first,
+        surname: rest,
+        admissionNumber: s.admission_number,
+        class: cls?.name || 'N/A',
+        level: cls?.level || '',
+        category: cls?.category || '',
+        status: s.status || (s.is_active === false ? 'inactive' : 'active'),
+        gender: s.gender || '-',
+        dateOfBirth: s.date_of_birth || '-',
+        academicYear: new Date().getFullYear(),
+        guardianName: s.guardian_name || '-',
+        contact: s.phone_number || s.guardian_phone || '-',
+        email: s.email || user.email,
+        address: s.address || '',
+        profileImageUrl: s.profile_image || null,
+        image: s.profile_image || null,
+      };
+    }
+    return null;
+  };
 
-  useEffect(() => {
-    const fetchStudent = async () => {
-      if (!user?.uid) return;
+  const { data: student, isLoading, error } = useQuery({
+    queryKey: ['student', 'profile', user?.id],
+    queryFn: fetchStudentProfile,
+    enabled: !!user?.id,
+  });
 
-      setLoading(true);
-      try {
-        const [studentData, classesData] = await Promise.all([
-          getStudent(user.uid),
-          getAllClasses()
-        ]);
-        
-        if (studentData) {
-          // Enrich student data with class information
-          const classData = classesData.find(cls => cls.id === studentData.classId);
-          const enrichedStudent = {
-            ...studentData,
-            class: classData?.name || "N/A",
-            level: classData?.level || "",
-            category: classData?.category || ""
-          };
-          setStudent(enrichedStudent);
-        } else {
-          setError("Student profile not found.");
-        }
-      } catch (err) {
-        setError("Failed to load student profile.");
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchStudent();
-  }, [user?.uid]);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
@@ -61,7 +59,13 @@ const Profile = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
           <div className="text-red-600 text-4xl mb-4">⚠️</div>
-          <p className="text-red-600 font-medium">{error}</p>
+          <p className="text-red-600 font-medium">{error?.message || 'Failed to load student profile.'}</p>
+          <button
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['student', 'profile', user?.id] })}
+            className="mt-4 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );
@@ -104,7 +108,7 @@ const Profile = () => {
               <div className="relative">
                 <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-lg p-1">
                   <ProfileImage
-                    src={student.image || student.profileImageUrl}
+                    src={student.profileImageUrl || student.image}
                     alt="Profile"
                     size="xl"
                     fallbackName={`${student.firstName} ${student.surname}`}

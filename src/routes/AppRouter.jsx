@@ -1,5 +1,5 @@
 import { Routes, Route } from "react-router-dom";
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
 import RoleBasedRoute from "../components/RoleBasedRoute";
 import Home from "../pages/Home";
 import About from "../pages/About";
@@ -14,78 +14,79 @@ import AcademicCalendar from "../pages/academics/AcademicCalendar";
 import DashboardLayout from "../layouts/DashboardLayout";
 import StudentLayout from "../layouts/StudentLayout";
 import TeacherLayout from "../layouts/TeacherLayout";
+import lazyWithRetry from "../utils/lazyWithRetry";
 
-// Lazy loaded components
-const Login = lazy(() => import("../pages/Login"));
-const Unauthorized = lazy(() => import("../pages/Unauthorized"));
-const CreateAdmin = lazy(() => import("../pages/CreateAdmin"));
+// Lazy loaded components with retry handling
+const Login = lazyWithRetry(() => import("../pages/Login"));
+const Unauthorized = lazyWithRetry(() => import("../pages/Unauthorized"));
+const CreateAdmin = lazyWithRetry(() => import("../pages/CreateAdmin"));
 
 // Debug/Test components (temporary for migration)
-const AuthSessionDebug = lazy(() =>
+const AuthSessionDebug = lazyWithRetry(() =>
   import("../components/debug/AuthSessionDebug")
 );
-const TeacherTestComponent = lazy(() =>
+const TeacherTestComponent = lazyWithRetry(() =>
   import("../components/debug/TeacherTestComponent")
 );
-const NewsSchemaTest = lazy(() =>
+const NewsSchemaTest = lazyWithRetry(() =>
   import("../components/debug/NewsSchemaTest")
 );
 
-const StudentDashboard = lazy(() => import("../pages/student/Dashboard"));
-const Profile = lazy(() => import("../pages/student/Profile"));
-const Results = lazy(() => import("../pages/student/Results"));
-const Timetable = lazy(() => import("../pages/student/Timetable"));
-const StudentSubjects = lazy(() => import("../pages/student/Subjects"));
-const StudentAssignments = lazy(() => import("../pages/student/Assignments"));
-const StudentExamResults = lazy(() => import("../pages/student/ExamResults"));
+const StudentDashboard = lazyWithRetry(() => import("../pages/student/Dashboard"));
+const Profile = lazyWithRetry(() => import("../pages/student/Profile"));
+const Results = lazyWithRetry(() => import("../pages/student/Results"));
+const Timetable = lazyWithRetry(() => import("../pages/student/Timetable"));
+const StudentSubjects = lazyWithRetry(() => import("../pages/student/Subjects"));
+const StudentAssignments = lazyWithRetry(() => import("../pages/student/Assignments"));
+const StudentExamResults = lazyWithRetry(() => import("../pages/student/ExamResults"));
 
 // Teacher routes
-const TeacherDashboard = lazy(() =>
+const TeacherDashboard = lazyWithRetry(() =>
   import("../pages/dashboard/teacher/Dashboard")
 );
-const MyClasses = lazy(() => import("../pages/dashboard/teacher/MyClasses"));
-const TeacherStudents = lazy(() =>
+const MyClasses = lazyWithRetry(() => import("../pages/dashboard/teacher/MyClasses"));
+const TeacherStudents = lazyWithRetry(() =>
   import("../pages/dashboard/teacher/Students")
 );
-const Grades = lazy(() => import("../pages/dashboard/teacher/Grades"));
-const Assignments = lazy(() =>
+const Grades = lazyWithRetry(() => import("../pages/dashboard/teacher/Grades"));
+const Assignments = lazyWithRetry(() =>
   import("../pages/dashboard/teacher/Assignments")
 );
-const TeacherTimetable = lazy(() =>
+const TeacherTimetable = lazyWithRetry(() =>
   import("../pages/dashboard/teacher/Timetable")
 );
-const TeacherAttendance = lazy(() =>
+const TeacherAttendance = lazyWithRetry(() =>
   import("../pages/dashboard/teacher/Attendance")
 );
-const TeacherReports = lazy(() => import("../pages/dashboard/teacher/Reports"));
-const MyReports = lazy(() => import("../pages/dashboard/teacher/MyReports"));
-const TeacherProfile = lazy(() => import("../pages/dashboard/teacher/Profile"));
-const TeacherExams = lazy(() => import("../pages/dashboard/teacher/Exams"));
-const CreateExam = lazy(() => import("../pages/dashboard/teacher/CreateExam"));
-const TeacherExamResults = lazy(() =>
+const TeacherReports = lazyWithRetry(() => import("../pages/dashboard/teacher/Reports"));
+const MyReports = lazyWithRetry(() => import("../pages/dashboard/teacher/MyReports"));
+const TeacherProfile = lazyWithRetry(() => import("../pages/dashboard/teacher/Profile"));
+const TeacherExams = lazyWithRetry(() => import("../pages/dashboard/teacher/Exams"));
+const CreateExam = lazyWithRetry(() => import("../pages/dashboard/teacher/CreateExam"));
+const TeacherExamResults = lazyWithRetry(() =>
   import("../pages/dashboard/teacher/ExamResults")
 );
 
 //Admin Dashboard routes
-const Overview = lazy(() => import("../pages/dashboard/Overview"));
-const Students = lazy(() => import("../pages/dashboard/Students"));
-const Teachers = lazy(() => import("../pages/dashboard/Teachers"));
-const Classes = lazy(() => import("../pages/dashboard/Classes"));
-const ClassStudents = lazy(() => import("../pages/dashboard/ClassStudents"));
+const Overview = lazyWithRetry(() => import("../pages/dashboard/Overview"));
+const Students = lazyWithRetry(() => import("../pages/dashboard/Students"));
+const Teachers = lazyWithRetry(() => import("../pages/dashboard/Teachers"));
+const Classes = lazyWithRetry(() => import("../pages/dashboard/Classes"));
+const ClassStudents = lazyWithRetry(() => import("../pages/dashboard/ClassStudents"));
 
-const Admins = lazy(() => import("../pages/dashboard/Admins"));
-const Settings = lazy(() => import("../pages/dashboard/Settings"));
-const AdminSubjects = lazy(() => import("../pages/dashboard/Subjects"));
-const AdminReports = lazy(() => import("../pages/dashboard/Reports"));
-const ManageResults = lazy(() => import("../pages/dashboard/ManageResults"));
+const Admins = lazyWithRetry(() => import("../pages/dashboard/Admins"));
+const Settings = lazyWithRetry(() => import("../pages/dashboard/Settings"));
+const AdminSubjects = lazyWithRetry(() => import("../pages/dashboard/Subjects"));
+const AdminReports = lazyWithRetry(() => import("../pages/dashboard/Reports"));
+const ManageResults = lazyWithRetry(() => import("../pages/dashboard/ManageResults"));
 
-const AdminReview = lazy(() => import("../pages/dashboard/AdminReview"));
-const CarouselManagement = lazy(() =>
+const AdminReview = lazyWithRetry(() => import("../pages/dashboard/AdminReview"));
+const CarouselManagement = lazyWithRetry(() =>
   import("../pages/dashboard/CarouselManagement")
 );
-const NewsManagement = lazy(() => import("../pages/dashboard/NewsManagement"));
-const ActivityLogs = lazy(() => import("../pages/dashboard/ActivityLogs"));
-const LogCleanup = lazy(() => import("../pages/dashboard/LogCleanup"));
+const NewsManagement = lazyWithRetry(() => import("../pages/dashboard/NewsManagement"));
+const ActivityLogs = lazyWithRetry(() => import("../pages/dashboard/ActivityLogs"));
+const LogCleanup = lazyWithRetry(() => import("../pages/dashboard/LogCleanup"));
 
 // Loading component
 const LoadingFallback = () => (

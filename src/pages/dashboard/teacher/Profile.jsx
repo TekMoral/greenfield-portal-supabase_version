@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Navigate } from "react-router-dom";
 import { useAuth } from "../../../hooks/useAuth";
 import { getTeacherByUid, updateTeacher } from "../../../services/supabase/teacherService";
 import useAuditLog from "../../../hooks/useAuditLog";
@@ -8,7 +10,6 @@ const Profile = () => {
   const { logTeacherAction, AUDIT_ACTIONS } = useAuditLog();
   const [profile, setProfile] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -18,35 +19,32 @@ const Profile = () => {
     dateHired: ""
   });
 
+  const { data: teacherData, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['teacher', 'profile', user?.id],
+    queryFn: async () => {
+      if (!user?.id) throw new Error('Not authenticated');
+      const res = await getTeacherByUid(user.id);
+      if (!res?.success || !res.data) {
+        throw new Error(res?.error || 'Failed to fetch teacher profile');
+      }
+      return res.data;
+    },
+    enabled: !!user?.id,
+  });
+
   useEffect(() => {
-    const fetchTeacherProfile = async () => {
-      if (!user?.uid) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const teacherData = await getTeacherByUid(user.uid);
-        if (teacherData) {
-          setProfile(teacherData);
-          setFormData({
-            name: teacherData.name || "",
-            email: teacherData.email || "",
-            phoneNumber: teacherData.phoneNumber || "",
-            subject: teacherData.subject || "",
-            qualification: teacherData.qualification || "",
-            dateHired: teacherData.dateHired || ""
-          });
-        }
-      } catch (error) {
-        console.error('Error fetching teacher profile:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTeacherProfile();
-  }, [user?.uid]);
+    if (teacherData) {
+      setProfile(teacherData);
+      setFormData({
+        name: teacherData.name || "",
+        email: teacherData.email || "",
+        phoneNumber: teacherData.phoneNumber || "",
+        subject: teacherData.subject || "",
+        qualification: teacherData.qualification || "",
+        dateHired: teacherData.dateHired || ""
+      });
+    }
+  }, [teacherData]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -62,12 +60,16 @@ const Profile = () => {
         }
       });
 
-      await updateTeacher(user.uid, formData);
+      const result = await updateTeacher(user.id, formData);
+      if (!result?.success) {
+        throw new Error(result?.error || 'Failed to update teacher');
+      }
+      const updated = result.data || { ...profile, ...formData };
       
       // Log teacher profile update
       await logTeacherAction(
         AUDIT_ACTIONS.TEACHER_UPDATE,
-        user.uid,
+        user.id,
         {
           teacherName: formData.name,
           email: formData.email,
@@ -78,7 +80,7 @@ const Profile = () => {
         `Teacher ${formData.name} updated their own profile (${Object.keys(changes).join(', ')})`
       );
       
-      setProfile({ ...profile, ...formData });
+      setProfile(updated);
       setIsEditing(false);
       console.log("Profile updated successfully");
     } catch (error) {
@@ -99,7 +101,11 @@ const Profile = () => {
     setIsEditing(false);
   };
 
-  if (loading) {
+  if (!user?.id) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  if (isLoading) {
     return (
       <div className="animate-pulse space-y-6">
         <div className="h-8 bg-slate-200 rounded w-1/3"></div>
@@ -116,6 +122,21 @@ const Profile = () => {
               <div key={i} className="h-4 bg-slate-200 rounded"></div>
             ))}
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-12">
+        <div className="bg-white rounded-2xl shadow-lg border border-red-200 overflow-hidden p-8 text-center">
+          <div className="text-red-500 text-4xl mb-4">⚠️</div>
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">Unable to Load Profile</h3>
+          <p className="text-gray-600 mb-6">{error?.message || 'Failed to load teacher profile.'}</p>
+          <button onClick={() => refetch()} className="px-6 py-3 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition">
+            Try Again
+          </button>
         </div>
       </div>
     );
@@ -139,10 +160,14 @@ const Profile = () => {
         {/* Profile Header */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 p-6 text-white">
           <div className="flex items-center space-x-4">
-            <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center">
-              <span className="text-2xl font-bold">
-                {profile?.name?.split(' ').map(n => n[0]).join('') || 'T'}
-              </span>
+            <div className="w-20 h-20 rounded-full overflow-hidden bg-white/20 flex items-center justify-center">
+              {profile?.profileImageUrl ? (
+                <img src={profile.profileImageUrl} alt={profile?.name || 'Teacher'} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-2xl font-bold">
+                  {profile?.name?.split(' ').map(n => n[0]).join('') || 'T'}
+                </span>
+              )}
             </div>
             <div>
               <h2 className="text-2xl font-bold">{profile?.name}</h2>
@@ -275,12 +300,12 @@ const Profile = () => {
                 <h3 className="text-lg font-semibold text-slate-800 mb-4">Account Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="text-sm font-medium text-slate-500">Created At</label>
-                    <p className="text-slate-800">{profile?.createdAt?.toDate?.()?.toLocaleDateString() || 'N/A'}</p>
+                    <label className="text-sm font-medium text-slate-500">Employee ID</label>
+                    <p className="text-slate-800">{profile?.employeeId || 'N/A'}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-slate-500">Last Updated</label>
-                    <p className="text-slate-800">{profile?.updatedAt?.toDate?.()?.toLocaleDateString() || 'N/A'}</p>
+                    <label className="text-sm font-medium text-slate-500">Role</label>
+                    <p className="text-slate-800">{profile?.role || 'teacher'}</p>
                   </div>
                 </div>
               </div>

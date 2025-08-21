@@ -1,116 +1,90 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../hooks/useAuth';
 import { getStudentById } from '../../services/supabase/studentService';
 import { getClassById } from '../../services/supabase/classService';
-import { getSubjectsByDepartment, getSubjects } from '../../services/supabase/subjectService';
+import { getSubjectsByDepartment } from '../../services/supabase/subjectService';
 
 export default function StudentSubjects() {
   const { user, profile } = useAuth();
-  const [subjects, setSubjects] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [studentInfo, setStudentInfo] = useState(null);
-  const [classInfo, setClassInfo] = useState(null);
 
-  const fetchStudentSubjects = useCallback(async () => {
-    if (!user?.id) {
-      setError('No user logged in');
-      setLoading(false);
-      return;
+  const fetchStudentSubjects = async () => {
+    if (!user?.id) throw new Error('No user logged in');
+
+    // Step 1: Get student profile (if not already available from auth context)
+    let studentData = profile;
+    if (!studentData || !studentData.class_id) {
+      const studentResult = await getStudentById(user.id);
+      if (!studentResult.success) {
+        throw new Error(studentResult.error || 'Failed to fetch student profile');
+      }
+      studentData = studentResult.data;
     }
 
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Step 1: Get student profile (if not already available from auth context)
-      let studentData = profile;
-      if (!studentData || !studentData.class_id) {
-        console.log('🔄 Fetching student profile...');
-        const studentResult = await getStudentById(user.id);
-        if (!studentResult.success) {
-          throw new Error(studentResult.error || 'Failed to fetch student profile');
-        }
-        studentData = studentResult.data;
-      }
-
-      if (!studentData) {
-        throw new Error('Student profile not found');
-      }
-
-      setStudentInfo(studentData);
-
-      // Step 2: Get class information to determine department
-      if (!studentData.class_id) {
-        // If no class assigned, show core subjects only
-        console.log('📚 No class assigned, fetching core subjects...');
-        const coreSubjects = await getSubjectsByDepartment('core');
-        setSubjects(coreSubjects || []);
-        setLoading(false);
-        return;
-      }
-
-      console.log('🔄 Fetching class information for class ID:', studentData.class_id);
-      const classData = await getClassById(studentData.class_id);
-      
-      if (!classData) {
-        throw new Error('Class information not found');
-      }
-
-      setClassInfo(classData);
-
-      // Step 3: Determine department from class category
-      let department = classData.category?.toLowerCase();
-      
-      // Handle different class levels and categories
-      if (classData.level === 'Junior' || !department) {
-        department = 'junior';
-      }
-
-      console.log('📚 Fetching subjects for department:', department);
-
-      // Step 4: Fetch subjects for the department
-      let departmentSubjects = [];
-      let coreSubjects = [];
-
-      // Get department-specific subjects
-      if (department && department !== 'core') {
-        departmentSubjects = await getSubjectsByDepartment(department);
-      }
-
-      // Always get core subjects for all students
-      coreSubjects = await getSubjectsByDepartment('core');
-
-      // Combine core and department subjects, removing duplicates
-      const allSubjects = [...coreSubjects];
-      
-      // Add department subjects that aren't already in core
-      departmentSubjects.forEach(subject => {
-        const isDuplicate = allSubjects.some(coreSubject => 
-          coreSubject.id === subject.id || coreSubject.name === subject.name
-        );
-        if (!isDuplicate) {
-          allSubjects.push(subject);
-        }
-      });
-
-      // Sort subjects by name
-      allSubjects.sort((a, b) => a.name.localeCompare(b.name));
-
-      setSubjects(allSubjects);
-      console.log('✅ Successfully loaded', allSubjects.length, 'subjects for student');
-
-    } catch (err) {
-      console.error('❌ Error fetching student subjects:', err);
-      setError(err.message || 'Failed to load subjects');
-    } finally {
-      setLoading(false);
+    if (!studentData) {
+      throw new Error('Student profile not found');
     }
-  }, [user?.id, profile]);
 
-  useEffect(() => {
-    fetchStudentSubjects();
-  }, [fetchStudentSubjects]);
+    // Step 2: Get class information to determine department
+    if (!studentData.class_id) {
+      // If no class assigned, show core subjects only
+      const coreSubjects = await getSubjectsByDepartment('core');
+      return { subjects: coreSubjects || [], studentInfo: studentData, classInfo: null };
+    }
+
+    const classRes = await getClassById(studentData.class_id);
+    
+    if (!classRes?.success || !classRes.data) {
+      throw new Error('Class information not found');
+    }
+
+    const classData = classRes.data;
+
+    // Step 3: Determine department from class category
+    let department = classData?.category?.toLowerCase();
+    
+    // Handle different class levels and categories
+    if (classData?.level === 'Junior' || !department) {
+      department = 'junior';
+    }
+
+    // Step 4: Fetch subjects for the department
+    let departmentSubjects = [];
+    if (department && department !== 'core') {
+      departmentSubjects = await getSubjectsByDepartment(department);
+    }
+
+    // Always get core subjects for all students
+    const coreSubjects = await getSubjectsByDepartment('core');
+
+    // Combine core and department subjects, removing duplicates
+    const allSubjects = [...(coreSubjects || [])];
+    
+    // Add department subjects that aren't already in core
+    departmentSubjects.forEach(subject => {
+      const isDuplicate = allSubjects.some(coreSubject => 
+        coreSubject.id === subject.id || coreSubject.name === subject.name
+      );
+      if (!isDuplicate) {
+        allSubjects.push(subject);
+      }
+    });
+
+    // Sort subjects by name
+    allSubjects.sort((a, b) => a.name.localeCompare(b.name));
+
+    return { subjects: allSubjects, studentInfo: studentData, classInfo: classData };
+  };
+
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['student', 'subjects', user?.id],
+    queryFn: fetchStudentSubjects,
+    enabled: !!user?.id,
+  });
+
+  const subjects = data?.subjects || [];
+  const studentInfo = data?.studentInfo || null;
+  const classInfo = data?.classInfo || null;
 
   const getDepartmentName = (dept) => {
     const names = {
@@ -144,7 +118,7 @@ export default function StudentSubjects() {
     return isCore ? 'Core Subject' : 'Elective';
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
@@ -164,7 +138,7 @@ export default function StudentSubjects() {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
@@ -176,9 +150,9 @@ export default function StudentSubjects() {
                 </svg>
               </div>
               <h3 className="text-xl font-semibold text-gray-800 mb-2">Unable to Load Subjects</h3>
-              <p className="text-gray-600 mb-6">{error}</p>
+              <p className="text-gray-600 mb-6">{error?.message || 'Failed to load subjects'}</p>
               <button
-                onClick={fetchStudentSubjects}
+                onClick={() => refetch()}
                 className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-4 focus:ring-blue-100 transition-all duration-300 font-medium"
               >
                 Try Again
@@ -315,13 +289,7 @@ export default function StudentSubjects() {
                           </div>
                         </div>
                         
-                        {subject.description && (
-                          <div className="mt-3">
-                            <span className="text-sm font-medium text-gray-600">Description:</span>
-                            <p className="text-sm text-gray-700 mt-1">{subject.description}</p>
-                          </div>
-                        )}
-                      </div>
+                                              </div>
                     </div>
                   </div>
                 ))}

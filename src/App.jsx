@@ -6,6 +6,7 @@ import AppRouter from "./routes/AppRouter";
 import Header from "./components/Header";
 import { AuthProvider } from "./contexts/SupabaseAuthContext";
 import { Toaster } from "react-hot-toast"; // ✅ Toast system
+import ErrorBoundary from "./components/ErrorBoundary";
 
 import "./App.css";
 
@@ -50,15 +51,17 @@ function App() {
       <BrowserRouter>
         <Header ref={headerRef} />
         <div style={{ paddingTop: "var(--header-height, 90px)" }}>
-          <Suspense
-            fallback={
-              <div className="flex justify-center items-center h-screen">
-                Loading...
-              </div>
-            }
-          >
-            <AppRouter />
-          </Suspense>
+          <ErrorBoundary>
+            <Suspense
+              fallback={
+                <div className="flex justify-center items-center h-screen">
+                  Loading...
+                </div>
+              }
+            >
+              <AppRouter />
+            </Suspense>
+          </ErrorBoundary>
         </div>
         <Toaster position="top-right" reverseOrder={false} />
       </BrowserRouter>

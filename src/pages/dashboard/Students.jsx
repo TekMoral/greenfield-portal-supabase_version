@@ -12,6 +12,7 @@ import { uploadService } from "../../services/supabase/uploadService";
 import { useAuditLog } from "../../hooks/useAuditLog";
 import { EditButton, DeleteButton, CreateButton } from "../../components/ui/ActionButtons";
 import { formatClassName } from "../../utils/classNameFormatter";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 const Students = () => {
   // Audit logging hook
@@ -25,8 +26,6 @@ const Students = () => {
   // Core state
   const [students, setStudents] = useState([]);
   const [classes, setClasses] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   // Add this state to track operations
   const [operationLoading, setOperationLoading] = useState({
@@ -183,56 +182,39 @@ const Students = () => {
     filteredAndSortedStudents.length
   );
 
-  // Fetch data on component mount
-  useEffect(() => {
-    fetchData();
-  }, []);
+  // Data fetching handled by React Query; no manual fetch on mount
 
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedClassId, searchTerm, sortBy, sortOrder, itemsPerPage]);
 
+  const queryClient = useQueryClient();
+
+  const fetchStudentsQuery = async () => {
+    const res = await getAllStudents();
+    if (!res.success) throw new Error(res.error || "Failed to fetch students");
+    return res.data || [];
+  };
+
+  const fetchClassesQuery = async () => {
+    const res = await getAllClasses();
+    if (Array.isArray(res)) return res;
+    if (res?.success) return res.data || [];
+    throw new Error(res?.error || "Failed to fetch classes");
+  };
+
+  const { data: studentsData, isLoading: studentsLoading, error: studentsError } = useQuery({ queryKey: ['students'], queryFn: fetchStudentsQuery });
+  const { data: classesData, isLoading: classesLoading, error: classesError } = useQuery({ queryKey: ['classes'], queryFn: fetchClassesQuery });
+
+  useEffect(() => { if (studentsData) setStudents(studentsData); }, [studentsData]);
+  useEffect(() => { if (classesData) setClasses(classesData); }, [classesData]);
+
   const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      console.log("🔄 Fetching students and classes...");
-      const [studentsResult, classesResult] = await Promise.all([
-        getAllStudents(),
-        getAllClasses(),
-      ]);
-
-      // Handle different response formats
-      // studentService returns { success, data } format
-      // classService returns data directly
-      if (studentsResult.success) {
-        console.log("✅ Students fetched:", studentsResult.data?.length || 0);
-        setStudents(studentsResult.data || []);
-      } else {
-        throw new Error(studentsResult.error || "Failed to fetch students");
-      }
-
-      // classService returns data directly (array)
-      if (Array.isArray(classesResult)) {
-        console.log("✅ Classes fetched (array format):", classesResult.length);
-        setClasses(classesResult);
-      } else if (classesResult.success) {
-        console.log(
-          "✅ Classes fetched (object format):",
-          classesResult.data?.length || 0
-        );
-        setClasses(classesResult.data || []);
-      } else {
-        throw new Error("Failed to fetch classes");
-      }
-    } catch (err) {
-      setError("Failed to load data. Please try again.");
-      console.error("❌ Error fetching data:", err);
-      toast.error("Failed to load students data");
-    } finally {
-      setLoading(false);
-    }
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['students'] }),
+      queryClient.invalidateQueries({ queryKey: ['classes'] }),
+    ]);
   };
 
   // --- Bulk Promotion Handlers ---
@@ -696,6 +678,8 @@ const Students = () => {
 
           toast.dismiss(loadingToast);
           toast.success(`${formData.first_name} ${formData.surname} updated successfully!`);
+          // Ensure server-enriched fields and joins are consistent
+          await fetchData();
         } else {
           throw new Error(result.error || "Failed to update student");
         }
@@ -774,7 +758,7 @@ const Students = () => {
   }, []);
 
   // Loading state
-  if (loading) {
+  if (studentsLoading || classesLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -800,7 +784,7 @@ const Students = () => {
   }
 
   // Error state
-  if (error) {
+  if (studentsError || classesError) {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -810,7 +794,7 @@ const Students = () => {
               <h3 className="text-lg font-medium text-gray-900 mb-2">
                 Error Loading Data
               </h3>
-              <p className="text-gray-500 mb-4">{error}</p>
+              <p className="text-gray-500 mb-4">{studentsError?.message || classesError?.message || 'Failed to load data. Please try again.'}</p>
               <button
                 onClick={fetchData}
                 className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"

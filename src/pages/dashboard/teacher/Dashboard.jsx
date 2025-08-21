@@ -1,71 +1,60 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { getTeacherByUid } from "../../../services/supabase/teacherService";
 import { getTeacherClassesAndSubjects } from "../../../services/supabase/teacherStudentService";
-import { getAssignmentsByTeacher, getAssignmentStats } from "../../../services/assignmentService";
+import { getAssignmentsByTeacher, getAssignmentStats } from "../../../services/supabase/assignmentService";
 
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [teacher, setTeacher] = useState(null);
-  const [teacherClasses, setTeacherClasses] = useState([]);
-  const [assignments, setAssignments] = useState([]);
-  const [assignmentStats, setAssignmentStats] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchTeacherData = async () => {
-      if (!user?.uid) {
-        setLoading(false);
-        return;
-      }
+  const fetchTeacherDashboard = async () => {
+    if (!user?.id) throw new Error('No user logged in');
 
-      try {
-        setLoading(true);
-        setError(null);
+    const teacherRes = await getTeacherByUid(user.id);
+    const teacherData = teacherRes?.success ? teacherRes.data : teacherRes;
+    if (!teacherData) {
+      throw new Error('Teacher profile not found');
+    }
 
-        // Fetch teacher profile
-        const teacherData = await getTeacherByUid(user.uid);
-        setTeacher(teacherData);
+    let teacherClasses = [];
+    try {
+      const classesRes = await getTeacherClassesAndSubjects(user.id);
+      teacherClasses = classesRes?.success ? (classesRes.data || []) : (classesRes || []);
+    } catch {
+      teacherClasses = [];
+    }
 
-        if (teacherData) {
-          // Fetch teacher's classes and subjects
-          try {
-            const classesData = await getTeacherClassesAndSubjects(user.uid);
-            setTeacherClasses(classesData || []);
-          } catch (classError) {
-            console.error('Error fetching classes:', classError);
-            setTeacherClasses([]);
-          }
+    let assignments = [];
+    let assignmentStats = {};
+    try {
+      const assignmentsRes = await getAssignmentsByTeacher(user.id);
+      assignments = assignmentsRes?.success ? (assignmentsRes.data || []) : (assignmentsRes || []);
+      const statsRes = await getAssignmentStats(user.id);
+      assignmentStats = statsRes?.success ? (statsRes.data || {}) : (statsRes || {});
+    } catch {
+      assignments = [];
+      assignmentStats = {};
+    }
 
-          // Fetch teacher's assignments
-          try {
-            const assignmentsData = await getAssignmentsByTeacher(user.uid);
-            setAssignments(assignmentsData || []);
+    return { teacher: teacherData, teacherClasses, assignments, assignmentStats };
+  };
 
-            // Fetch assignment statistics
-            const statsData = await getAssignmentStats(user.uid);
-            setAssignmentStats(statsData || {});
-          } catch (assignmentError) {
-            console.error('Error fetching assignments:', assignmentError);
-            setAssignments([]);
-            setAssignmentStats({});
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching teacher data:', err);
-        setError('Failed to load teacher information. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    };
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['teacher', 'dashboard', user?.id],
+    queryFn: fetchTeacherDashboard,
+    enabled: !!user?.id,
+  });
 
-    fetchTeacherData();
-  }, [user?.uid]);
+  const teacher = data?.teacher || null;
+  const teacherClasses = data?.teacherClasses || [];
+  const assignments = data?.assignments || [];
+  const assignmentStats = data?.assignmentStats || {};
 
-  if (loading) {
+  
+  if (isLoading) {
     return (
       <div className="animate-pulse space-y-4 sm:space-y-6">
         <div className="h-6 sm:h-8 bg-slate-200 rounded w-2/3 sm:w-1/3"></div>
@@ -78,14 +67,14 @@ const Dashboard = () => {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4 sm:p-6 text-center">
         <div className="text-red-600 text-3xl sm:text-4xl mb-3 sm:mb-4">⚠️</div>
         <h2 className="text-lg sm:text-xl font-semibold text-slate-800 mb-2">Error Loading Dashboard</h2>
-        <p className="text-sm sm:text-base text-slate-600 mb-3 sm:mb-4">{error}</p>
+        <p className="text-sm sm:text-base text-slate-600 mb-3 sm:mb-4">{error?.message || 'Failed to load teacher information. Please try again.'}</p>
         <button
-          onClick={() => navigate(0)}
+          onClick={() => refetch()}
           className="bg-slate-800 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-slate-700 transition-colors font-medium"
         >
           Try Again

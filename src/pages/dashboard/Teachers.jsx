@@ -7,37 +7,30 @@ import { CreateButton } from '../../components/ui/ActionButtons';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import useAuditLog from '../../hooks/useAuditLog';
 import { toast } from 'react-hot-toast';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 const Teachers = () => {
   const [teachers, setTeachers] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState('');
+  const queryClient = useQueryClient();
+  const fetchTeachersQuery = async () => {
+    const result = await getAllTeachers();
+    if (!result.success) throw new Error(result.error || 'Failed to fetch teachers');
+    return result.data || [];
+  };
+  const { data: teachersData, isLoading: teachersLoading, error: rqError } = useQuery({ queryKey: ['teachers'], queryFn: fetchTeachersQuery });
+  useEffect(() => { if (teachersData) setTeachers(teachersData); }, [teachersData]);
   const [operationLoading, setOperationLoading] = useState({ create: false, update: false, suspend: false, delete: false });
   const [editTeacher, setEditTeacher] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, teacherId: null, teacherName: '' });
 
   const { logTeacherAction, AUDIT_ACTIONS } = useAuditLog();
 
-  useEffect(() => {
-    fetchTeachers();
-  }, []);
+  // Initial fetch handled by React Query
 
   const fetchTeachers = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const result = await getAllTeachers();
-      if (result.success) {
-        setTeachers(result.data || []);
-      } else {
-        throw new Error(result.error || 'Failed to fetch teachers');
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to load teachers');
-    } finally {
-      setLoading(false);
-    }
+    await queryClient.invalidateQueries({ queryKey: ['teachers'] });
   };
 
   const handleAddTeacher = () => {
@@ -132,7 +125,7 @@ const Teachers = () => {
   };
 
   
-  if (loading) return <div className="p-6">Loading...</div>;
+  if (teachersLoading) return <div className="p-6">Loading...</div>;
 
   return (
     <div className="p-6">
@@ -151,12 +144,12 @@ const Teachers = () => {
       </div>
 
       {/* Error Display */}
-      {error && (
+      {(error || rqError) && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
           <div className="flex items-center">
             <div className="text-red-600 mr-2">❌</div>
             <div className="text-red-800 font-medium">Error:</div>
-            <div className="text-red-700 ml-2">{error}</div>
+            <div className="text-red-700 ml-2">{error || rqError?.message}</div>
           </div>
         </div>
       )}

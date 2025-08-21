@@ -27,6 +27,23 @@ const Header = forwardRef((props, ref) => {
   };
 
   const dashboardLink = getDashboardLink();
+
+  // Helper function to get profile route based on user role
+  const getProfilePath = () => {
+    switch (role) {
+      case "teacher":
+        return "/teacher/profile";
+      case "student":
+        return "/student/profile";
+      case "admin":
+      case "super_admin":
+        return "/dashboard/settings"; // adjust if you add an admin profile page
+      default:
+        return "/login";
+    }
+  };
+  const profilePath = getProfilePath();
+
   const navigate = useNavigate();
 
   // Handle scroll effect to change header style
@@ -219,7 +236,7 @@ const Header = forwardRef((props, ref) => {
                 {isUserMenuOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-50">
                     <Link
-                      to="/profile"
+                      to={profilePath}
                       className="block px-4 py-2 text-gray-700 hover:bg-gray-100 transition-colors duration-200"
                       onClick={() => setIsUserMenuOpen(false)}
                     >
@@ -349,7 +366,7 @@ const Header = forwardRef((props, ref) => {
                       </div>
                     </div>
                     <Link
-                      to="/profile"
+                      to={profilePath}
                       className="block py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
                       onClick={() => setIsMenuOpen(false)}
                     >

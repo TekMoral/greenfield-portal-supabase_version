@@ -1,73 +1,66 @@
 // File: src/pages/student/Dashboard.jsx
 // This file defines the student dashboard, displaying student information, notices, exams, and recent activity
 
-import React, { useEffect, useState } from "react";
+import React from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { getStudent } from "../../services/supabase/studentService";
 import { getAllClasses } from "../../services/supabase/classService";
 import { getAssignmentsForStudent } from "../../services/supabase/assignmentService";
-import { supabase } from "../../lib/supabaseClient";
 
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [student, setStudent] = useState(null);
-  const [assignments, setAssignments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchStudentData = async () => {
-      if (!user?.id) {
-        setLoading(false);
-        return;
-      }
+  const fetchDashboardData = async () => {
+    if (!user?.id) throw new Error('No user logged in');
 
-      try {
-        setLoading(true);
-        setError(null);
-        const [studentData, classesData] = await Promise.all([
-          getStudent(user.id),
-          getAllClasses()
-        ]);
+    const [studentRes, classesRes] = await Promise.all([
+      getStudent(user.id),
+      getAllClasses()
+    ]);
 
-        if (studentData) {
-          // Enrich student data with class information
-          const classData = classesData.find(cls => cls.id === studentData.class_id);
-          const enrichedStudent = {
-            ...studentData,
-            class: classData?.name || "N/A",
-            level: classData?.level || "",
-            category: classData?.category || "",
-            firstName: studentData.full_name?.split(' ')[0] || studentData.full_name || 'Student',
-            admissionNumber: studentData.admission_number,
-            academicYear: new Date().getFullYear() // Can be updated based on your schema
-          };
-          setStudent(enrichedStudent);
+    if (!(studentRes?.success && studentRes.data)) {
+      throw new Error('Student Profile Not Found');
+    }
 
-          // Fetch student assignments
-          try {
-            const studentAssignments = await getAssignmentsForStudent(user.id);
-            setAssignments(studentAssignments || []);
-          } catch (assignmentError) {
-            console.error('Error fetching assignments:', assignmentError);
-            setAssignments([]);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching student data:', err);
-        setError('Failed to load student information. Please try again.');
-      } finally {
-        setLoading(false);
-      }
+    const studentData = studentRes.data;
+    const classes = classesRes?.success ? (classesRes.data || []) : (Array.isArray(classesRes) ? classesRes : []);
+    const classData = classes.find(cls => cls.id === studentData.class_id);
+    const enrichedStudent = {
+      ...studentData,
+      class: classData?.name || "N/A",
+      level: classData?.level || "",
+      category: classData?.category || "",
+      firstName: studentData.full_name?.split(' ')[0] || studentData.full_name || 'Student',
+      admissionNumber: studentData.admission_number,
+      academicYear: new Date().getFullYear()
     };
 
-    fetchStudentData();
-  }, [user?.id]);
+    let assignments = [];
+    try {
+      const studentAssignments = await getAssignmentsForStudent(user.id);
+      assignments = studentAssignments || [];
+    } catch {
+      assignments = [];
+    }
 
+    return { student: enrichedStudent, assignments };
+  };
+
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['student', 'dashboard', user?.id],
+    queryFn: fetchDashboardData,
+    enabled: !!user?.id,
+  });
+
+  const student = data?.student || null;
+  const assignments = data?.assignments || [];
+
+  
   // Loading state
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="animate-pulse space-y-4 sm:space-y-6">
         <div className="h-6 sm:h-8 bg-slate-200 rounded w-2/3 sm:w-1/3"></div>
@@ -85,14 +78,14 @@ const Dashboard = () => {
   }
 
   // Error state
-  if (error) {
+  if (isError) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4 sm:p-6 text-center mx-2 sm:mx-0">
         <div className="text-red-600 text-3xl sm:text-4xl mb-3 sm:mb-4">⚠️</div>
         <h2 className="text-lg sm:text-xl font-semibold text-slate-800 mb-2">Error Loading Dashboard</h2>
-        <p className="text-sm sm:text-base text-slate-600 mb-3 sm:mb-4">{error}</p>
+        <p className="text-sm sm:text-base text-slate-600 mb-3 sm:mb-4">{error?.message || 'Failed to load student information. Please try again.'}</p>
         <button
-          onClick={() => navigate(0)}
+          onClick={() => refetch()}
           className="bg-slate-800 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-slate-700 transition-colors font-medium text-sm sm:text-base"
         >
           Try Again

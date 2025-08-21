@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../hooks/useAuth";
-import { getTeacherClassesAndSubjects, getStudentsByTeacherSubject } from "../../../services/teacherStudentService";
+import { getTeacherClassesAndSubjects, getStudentsByTeacherSubject } from "../../../services/supabase/teacherStudentService";
 import { getFullName, getInitials } from "../../../utils/nameUtils";
 
 const MyClasses = () => {
@@ -15,14 +15,14 @@ const MyClasses = () => {
 
   useEffect(() => {
     const fetchClasses = async () => {
-      if (!user?.uid) {
+      if (!user?.id) {
         setLoading(false);
         return;
       }
 
       try {
-        const result = await getTeacherClassesAndSubjects(user.uid);
-        setClasses(result);
+        const res = await getTeacherClassesAndSubjects(user.id);
+        setClasses(res?.success ? (res.data || []) : (Array.isArray(res) ? res : []));
       } catch (error) {
         console.error('Error fetching classes:', error);
       } finally {
@@ -31,15 +31,15 @@ const MyClasses = () => {
     };
 
     fetchClasses();
-  }, [user?.uid]);
+  }, [user?.id]);
 
   const handleViewSubjectStudents = async (subjectName) => {
     setLoadingStudents(true);
     setSelectedSubject(subjectName);
     
     try {
-      const students = await getStudentsByTeacherSubject(user.uid, subjectName);
-      setSubjectStudents(students);
+      const res = await getStudentsByTeacherSubject(user.id, subjectName);
+      setSubjectStudents(res?.success ? (res.data || []) : (Array.isArray(res) ? res : []));
     } catch (error) {
       console.error('Error fetching subject students:', error);
       setSubjectStudents([]);

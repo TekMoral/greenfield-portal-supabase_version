@@ -353,15 +353,15 @@ export const teacherService = {
 
   // Simplified aliases using the unified method
   async getTeacherByUserId(userId) {
-    return this.getTeacherById(userId, "id");
+    return teacherService.getTeacherById(userId, "id");
   },
 
   async getTeacherByUid(uid) {
-    return this.getTeacherById(uid, "id");
+    return teacherService.getTeacherById(uid, "id");
   },
 
   async getTeacherByEmployeeId(employeeId) {
-    return this.getTeacherById(employeeId, "employee_id");
+    return teacherService.getTeacherById(employeeId, "employee_id");
   },
 
   async updateTeacher(teacherId, updateData) {

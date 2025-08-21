@@ -7,13 +7,13 @@ import { logAdminActivity, AUDIT_ACTIONS, RISK_LEVELS } from '../services/supaba
  * Provides easy-to-use functions for logging various admin actions
  */
 export const useAuditLog = () => {
-  const { user, userRole, isSuperAdmin } = useAuth();
+  const { user, role, isSuperAdmin } = useAuth();
 
   // Check if user has admin privileges
-  const isAdmin = userRole === 'admin' || userRole === 'super_admin' || isSuperAdmin;
+  const isAdmin = role === 'admin' || role === 'super_admin' || isSuperAdmin();
   
   // Check if user can log activities (admins + teachers for their own actions)
-  const canLog = isAdmin || userRole === 'teacher';
+  const canLog = isAdmin || role === 'teacher';
 
   // Get client metadata for logging
   const getClientMetadata = useCallback(() => {
@@ -28,7 +28,7 @@ export const useAuditLog = () => {
   // Generic log function
   const logActivity = useCallback(async (action, resource, options = {}) => {
     if (!user || !canLog) {
-      console.warn('Audit logging attempted by unauthorized user', { userRole, isSuperAdmin, isAdmin, canLog });
+      console.warn('Audit logging attempted by unauthorized user', { role, isSuperAdmin: isSuperAdmin(), isAdmin, canLog });
       return null;
     }
 
@@ -40,7 +40,7 @@ export const useAuditLog = () => {
     } = options;
 
     const logData = {
-      adminId: user.uid,
+      adminId: user.id,
       adminEmail: user.email,
       action,
       resource,
@@ -54,7 +54,7 @@ export const useAuditLog = () => {
     };
 
     try {
-      console.log('🔄 Attempting to log activity:', { action, resource, userRole, isAdmin });
+      console.log('🔄 Attempting to log activity:', { action, resource, role, isAdmin });
       const logId = await logAdminActivity(logData);
       console.log(`✅ Activity logged: ${action} on ${resource}`, logId);
       return logId;
@@ -62,7 +62,7 @@ export const useAuditLog = () => {
       console.error('❌ Failed to log activity:', error);
       return null;
     }
-  }, [user, userRole, isSuperAdmin, isAdmin, canLog, getClientMetadata]);
+  }, [user, role, isSuperAdmin, isAdmin, canLog, getClientMetadata]);
 
   // Specific logging functions for common admin actions
   const logUserAction = useCallback((action, userId, details = {}, description) => {
@@ -138,15 +138,15 @@ export const useAuditLog = () => {
   // Convenience functions for specific actions
   const logLogin = useCallback(() => {
     return logActivity(AUDIT_ACTIONS.LOGIN, 'auth', {
-      description: `${userRole === 'teacher' ? 'Teacher' : 'Admin'} ${user?.email} logged in`
+      description: `${role === 'teacher' ? 'Teacher' : 'Admin'} ${user?.email} logged in`
     });
-  }, [logActivity, user, userRole]);
+  }, [logActivity, user, role]);
 
   const logLogout = useCallback(() => {
     return logActivity(AUDIT_ACTIONS.LOGOUT, 'auth', {
-      description: `${userRole === 'teacher' ? 'Teacher' : 'Admin'} ${user?.email} logged out`
+      description: `${role === 'teacher' ? 'Teacher' : 'Admin'} ${user?.email} logged out`
     });
-  }, [logActivity, user, userRole]);
+  }, [logActivity, user, role]);
 
   const logBulkOperation = useCallback((operationType, affectedCount, details = {}) => {
     return logActivity(AUDIT_ACTIONS.BULK_OPERATION, 'bulk', {

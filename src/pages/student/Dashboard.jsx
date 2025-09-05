@@ -41,7 +41,7 @@ const Dashboard = () => {
     let assignments = [];
     try {
       const studentAssignments = await getAssignmentsForStudent(user.id);
-      assignments = studentAssignments || [];
+      assignments = studentAssignments?.success ? (studentAssignments.data || []) : (Array.isArray(studentAssignments) ? studentAssignments : []);
     } catch {
       assignments = [];
     }
@@ -139,12 +139,12 @@ const Dashboard = () => {
 
   // Helper functions for assignments
   const getAssignmentStatus = (assignment) => {
-    const submission = assignment.submissions?.find(sub => sub.student_id === user.id);
+    const submission = assignment.submissions?.find(sub => sub.studentId === user.id);
     if (submission) {
       return submission.status === 'graded' ? 'graded' : 'submitted';
     }
 
-    const dueDate = new Date(assignment.due_date);
+    const dueDate = new Date(assignment.dueDate);
     const now = new Date();
     return dueDate < now ? 'overdue' : 'pending';
   };
@@ -276,7 +276,7 @@ const Dashboard = () => {
               <div className="space-y-3 sm:space-y-4">
                 {pendingAssignments.map((assignment) => {
                   const status = getAssignmentStatus(assignment);
-                  const dueDate = new Date(assignment.due_date);
+                  const dueDate = new Date(assignment.dueDate);
                   const isOverdue = status === 'overdue';
 
                   return (
@@ -293,10 +293,10 @@ const Dashboard = () => {
                             {assignment.title}
                           </h4>
                           <p className="text-xs sm:text-sm text-slate-600 mt-1">
-                            {assignment.subject_name}
+                            {assignment.subjectName}
                           </p>
                           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                            Due: {dueDate.toLocaleDateString()} • {assignment.total_marks} points
+                            Due: {dueDate.toLocaleDateString()} • {assignment.maxPoints} points
                           </p>
                         </div>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${

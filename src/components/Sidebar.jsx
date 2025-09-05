@@ -19,6 +19,7 @@ const Sidebar = ({ onMenuItemClick }) => {
     { path: "/dashboard/classes", label: "Classes" },
     { path: "/dashboard/subjects", label: "Subjects" },
     { path: "/dashboard/reports", label: "Reports" },
+    { path: "/dashboard/attendance", label: "Attendance" },
     { path: "/dashboard/carousel", label: "Carousel Management" },
     { path: "/dashboard/news", label: "News & Events" },
     { path: "/dashboard/admin-review", label: "Admin Review" },

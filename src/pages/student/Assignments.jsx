@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
-import { getAssignmentsForStudent, submitAssignment } from "../../services/assignmentService";
-import { getStudentSubjects } from "../../services/teacherStudentService";
+import { getAssignmentsForStudent, submitAssignment, submitObjectiveAssignment } from "../../services/supabase/assignmentService";
+import ObjectiveAssignmentModal from "./components/ObjectiveAssignmentModal";
+import { getStudentSubjects } from "../../services/supabase/teacherStudentService";
+import { supabase } from "../../lib/supabaseClient";
 
 const StudentAssignments = () => {
   const { user } = useAuth();
@@ -10,14 +12,15 @@ const StudentAssignments = () => {
   const [selectedSubject, setSelectedSubject] = useState("all");
   const [loading, setLoading] = useState(true);
   const [submissionModal, setSubmissionModal] = useState({ isOpen: false, assignment: null });
+  const [objectiveModal, setObjectiveModal] = useState({ isOpen: false, assignment: null });
   const [submissionText, setSubmissionText] = useState("");
-  const [submissionFile, setSubmissionFile] = useState(null);
-  const [submissionType, setSubmissionType] = useState("text");
+  // File upload and type removed; only text submissions are supported
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [theoryQuestions, setTheoryQuestions] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!user?.uid) {
+      if (!user?.id) {
         setLoading(false);
         return;
       }
@@ -26,12 +29,22 @@ const StudentAssignments = () => {
         setLoading(true);
         
         const [studentAssignments, studentSubjects] = await Promise.all([
-          getAssignmentsForStudent(user.uid),
-          getStudentSubjects(user.uid)
+          getAssignmentsForStudent(user.id),
+          getStudentSubjects(user.id)
         ]);
+
+        const normalizedAssignments = studentAssignments?.success
+          ? (studentAssignments.data || [])
+          : (Array.isArray(studentAssignments) ? studentAssignments : []);
+
+        const normalizedSubjects = studentSubjects?.success
+          ? (studentSubjects.data || [])
+          : Array.isArray(studentSubjects)
+            ? studentSubjects
+            : [];
         
-        setAssignments(studentAssignments);
-        setSubjects(studentSubjects);
+        setAssignments(normalizedAssignments);
+        setSubjects(normalizedSubjects);
       } catch (error) {
         console.error('Error fetching student assignments:', error);
       } finally {
@@ -40,14 +53,60 @@ const StudentAssignments = () => {
     };
 
     fetchData();
-  }, [user?.uid]);
+  }, [user?.id]);
+
+  // Fetch theory questions when submission modal opens for a theory assignment
+  useEffect(() => {
+    const fetchQuestions = async () => {
+      try {
+        const a = submissionModal.assignment;
+        if (!submissionModal.isOpen) {
+          setTheoryQuestions([]);
+          return;
+        }
+        if (!a?.id) return;
+        if (String(a?.type).toLowerCase() === 'objective') {
+          setTheoryQuestions([]);
+          return;
+        }
+        const st = (typeof getAssignmentStatus === 'function') ? getAssignmentStatus(a) : 'pending';
+        if (st !== 'pending') {
+          setTheoryQuestions([]);
+          return;
+        }
+        // Try RPC first (SECURITY DEFINER)
+        try {
+          const { data, error } = await supabase.rpc('rpc_list_questions_for_current_student', { assignment_id: a.id });
+          if (error) throw error;
+          setTheoryQuestions(Array.isArray(data) ? data : []);
+        } catch (rpcErr) {
+          // Fallback to direct read if RLS permits
+          const { data: direct, error: dirErr } = await supabase
+            .from('assignment_questions')
+            .select('id, assignment_id, type, text, options, points, order_index')
+            .eq('assignment_id', a.id)
+            .order('order_index', { ascending: true });
+          if (dirErr) {
+            console.error('Failed to load theory questions via RPC and direct:', rpcErr?.message || rpcErr, dirErr?.message || dirErr);
+            setTheoryQuestions([]);
+          } else {
+            setTheoryQuestions(Array.isArray(direct) ? direct : []);
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching theory questions:', e);
+        setTheoryQuestions([]);
+      }
+    };
+    fetchQuestions();
+  }, [submissionModal.isOpen, submissionModal.assignment?.id, submissionModal.assignment?.type]);
 
   const filteredAssignments = selectedSubject === "all" 
     ? assignments 
     : assignments.filter(assignment => assignment.subjectName === selectedSubject);
 
   const getAssignmentStatus = (assignment) => {
-    const submission = assignment.submissions?.find(sub => sub.studentId === user.uid);
+    const submission = assignment.submissions?.find(sub => sub.studentId === user.id);
     if (submission) {
       return submission.status === 'graded' ? 'graded' : 'submitted';
     }
@@ -70,46 +129,49 @@ const StudentAssignments = () => {
   const handleSubmitAssignment = async () => {
     if (!submissionModal.assignment) return;
     
-    // Validation
-    if (submissionType === 'text' && !submissionText.trim()) {
-      alert('Please enter your submission text.');
+    // Prevent re-submission if already submitted/graded
+    const currentStatus = getAssignmentStatus(submissionModal.assignment);
+    if (currentStatus !== 'pending') {
+      alert('You have already submitted this assignment.');
       return;
     }
-    
-    if (submissionType === 'file' && !submissionFile) {
-      alert('Please select a file to upload.');
+
+    // Validation
+    if (!submissionText.trim()) {
+      alert('Please enter your submission text.');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      const submissionData = {
-        submissionType,
-        status: 'submitted'
+      // Prepare DB payload for Supabase
+      const payload = {
+        assignment_id: submissionModal.assignment.id,
+        student_id: user.id,
+        submission_text: submissionText,
+        attachment_url: null,
       };
 
-      if (submissionType === 'text') {
-        submissionData.content = submissionText;
-      } else if (submissionType === 'file') {
-        // For now, we'll store file info (in a real app, you'd upload to storage)
-        submissionData.fileName = submissionFile.name;
-        submissionData.fileSize = submissionFile.size;
-        submissionData.fileType = submissionFile.type;
-        // TODO: Implement file upload to Firebase Storage
-        submissionData.fileUrl = 'placeholder-url'; // This would be the actual uploaded file URL
-      }
+      // Perform submission via normalized service API
+      const res = await submitAssignment(payload);
 
-      await submitAssignment(submissionModal.assignment.id, user.uid, submissionData);
+      // Build UI submission data for local state update
+      const submissionData = {
+        submissionType: 'text',
+        content: submissionText,
+        status: 'submitted',
+        submittedAt: new Date().toISOString(),
+      };
 
       // Update local state
       const updatedAssignments = assignments.map(assignment => {
         if (assignment.id === submissionModal.assignment.id) {
           const submissions = assignment.submissions || [];
-          const existingIndex = submissions.findIndex(sub => sub.studentId === user.uid);
+          const existingIndex = submissions.findIndex(sub => sub.studentId === user.id);
           
           const newSubmission = {
-            studentId: user.uid,
+            studentId: user.id,
             ...submissionData
           };
           
@@ -132,8 +194,6 @@ const StudentAssignments = () => {
       // Reset form
       setSubmissionModal({ isOpen: false, assignment: null });
       setSubmissionText("");
-      setSubmissionFile(null);
-      setSubmissionType("text");
       
       alert('Assignment submitted successfully!');
     } catch (error) {
@@ -144,42 +204,15 @@ const StudentAssignments = () => {
     }
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      // Validate file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        alert('File size must be less than 10MB');
-        return;
-      }
-      
-      // Validate file type
-      const allowedTypes = [
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'text/plain',
-        'image/jpeg',
-        'image/png',
-        'image/gif'
-      ];
-      
-      if (!allowedTypes.includes(file.type)) {
-        alert('Please upload a valid file type (PDF, Word, Text, or Image)');
-        return;
-      }
-      
-      setSubmissionFile(file);
-    }
-  };
+  // No file upload handler; only text submissions supported
 
   const getSubmissionDetails = (assignment) => {
-    const submission = assignment.submissions?.find(sub => sub.studentId === user.uid);
+    const submission = assignment.submissions?.find(sub => sub.studentId === user.id);
     return submission;
   };
 
   const getSubmissionGrade = (assignment) => {
-    const submission = assignment.submissions?.find(sub => sub.studentId === user.uid);
+    const submission = assignment.submissions?.find(sub => sub.studentId === user.id);
     return submission?.grade || null;
   };
 
@@ -240,9 +273,9 @@ const StudentAssignments = () => {
           className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
         >
           <option value="all">All Subjects</option>
-          {subjects.map((subject) => (
-            <option key={subject.subjectName} value={subject.subjectName}>
-              {subject.subjectName}
+          {(Array.isArray(subjects) ? subjects : []).map((subject) => (
+            <option key={subject.subjectName || subject.name} value={subject.subjectName || subject.name}>
+              {subject.subjectName || subject.name}
             </option>
           ))}
         </select>
@@ -285,7 +318,7 @@ const StudentAssignments = () => {
                       </span>
                       {grade && (
                         <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                          {grade}/{assignment.maxPoints}
+                          Score: {grade}/{assignment.maxPoints}
                         </span>
                       )}
                       {isOverdue && (
@@ -300,8 +333,7 @@ const StudentAssignments = () => {
                       <span className={isOverdue ? 'text-red-600 font-medium' : ''}>
                         Due: {dueDate.toLocaleDateString()}
                       </span>
-                      <span>Points: {assignment.maxPoints}</span>
-                    </div>
+                                          </div>
                     
                     {/* Submission Details */}
                     {submissionDetails && (
@@ -309,10 +341,7 @@ const StudentAssignments = () => {
                         <div className="text-sm text-slate-600">
                           <div className="flex items-center space-x-4">
                             <span>Submitted: {submissionDetails.submittedAt ? new Date(submissionDetails.submittedAt).toLocaleDateString() : 'Unknown'}</span>
-                            <span>Type: {submissionDetails.submissionType}</span>
-                            {submissionDetails.fileName && (
-                              <span>File: {submissionDetails.fileName}</span>
-                            )}
+                            {/* Type and File fields removed for text-only submissions */}
                           </div>
                           {submissionDetails.feedback && (
                             <div className="mt-2">
@@ -326,31 +355,26 @@ const StudentAssignments = () => {
                   </div>
                   <div className="flex flex-col space-y-2 ml-4">
                     {status === 'pending' && (
-                      <button 
-                        onClick={() => {
-                          setSubmissionModal({ isOpen: true, assignment });
-                          setSubmissionText("");
-                          setSubmissionFile(null);
-                          setSubmissionType("text");
-                        }}
-                        className="bg-slate-600 text-white px-3 py-1 rounded text-sm hover:bg-slate-700 transition-colors"
-                      >
-                        Submit
-                      </button>
+                      assignment.type === 'objective' ? (
+                        <button
+                          onClick={() => setObjectiveModal({ isOpen: true, assignment })}
+                          className="bg-emerald-600 text-white px-3 py-1 rounded text-sm hover:bg-emerald-700 transition-colors"
+                        >
+                          Take Objective
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => {
+                            setSubmissionModal({ isOpen: true, assignment });
+                            setSubmissionText("");
+                            }}
+                          className="bg-slate-600 text-white px-3 py-1 rounded text-sm hover:bg-slate-700 transition-colors"
+                        >
+                          Submit
+                        </button>
+                      )
                     )}
-                    {(status === 'submitted' || status === 'graded') && submissionDetails && (
-                      <button 
-                        onClick={() => {
-                          setSubmissionModal({ isOpen: true, assignment });
-                          setSubmissionText(submissionDetails.content || "");
-                          setSubmissionType(submissionDetails.submissionType || "text");
-                        }}
-                        className="border border-slate-300 text-slate-700 px-3 py-1 rounded text-sm hover:bg-slate-50 transition-colors"
-                      >
-                        View Submission
-                      </button>
-                    )}
-                  </div>
+                                      </div>
                 </div>
               </div>
             );
@@ -397,99 +421,59 @@ const StudentAssignments = () => {
                   <div className="bg-slate-50 p-3 rounded-lg text-sm text-slate-600">
                     <div className="grid grid-cols-2 gap-4">
                       <div>Due Date: {new Date(submissionModal.assignment?.dueDate).toLocaleDateString()}</div>
-                      <div>Max Points: {submissionModal.assignment?.maxPoints}</div>
-                      <div>Subject: {submissionModal.assignment?.subjectName}</div>
+                                            <div>Subject: {submissionModal.assignment?.subjectName}</div>
                       <div>Status: {getAssignmentStatus(submissionModal.assignment)}</div>
                     </div>
                   </div>
                 </div>
 
-                {/* Submission Type Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Submission Type
-                  </label>
-                  <div className="flex space-x-4">
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        value="text"
-                        checked={submissionType === "text"}
-                        onChange={(e) => setSubmissionType(e.target.value)}
-                        className="mr-2"
-                        disabled={getAssignmentStatus(submissionModal.assignment) !== 'pending'}
-                      />
-                      <span className="text-sm">Text Submission</span>
-                    </label>
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        value="file"
-                        checked={submissionType === "file"}
-                        onChange={(e) => setSubmissionType(e.target.value)}
-                        className="mr-2"
-                        disabled={getAssignmentStatus(submissionModal.assignment) !== 'pending'}
-                      />
-                      <span className="text-sm">File Upload</span>
-                    </label>
-                  </div>
-                </div>
-                
-                {/* Text Submission */}
-                {submissionType === "text" && (
+                {/* Theory Questions (display-only) */}
+                {String(submissionModal.assignment?.type).toLowerCase() !== 'objective' && getAssignmentStatus(submissionModal.assignment) === 'pending' && (
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Your Submission
+                      Questions
                     </label>
-                    <textarea
-                      value={submissionText}
-                      onChange={(e) => setSubmissionText(e.target.value)}
-                      placeholder="Enter your assignment submission here..."
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                      rows="8"
-                      required
-                      disabled={getAssignmentStatus(submissionModal.assignment) !== 'pending'}
-                    />
-                    <p className="text-xs text-slate-500 mt-1">
-                      Character count: {submissionText.length}
-                    </p>
-                  </div>
-                )}
-
-                {/* File Upload */}
-                {submissionType === "file" && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Upload File
-                    </label>
-                    {getAssignmentStatus(submissionModal.assignment) === 'pending' ? (
-                      <div>
-                        <input
-                          type="file"
-                          onChange={handleFileChange}
-                          className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                          accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif"
-                        />
-                        <p className="text-xs text-slate-500 mt-1">
-                          Accepted formats: PDF, Word, Text, Images (Max 10MB)
-                        </p>
-                        {submissionFile && (
-                          <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
-                            <p className="text-sm text-green-800">
-                              Selected: {submissionFile.name} ({(submissionFile.size / 1024 / 1024).toFixed(2)} MB)
-                            </p>
-                          </div>
-                        )}
+                    {theoryQuestions.length === 0 ? (
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm text-slate-600">
+                        No questions found for this assignment.
                       </div>
                     ) : (
-                      <div className="p-3 bg-slate-100 border border-slate-200 rounded-lg">
-                        <p className="text-sm text-slate-600">
-                          {getSubmissionDetails(submissionModal.assignment)?.fileName || 'No file submitted'}
-                        </p>
-                      </div>
+                      <ol className="space-y-2 list-decimal list-inside text-slate-800 text-sm">
+                        {theoryQuestions.map((q, idx) => (
+                          <li key={q.id || idx} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="font-medium">{q.text}</div>
+                              {typeof q.points === 'number' && (
+                                <div className="text-xs text-slate-500">{q.points} pts</div>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
                     )}
                   </div>
                 )}
+
+                {/* Text Submission */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Your Submission
+                  </label>
+                  <textarea
+                    value={submissionText}
+                    onChange={(e) => setSubmissionText(e.target.value)}
+                    placeholder="Enter your assignment submission here..."
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                    rows="8"
+                    required
+                    disabled={getAssignmentStatus(submissionModal.assignment) !== 'pending'}
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Character count: {submissionText.length}
+                  </p>
+                </div>
+
+                {/* File Upload removed */}
 
                 {/* Show existing submission details for submitted/graded assignments */}
                 {getAssignmentStatus(submissionModal.assignment) !== 'pending' && (
@@ -501,6 +485,14 @@ const StudentAssignments = () => {
                       <p className="text-sm text-blue-800">
                         This assignment has been submitted and cannot be modified.
                       </p>
+                      {getSubmissionDetails(submissionModal.assignment)?.content && (
+                        <div className="mt-3">
+                          <p className="text-sm font-medium text-blue-800">Your Submitted Answer:</p>
+                          <div className="mt-1 bg-white border border-blue-200 rounded p-2 text-sm text-slate-700 whitespace-pre-wrap">
+                            {getSubmissionDetails(submissionModal.assignment).content}
+                          </div>
+                        </div>
+                      )}
                       {getSubmissionDetails(submissionModal.assignment)?.feedback && (
                         <div className="mt-2">
                           <p className="text-sm font-medium text-blue-800">Teacher Feedback:</p>
@@ -519,10 +511,8 @@ const StudentAssignments = () => {
               <div className="flex justify-end space-x-3">
                 <button
                   onClick={() => {
-                    setSubmissionModal({ isOpen: false, assignment: null });
-                    setSubmissionText("");
-                    setSubmissionFile(null);
-                    setSubmissionType("text");
+                  setSubmissionModal({ isOpen: false, assignment: null });
+                  setSubmissionText("");
                   }}
                   className="border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors font-medium"
                 >
@@ -531,11 +521,7 @@ const StudentAssignments = () => {
                 {getAssignmentStatus(submissionModal.assignment) === 'pending' && (
                   <button
                     onClick={handleSubmitAssignment}
-                    disabled={
-                      isSubmitting || 
-                      (submissionType === 'text' && !submissionText.trim()) ||
-                      (submissionType === 'file' && !submissionFile)
-                    }
+                    disabled={isSubmitting || !submissionText.trim()}
                     className="bg-slate-600 text-white px-4 py-2 rounded-lg hover:bg-slate-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isSubmitting ? 'Submitting...' : 'Submit Assignment'}
@@ -545,6 +531,29 @@ const StudentAssignments = () => {
             </div>
           </div>
         </div>
+      )}
+    {/* Objective Modal */}
+      {objectiveModal.isOpen && (
+        <ObjectiveAssignmentModal
+          open={objectiveModal.isOpen}
+          assignment={objectiveModal.assignment}
+          studentId={user?.id}
+          onClose={() => setObjectiveModal({ isOpen: false, assignment: null })}
+          onSubmitted={({ auto_score, total_score }) => {
+            const updated = assignments.map((a) => {
+              if (a.id !== objectiveModal.assignment.id) return a;
+              const submissions = a.submissions || [];
+              const mine = submissions.find((s) => s.studentId === user.id) || {};
+              const newMine = { ...mine, studentId: user.id, submissionType: 'objective_answers', status: 'submitted', grade: total_score, submittedAt: new Date().toISOString() };
+              const nextSubs = submissions.some((s) => s.studentId === user.id)
+                ? submissions.map((s) => (s.studentId === user.id ? newMine : s))
+                : [...submissions, newMine];
+              return { ...a, submissions: nextSubs };
+            });
+            setAssignments(updated);
+          }}
+          submitFn={submitObjectiveAssignment}
+        />
       )}
     </div>
   );

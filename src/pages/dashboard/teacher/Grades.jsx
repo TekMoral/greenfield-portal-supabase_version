@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../../../hooks/useAuth";
-import { getAssignmentsByTeacher } from "../../../services/assignmentService";
-import { getTeacherSubjectsWithStudents } from "../../../services/teacherStudentService";
-import { getStudent } from "../../../services/studentService";
+import { getAssignmentsByTeacher, gradeStudentSubmission, getAssignmentSubmissions } from "../../../services/supabase/assignmentService";
+import { getTeacherSubjectsWithStudents } from "../../../services/supabase/teacherStudentService";
+import { getStudent } from "../../../services/supabase/studentService";
 import { getFullName } from "../../../utils/nameUtils";
 
 const Grades = () => {
@@ -17,7 +17,7 @@ const Grades = () => {
   // Fetch teacher's assignments and subjects
   useEffect(() => {
     const fetchData = async () => {
-      if (!user?.uid) {
+      if (!user?.id) {
         setLoading(false);
         return;
       }
@@ -26,13 +26,16 @@ const Grades = () => {
         setLoading(true);
         
         // Fetch teacher's subjects and assignments
-        const [teacherSubjects, teacherAssignments] = await Promise.all([
-          getTeacherSubjectsWithStudents(user.uid),
-          getAssignmentsByTeacher(user.uid)
+        const [subjectsRes, assignmentsRes] = await Promise.all([
+          getTeacherSubjectsWithStudents(user.id),
+          getAssignmentsByTeacher(user.id)
         ]);
         
-        setSubjects(teacherSubjects);
-        setAssignments(teacherAssignments);
+        const subjectsData = subjectsRes?.success ? (subjectsRes.data || []) : (Array.isArray(subjectsRes) ? subjectsRes : []);
+        const assignmentsData = assignmentsRes?.success ? (assignmentsRes.data || []) : (Array.isArray(assignmentsRes) ? assignmentsRes : []);
+        
+        setSubjects(subjectsData);
+        setAssignments(assignmentsData);
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -41,62 +44,124 @@ const Grades = () => {
     };
 
     fetchData();
-  }, [user?.uid]);
+  }, [user?.id]);
 
   // Filter assignments by subject and only show those with submissions
-  const filteredAssignments = assignments.filter(assignment => {
+  const filteredAssignments = Array.isArray(assignments) ? assignments.filter(assignment => {
     const hasSubmissions = assignment.submissions && assignment.submissions.length > 0;
     const matchesSubject = selectedSubject === "all" || assignment.subjectName === selectedSubject;
     return hasSubmissions && matchesSubject;
-  });
+  }) : [];
 
-  const handleGradeAssignment = (assignment) => {
-    setSelectedAssignment(assignment);
-    setShowGradingModal(true);
+  const handleGradeAssignment = async (assignment) => {
+    try {
+      const res = await getAssignmentSubmissions(assignment.id);
+      const subs = res?.success ? (res.data || []) : (Array.isArray(res) ? res : []);
+      const uiSubs = (subs || []).map((s) => ({
+        id: s.id,
+        studentId: s.student_id,
+        grade: s.total_score ?? s.score ?? null,
+        feedback: s.feedback ?? null,
+        status: s.status,
+        submittedAt: s.submitted_at,
+        gradedAt: s.graded_at,
+        submissionType: s.submission_type ?? ((s.responses || []).length > 0 ? 'objective_answers' : 'text'),
+        content: s.submission_text ?? null,
+        attachmentUrl: s.attachment_url ?? null,
+        autoScore: s.auto_score ?? null,
+        totalScore: s.total_score ?? null,
+        responses: (s.responses || []).map((r) => ({
+          id: r.id,
+          questionId: r.question_id,
+          answer: r.answer,
+          autoScore: r.auto_score,
+          isCorrect: r.is_correct,
+          question: r.question || null,
+        })),
+      }));
+      setSelectedAssignment({ ...assignment, submissions: uiSubs });
+    } catch (e) {
+      console.error('Error loading assignment submissions:', e);
+      setSelectedAssignment(assignment);
+    } finally {
+      setShowGradingModal(true);
+    }
   };
 
   const handleSubmitGrade = async (studentId, gradeData) => {
     try {
-      // Update local state to reflect the grade
-      setAssignments(assignments.map(assignment => {
-        if (assignment.id === selectedAssignment.id) {
-          const updatedSubmissions = assignment.submissions.map(submission => {
+      // Persist grade to Supabase and ensure it succeeded
+      const res = await gradeStudentSubmission(selectedAssignment.id, studentId, gradeData.grade, gradeData.feedback);
+      if (!res?.success) {
+        throw new Error(res?.error || 'Failed to grade submission');
+      }
+
+      // Re-fetch submissions from DB to guarantee persisted state
+      try {
+        const refreshed = await getAssignmentSubmissions(selectedAssignment.id);
+        if (refreshed?.success) {
+          const subs = refreshed.data || [];
+          const uiSubs = subs.map((s) => ({
+            id: s.id,
+            studentId: s.student_id,
+            grade: s.total_score ?? s.score ?? null,
+            feedback: s.feedback ?? null,
+            status: s.status,
+            submittedAt: s.submitted_at,
+            gradedAt: s.graded_at,
+            submissionType: s.submission_type ?? ((s.responses || []).length > 0 ? 'objective_answers' : 'text'),
+            content: s.submission_text ?? null,
+            attachmentUrl: s.attachment_url ?? null,
+            autoScore: s.auto_score ?? null,
+            totalScore: s.total_score ?? null,
+            responses: (s.responses || []).map((r) => ({
+              id: r.id,
+              questionId: r.question_id,
+              answer: r.answer,
+              autoScore: r.auto_score,
+              isCorrect: r.is_correct,
+              question: r.question || null,
+            })),
+          }));
+          setSelectedAssignment((prev) => ({ ...(prev || {}), submissions: uiSubs }));
+
+          // Also update list view state
+          setAssignments((prev) => Array.isArray(prev) ? prev.map((a) => a.id === selectedAssignment.id ? { ...a, submissions: uiSubs } : a) : prev);
+        }
+      } catch (e) {
+        // If refresh fails, fallback to optimistic local update
+        setAssignments(Array.isArray(assignments) ? assignments.map(assignment => {
+          if (assignment.id === selectedAssignment.id) {
+            const updatedSubmissions = assignment.submissions.map(submission => {
+              if (submission.studentId === studentId) {
+                return {
+                  ...submission,
+                  ...gradeData,
+                  status: 'graded'
+                };
+              }
+              return submission;
+            });
+            return { ...assignment, submissions: updatedSubmissions };
+          }
+          return assignment;
+        }) : assignments);
+
+        setSelectedAssignment(prev => ({
+          ...prev,
+          submissions: prev.submissions.map(submission => {
             if (submission.studentId === studentId) {
-              return {
-                ...submission,
-                ...gradeData,
-                status: 'graded'
-              };
+              return { ...submission, ...gradeData, status: 'graded' };
             }
             return submission;
-          });
-          return {
-            ...assignment,
-            submissions: updatedSubmissions
-          };
-        }
-        return assignment;
-      }));
-      
-      // Update selected assignment for the modal
-      setSelectedAssignment(prev => ({
-        ...prev,
-        submissions: prev.submissions.map(submission => {
-          if (submission.studentId === studentId) {
-            return {
-              ...submission,
-              ...gradeData,
-              status: 'graded'
-            };
-          }
-          return submission;
-        })
-      }));
-      
+          })
+        }));
+      }
+
       alert('Grade submitted successfully!');
     } catch (error) {
       console.error('Error grading assignment:', error);
-      alert('Failed to submit grade. Please try again.');
+      alert(error?.message || 'Failed to submit grade. Please try again.');
     }
   };
 
@@ -209,7 +274,7 @@ const Grades = () => {
           className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 w-full sm:w-auto"
         >
           <option value="all">All Subjects</option>
-          {subjects.map((subject) => (
+          {Array.isArray(subjects) && subjects.map((subject) => (
             <option key={subject.subjectName} value={subject.subjectName}>
               {subject.subjectName} ({subject.totalStudents} students)
             </option>
@@ -327,7 +392,7 @@ const Grades = () => {
                     <div className="flex items-center flex-wrap gap-4 lg:gap-6 text-sm text-slate-500">
                       <span>Subject: {assignment.subjectName}</span>
                       <span className={dueDate < now ? 'text-red-600 font-medium' : ''}>
-                        Due: {assignment.dueDate}
+                        Due: {new Date(assignment.dueDate).toLocaleDateString()}
                       </span>
                       <span>Max Points: {assignment.maxPoints}</span>
                       <span>Total Submissions: {totalSubmissions}</span>
@@ -416,18 +481,25 @@ const GradingModal = ({ assignment, onClose, onSubmitGrade }) => {
         // Process students sequentially to avoid overwhelming the API
         for (const submission of submittedStudents) {
           if (!isMounted) break; // Exit early if component unmounted
-          
           try {
-            const student = await getStudent(submission.studentId);
-            if (student && isMounted) {
-              details[submission.studentId] = student;
+            const resp = await getStudent(submission.studentId);
+            if (isMounted && resp?.success && resp.data) {
+              const s = resp.data;
+              const first = s.first_name ?? (s.full_name ? s.full_name.split(' ')[0] : undefined) ?? '';
+              const last = s.surname ?? (s.full_name ? s.full_name.split(' ').slice(1).join(' ') : undefined) ?? '';
+              details[submission.studentId] = {
+                ...s,
+                firstName: first,
+                surname: last,
+                admissionNumber: s.admission_number ?? s.admissionNumber ?? ''
+              };
             }
           } catch (error) {
             console.error(`Error fetching student ${submission.studentId}:`, error);
             if (isMounted) {
               details[submission.studentId] = {
                 firstName: 'Unknown',
-                lastName: 'Student',
+                surname: 'Student',
                 admissionNumber: submission.studentId
               };
             }
@@ -521,11 +593,11 @@ const GradingModal = ({ assignment, onClose, onSubmitGrade }) => {
                       <div className="flex items-center justify-between">
                         <div className="min-w-0 flex-1">
                           <p className="font-medium text-slate-800 text-sm sm:text-base truncate">
-                            {student ? getFullName(student) : 'Loading...'}
+                            {student ? (getFullName(student) || student.full_name || 'Unknown') : 'Loading...'}
                           </p>
                           {student && (
                             <p className="text-xs sm:text-sm text-slate-500">
-                              ID: {student.admissionNumber || submission.studentId}
+                              Admission No: {student.admissionNumber || student.admission_number || '—'}
                             </p>
                           )}
                           <p className="text-xs sm:text-sm text-slate-600">
@@ -581,7 +653,6 @@ const GradingModal = ({ assignment, onClose, onSubmitGrade }) => {
                         <div>Submitted: {new Date(selectedStudent.submittedAt).toLocaleDateString()}</div>
                         <div>Type: {selectedStudent.submissionType}</div>
                         <div>Status: {selectedStudent.status}</div>
-                        <div>Student ID: {selectedStudent.studentId}</div>
                       </div>
                     </div>
                     
@@ -607,6 +678,61 @@ const GradingModal = ({ assignment, onClose, onSubmitGrade }) => {
                             </p>
                           )}
                         </div>
+                      </div>
+                    )}
+
+                    {(selectedStudent.submissionType === 'objective_answers' || (Array.isArray(selectedStudent.responses) && selectedStudent.responses.length > 0)) && (
+                      <div className="mt-4">
+                        <h4 className="font-medium text-slate-700 mb-2 text-sm sm:text-base">Objective Answers:</h4>
+                        {Array.isArray(selectedStudent.responses) && selectedStudent.responses.length > 0 ? (
+                          <div className="space-y-3">
+                            {selectedStudent.responses.map((resp, idx) => {
+                              const q = resp.question || {};
+                              const options = Array.isArray(q.options) ? q.options : [];
+                              const isMcq = options.length > 0 || q.type === 'mcq';
+                              const isTf = q.type === 'true_false';
+                              const formatAnswer = (ans) => {
+                                if (isMcq && typeof ans === 'number' && options[ans] !== undefined) return options[ans];
+                                if (isTf) return ans ? 'True' : 'False';
+                                return String(ans ?? '').trim();
+                              };
+                              const yourAnswer = formatAnswer(resp.answer);
+                              const correctAnswer = formatAnswer(q.correct_answer);
+                              return (
+                                <div key={resp.id || idx} className="bg-white border rounded p-3">
+                                  <div className="flex items-start justify-between">
+                                    <div className="text-sm text-slate-800">
+                                      <div className="font-medium mb-1">Q{(q.order_index ?? idx) + 1}. {q.text || 'Question'}</div>
+                                      {isMcq && options.length > 0 && (
+                                        <ul className="list-disc ml-5 text-slate-600 text-xs sm:text-sm mb-2">
+                                          {options.map((opt, i) => (
+                                            <li key={i} className={i === resp.answer ? 'font-semibold text-slate-800' : ''}>
+                                              {String.fromCharCode(65 + i)}. {opt}
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                      <div className="text-xs sm:text-sm">
+                                        <div>Student's answer: <span className="font-medium">{yourAnswer || '—'}</span></div>
+                                        <div>Correct answer: <span className="font-medium">{correctAnswer || '—'}</span></div>
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-col items-end ml-3">
+                                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${resp.isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                        {resp.isCorrect ? 'Correct' : 'Incorrect'}
+                                      </span>
+                                      <span className="text-xs sm:text-sm text-slate-700 mt-1">
+                                        Score: {resp.autoScore ?? 0}/{q.points ?? 0}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-xs sm:text-sm text-slate-600">No answers found.</div>
+                        )}
                       </div>
                     )}
                   </div>

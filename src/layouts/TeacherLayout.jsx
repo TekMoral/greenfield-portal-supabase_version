@@ -10,6 +10,7 @@ const TeacherLayout = () => {
     { label: "My Classes", path: "/teacher/classes" },
     { label: "Students", path: "/teacher/students" },
     { label: "Exam Results", path: "/teacher/exam-results" },
+    { label: "Exams", path: "/teacher/exams" },
     { label: "Assignments", path: "/teacher/assignments" },
     { label: "Grades", path: "/teacher/grades" },
     { label: "Timetable", path: "/teacher/timetable" },

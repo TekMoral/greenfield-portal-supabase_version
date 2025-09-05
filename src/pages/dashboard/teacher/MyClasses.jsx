@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../../hooks/useAuth";
 import { getTeacherClassesAndSubjects, getStudentsByTeacherSubject } from "../../../services/supabase/teacherStudentService";
 import { getFullName, getInitials } from "../../../utils/nameUtils";
@@ -7,67 +8,81 @@ import { getFullName, getInitials } from "../../../utils/nameUtils";
 const MyClasses = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [classes, setClasses] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [selectedSubject, setSelectedSubject] = useState(null);
-  const [subjectStudents, setSubjectStudents] = useState([]);
-  const [loadingStudents, setLoadingStudents] = useState(false);
 
-  useEffect(() => {
-    const fetchClasses = async () => {
-      if (!user?.id) {
-        setLoading(false);
-        return;
-      }
+  // Fetch teacher classes using React Query
+  const { data: classes = [], isLoading, isError, error, refetch, isFetching } = useQuery({
+    queryKey: ['teacher', 'classes', user?.id],
+    queryFn: async () => {
+      if (!user?.id) throw new Error('No user logged in');
+      
+      const res = await getTeacherClassesAndSubjects(user.id);
+      return res?.success ? (res.data || []) : (Array.isArray(res) ? res : []);
+    },
+    enabled: !!user?.id,
+  });
 
-      try {
-        const res = await getTeacherClassesAndSubjects(user.id);
-        setClasses(res?.success ? (res.data || []) : (Array.isArray(res) ? res : []));
-      } catch (error) {
-        console.error('Error fetching classes:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Fetch students for selected subject using React Query
+  const { 
+    data: subjectStudents = [], 
+    isLoading: loadingStudents, 
+    isError: studentsError,
+    error: studentsErrorMessage 
+  } = useQuery({
+    queryKey: ['teacher', 'subject-students', user?.id, selectedSubject],
+    queryFn: async () => {
+      if (!user?.id || !selectedSubject) return [];
+      
+      const res = await getStudentsByTeacherSubject(user.id, selectedSubject);
+      return res?.success ? (res.data || []) : (Array.isArray(res) ? res : []);
+    },
+    enabled: !!user?.id && !!selectedSubject,
+  });
 
-    fetchClasses();
-  }, [user?.id]);
-
-  const handleViewSubjectStudents = async (subjectName) => {
-    setLoadingStudents(true);
+  const handleViewSubjectStudents = (subjectName) => {
     setSelectedSubject(subjectName);
-    
-    try {
-      const res = await getStudentsByTeacherSubject(user.id, subjectName);
-      setSubjectStudents(res?.success ? (res.data || []) : (Array.isArray(res) ? res : []));
-    } catch (error) {
-      console.error('Error fetching subject students:', error);
-      setSubjectStudents([]);
-    } finally {
-      setLoadingStudents(false);
-    }
   };
 
   const closeStudentModal = () => {
     setSelectedSubject(null);
-    setSubjectStudents([]);
   };
 
-  if (loading) {
+  // Loading state
+  if (isLoading) {
     return (
-      <div className="animate-pulse space-y-4">
-        <div className="h-8 bg-slate-200 rounded w-1/3"></div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="bg-white p-6 rounded-lg shadow h-48"></div>
-          ))}
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-12 h-12 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
+          <span className="text-slate-600 font-medium text-lg">Loading your classes...</span>
         </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (isError) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4 sm:p-6 text-center mx-2 sm:mx-0">
+        <div className="text-red-600 text-3xl sm:text-4xl mb-3 sm:mb-4">⚠️</div>
+        <h2 className="text-lg sm:text-xl font-semibold text-slate-800 mb-2">Error Loading Classes</h2>
+        <p className="text-sm sm:text-base text-slate-600 mb-3 sm:mb-4">{error?.message || 'Failed to load your classes. Please try again.'}</p>
+        <button
+          onClick={() => refetch()}
+          className="bg-slate-800 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-slate-700 transition-colors font-medium text-sm sm:text-base"
+        >
+          Try Again
+        </button>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-green-50">
+      {isFetching && (
+        <div className="pointer-events-none fixed top-3 right-3 z-50">
+          <div className="animate-spin h-8 w-8 border-2 border-green-500 border-t-transparent rounded-full"></div>
+        </div>
+      )}
       {/* Header Section */}
       <div className="bg-white border-b border-slate-200 shadow-sm">
         <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
@@ -84,7 +99,10 @@ const MyClasses = () => {
               <div className="bg-gradient-to-r from-green-600 to-green-700 text-white px-3 sm:px-4 py-2 rounded-lg shadow-sm">
                 <div className="text-xs sm:text-sm font-medium">Total Students</div>
                 <div className="text-xl sm:text-2xl font-bold">
-                  {classes.reduce((total, cls) => total + (cls.studentCount || 0), 0)}
+                  {classes.reduce((total, cls) => {
+                    const count = typeof cls.studentCount === 'number' ? cls.studentCount : 0;
+                    return total + count;
+                  }, 0) || 'N/A'}
                 </div>
               </div>
             </div>

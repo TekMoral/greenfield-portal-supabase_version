@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createExam } from '../../../services/examService';
-import { getTeacherClassesAndSubjects } from '../../../services/teacherStudentService';
+import { createExam } from '../../../services/supabase/examService';
+import { getTeacherClassesAndSubjects } from '../../../services/supabase/teacherStudentService';
 import { useAuth } from '../../../hooks/useAuth';
 import useToast from '../../../hooks/useToast';
 

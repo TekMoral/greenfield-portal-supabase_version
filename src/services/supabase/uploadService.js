@@ -39,7 +39,7 @@ export const uploadStudentImage = async (file, admissionNumber, studentId = null
           profile_image_public_id: result.publicId,
           updated_at: new Date().toISOString()
         })
-        .eq('user_id', studentId)
+        .eq('id', studentId)
         .eq('role', 'student')
         .select()
         .single();
@@ -182,7 +182,7 @@ export const uploadTeacherImage = async (file, teacherId) => {
         profile_image_public_id: result.publicId,
         updated_at: new Date().toISOString()
       })
-      .eq('user_id', teacherId)
+      .eq('id', teacherId)
       .eq('role', 'teacher')
       .select()
       .single();

@@ -39,6 +39,7 @@ const Timetable = lazyWithRetry(() => import("../pages/student/Timetable"));
 const StudentSubjects = lazyWithRetry(() => import("../pages/student/Subjects"));
 const StudentAssignments = lazyWithRetry(() => import("../pages/student/Assignments"));
 const StudentExamResults = lazyWithRetry(() => import("../pages/student/ExamResults"));
+const StudentAttendance = lazyWithRetry(() => import("../pages/student/Attendance"));
 
 // Teacher routes
 const TeacherDashboard = lazyWithRetry(() =>
@@ -79,6 +80,7 @@ const Settings = lazyWithRetry(() => import("../pages/dashboard/Settings"));
 const AdminSubjects = lazyWithRetry(() => import("../pages/dashboard/Subjects"));
 const AdminReports = lazyWithRetry(() => import("../pages/dashboard/Reports"));
 const ManageResults = lazyWithRetry(() => import("../pages/dashboard/ManageResults"));
+const AdminAttendance = lazyWithRetry(() => import("../pages/dashboard/AdminAttendance"));
 
 const AdminReview = lazyWithRetry(() => import("../pages/dashboard/AdminReview"));
 const CarouselManagement = lazyWithRetry(() =>
@@ -190,6 +192,14 @@ const AppRouter = () => (
         element={
           <Suspense fallback={<LoadingFallback />}>
             <AdminReports />
+          </Suspense>
+        }
+      />
+      <Route
+        path="attendance"
+        element={
+          <Suspense fallback={<LoadingFallback />}>
+            <AdminAttendance />
           </Suspense>
         }
       />
@@ -380,6 +390,22 @@ const AppRouter = () => (
           </Suspense>
         }
       />
+      <Route
+        path="exams"
+        element={
+          <Suspense fallback={<LoadingFallback />}>
+            <TeacherExams />
+          </Suspense>
+        }
+      />
+      <Route
+        path="exams/create"
+        element={
+          <Suspense fallback={<LoadingFallback />}>
+            <CreateExam />
+          </Suspense>
+        }
+      />
     </Route>
 
     {/* Student Portal Routes (Nested) */}
@@ -444,6 +470,14 @@ const AppRouter = () => (
         element={
           <Suspense fallback={<LoadingFallback />}>
             <StudentAssignments />
+          </Suspense>
+        }
+      />
+      <Route
+        path="attendance"
+        element={
+          <Suspense fallback={<LoadingFallback />}>
+            <StudentAttendance />
           </Suspense>
         }
       />

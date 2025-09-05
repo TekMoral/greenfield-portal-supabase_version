@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { submitReport, checkReportExists, submitBulkReports } from '../services/reportService';
+import { submitReport, checkReportExists, submitBulkReports } from '../services/supabase/reportService';
 import { getFullName } from '../utils/nameUtils';
 import { getTeacherName, calculateAttendanceRate, calculateAverageScore } from '../utils/reportUtils';
 

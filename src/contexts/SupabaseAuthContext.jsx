@@ -4,6 +4,9 @@ import { supabase, getUserProfile } from '../lib/supabaseClient'
 import { debugUserProfile, checkAndFixUserProfile } from '../utils/authDebug'
 import { AuthContext } from '../hooks/useAuth'
 
+// Add uid alias to Supabase user object to support legacy code paths that reference user.uid
+const withUid = (u) => (u ? { ...u, uid: u.id } : u)
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
@@ -41,7 +44,7 @@ export const AuthProvider = ({ children }) => {
         }
 
         if (session?.user && isMounted) {
-          setUser(session.user)
+          setUser(withUid(session.user))
           await fetchUserProfile(session.user.id)
         } else if (isMounted) {
           cancelProfileFetch() // Cancel any ongoing profile fetch
@@ -67,7 +70,7 @@ export const AuthProvider = ({ children }) => {
         // This prevents race conditions between initial session and auth state changes
         if (!initialSessionLoaded && event === 'INITIAL_SESSION') {
           if (session?.user && isMounted) {
-            setUser(session.user)
+            setUser(withUid(session.user))
             await fetchUserProfile(session.user.id)
           } else if (isMounted) {
             cancelProfileFetch() // Cancel any ongoing profile fetch
@@ -86,7 +89,7 @@ export const AuthProvider = ({ children }) => {
         // Handle other auth events (SIGNED_IN, SIGNED_OUT, etc.)
         if (initialSessionLoaded && isMounted) {
           if (session?.user) {
-            setUser(session.user)
+            setUser(withUid(session.user))
             await fetchUserProfile(session.user.id)
           } else {
             cancelProfileFetch() // Cancel any ongoing profile fetch

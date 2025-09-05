@@ -9,7 +9,7 @@ export const getStudentDetails = async (studentId) => {
     const { data: studentData, error: studentError } = await supabase
       .from('user_profiles')
       .select('*')
-      .eq('user_id', studentId)
+      .eq('id', studentId)
       .eq('role', 'student')
       .single();
 
@@ -61,7 +61,7 @@ export const updateStudentInfo = async (studentId, updateData) => {
         ...updateData,
         updated_at: new Date().toISOString()
       })
-      .eq('user_id', studentId)
+      .eq('id', studentId)
       .eq('role', 'student')
       .select()
       .single();
@@ -237,7 +237,7 @@ export const getClassStatistics = async (teacherId, subjectName, classId) => {
     // Calculate submission and grade statistics
     assignments.forEach(assignment => {
       assignment.submissions?.forEach(submission => {
-        if (students.some(student => student.user_id === submission.studentId)) {
+        if (students.some(student => student.id === submission.studentId)) {
           stats.submissionStats.submitted++;
           
           if (submission.status === 'graded') {

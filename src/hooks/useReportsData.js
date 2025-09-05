@@ -35,11 +35,12 @@ export const useReportsData = (user) => {
 
       try {
         setLoading(true);
-        const teacherClasses = await teacherStudentService.getTeacherClassesAndSubjects(user.id);
+        const classesRes = await teacherStudentService.getTeacherClassesAndSubjects(user.id);
+        const teacherClasses = classesRes?.success ? (classesRes.data || []) : (Array.isArray(classesRes) ? classesRes : []);
         setClasses(teacherClasses);
         
         // Auto-select first class if available
-        if (teacherClasses.length > 0) {
+        if (Array.isArray(teacherClasses) && teacherClasses.length > 0) {
           setSelectedClass(teacherClasses[0].id);
         }
       } catch (error) {
@@ -56,7 +57,8 @@ export const useReportsData = (user) => {
   const getAvailableSubjects = () => {
     if (!selectedClass) return [];
     
-    const classData = classes.find(cls => cls.id === selectedClass);
+    const list = Array.isArray(classes) ? classes : [];
+    const classData = list.find(cls => cls.id === selectedClass);
     if (!classData) return [];
     
     return classData.subjectsTaught || [];
@@ -75,7 +77,8 @@ export const useReportsData = (user) => {
         console.log('Fetching students for reports:', { selectedClass, selectedSubject, teacherId: user.id });
         
         // Get the selected class data to determine if it's grouped
-        const selectedClassData = classes.find(cls => cls.id === selectedClass);
+        const list = Array.isArray(classes) ? classes : [];
+        const selectedClassData = list.find(cls => cls.id === selectedClass);
         
         let classStudents = [];
         
@@ -84,11 +87,13 @@ export const useReportsData = (user) => {
           const classIds = selectedClassData.individualClasses.map(cls => cls.id);
           console.log('Fetching students from grouped classes for reports:', classIds);
           
-          classStudents = await teacherStudentService.getStudentsByTeacherSubjectAndClasses(user.id, selectedSubject, classIds);
+          const res = await teacherStudentService.getStudentsByTeacherSubjectAndClasses(user.id, selectedSubject, classIds);
+          classStudents = res?.success ? (res.data || []) : (Array.isArray(res) ? res : []);
         } else {
           // For individual classes, get students normally
           console.log('Fetching students from individual class for reports:', selectedClass);
-          const subjectStudents = await teacherStudentService.getStudentsByTeacherSubject(user.id, selectedSubject);
+          const subjectRes = await teacherStudentService.getStudentsByTeacherSubject(user.id, selectedSubject);
+          const subjectStudents = subjectRes?.success ? (subjectRes.data || []) : (Array.isArray(subjectRes) ? subjectRes : []);
           classStudents = subjectStudents.filter(student => student.classId === selectedClass);
         }
         

@@ -9,8 +9,13 @@ import { getSubjectsByDepartment } from './subjectService';
 export const getStudentsByTeacherSubject = async (teacherId, subjectName) => {
   try {
     // First, check if this is a core subject
-    const coreSubjectsResult = await getSubjectsByDepartment('core');
-    const coreSubjects = coreSubjectsResult.success ? coreSubjectsResult.data : [];
+    let coreSubjects = [];
+    try {
+      coreSubjects = await getSubjectsByDepartment('core');
+    } catch (error) {
+      console.error('Error fetching core subjects:', error);
+      coreSubjects = [];
+    }
     const isCoreSubject = coreSubjects.includes(subjectName);
     
     // Get all classes where this teacher teaches this subject
@@ -47,7 +52,7 @@ export const getStudentsByTeacherSubject = async (teacherId, subjectName) => {
       .from('user_profiles')
       .select('*')
       .eq('role', 'student')
-      .in('classId', classIds);
+      .in('class_id', classIds);
 
     if (studentsError) {
       console.error('Supabase error fetching students:', studentsError);
@@ -118,7 +123,7 @@ export const getTeacherSubjectsWithStudents = async (teacherId) => {
           .from('user_profiles')
           .select('*', { count: 'exact', head: true })
           .eq('role', 'student')
-          .eq('classId', classData.id);
+          .eq('class_id', classData.id);
 
         if (countError) {
           console.error('Error counting students:', countError);
@@ -152,7 +157,7 @@ export const getStudentSubjects = async (studentId) => {
     // Get student data
     const { data: studentData, error: studentError } = await supabase
       .from('user_profiles')
-      .select('classId')
+      .select('class_id')
       .eq('user_id', studentId)
       .eq('role', 'student')
       .single();
@@ -175,8 +180,13 @@ export const getStudentSubjects = async (studentId) => {
     }
     
     // Always get core subjects (taken by ALL students)
-    const coreSubjectsResult = await getSubjectsByDepartment('core');
-    const coreSubjects = coreSubjectsResult.success ? coreSubjectsResult.data : [];
+    let coreSubjects = [];
+    try {
+      coreSubjects = await getSubjectsByDepartment('core');
+    } catch (error) {
+      console.error('Error fetching core subjects:', error);
+      coreSubjects = [];
+    }
     
     let allSubjects = coreSubjects.map(subjectName => {
       const subjectInfo = classData.subjects?.find(s => s.subjectName === subjectName);
@@ -190,8 +200,13 @@ export const getStudentSubjects = async (studentId) => {
     
     // For Junior level, add junior-specific subjects
     if (classData.level === 'Junior') {
-      const juniorSubjectsResult = await getSubjectsByDepartment('junior');
-      const juniorSubjects = juniorSubjectsResult.success ? juniorSubjectsResult.data : [];
+      let juniorSubjects = [];
+      try {
+        juniorSubjects = await getSubjectsByDepartment('junior');
+      } catch (error) {
+        console.error('Error fetching junior subjects:', error);
+        juniorSubjects = [];
+      }
       
       const juniorSubjectList = juniorSubjects.map(subjectName => {
         const subjectInfo = classData.subjects?.find(s => s.subjectName === subjectName);
@@ -208,8 +223,13 @@ export const getStudentSubjects = async (studentId) => {
     // For Senior level, add category-specific subjects
     if (classData.level === 'Senior' && classData.category) {
       const categoryKey = classData.category.toLowerCase();
-      const categorySubjectsResult = await getSubjectsByDepartment(categoryKey);
-      const categorySubjects = categorySubjectsResult.success ? categorySubjectsResult.data : [];
+      let categorySubjects = [];
+      try {
+        categorySubjects = await getSubjectsByDepartment(categoryKey);
+      } catch (error) {
+        console.error(`Error fetching ${categoryKey} subjects:`, error);
+        categorySubjects = [];
+      }
       
       const categorySubjectList = categorySubjects.map(subjectName => {
         const subjectInfo = classData.subjects?.find(s => s.subjectName === subjectName);
@@ -244,105 +264,174 @@ const extractBaseClassName = (fullClassName) => {
 };
 
 /**
- * Get all classes and subjects taught by a teacher - IMPROVED VERSION
- * Groups classes by base class name for core subjects, shows individual classes for category subjects
+ * Get all classes and subjects taught by a teacher - CORRECTED VERSION
+ * Uses teacher_assignments table to get the actual teacher-subject-class relationships
  */
 export const getTeacherClassesAndSubjects = async (teacherId) => {
   try {
-    const { data: classes, error: classesError } = await supabase
-      .from('classes')
-      .select('*');
+    console.log('🔍 Fetching classes and subjects for teacher:', teacherId);
+    
+    // Get teacher assignments from the correct table
+    const { data: assignments, error: assignmentsError } = await supabase
+      .from('teacher_assignments')
+      .select(`
+        *,
+        subjects!inner (id, name, code, department),
+        classes!inner (id, name, level, category, description)
+      `)
+      .eq('teacher_id', teacherId)
+      .eq('is_active', true);
 
-    if (classesError) {
-      console.error('Supabase error fetching classes:', classesError);
-      return { success: false, error: classesError.message };
+    if (assignmentsError) {
+      console.error('Supabase error fetching teacher assignments:', assignmentsError);
+      return { success: false, error: assignmentsError.message };
+    }
+    
+    console.log('📚 Found teacher assignments:', assignments?.length || 0);
+    
+    if (!assignments || assignments.length === 0) {
+      console.log('❌ No assignments found for teacher');
+      return { success: true, data: [] };
     }
     
     // Get core subjects to identify them
-    const coreSubjectsResult = await getSubjectsByDepartment('core');
-    const coreSubjects = coreSubjectsResult.success ? coreSubjectsResult.data : [];
+    let coreSubjects = [];
+    try {
+      coreSubjects = await getSubjectsByDepartment('core');
+      console.log('🎯 Core subjects:', coreSubjects?.length || 0);
+    } catch (error) {
+      console.error('Error fetching core subjects:', error);
+      coreSubjects = [];
+    }
+    
+    // Group assignments by class
+    const classMap = new Map();
+    
+    for (const assignment of assignments) {
+      const classData = assignment.classes;
+      const subjectData = assignment.subjects;
+      
+      console.log('📝 Processing assignment:', classData.name, '-', subjectData.name);
+      
+      if (!classMap.has(classData.id)) {
+        // Skip student count due to database permission issues
+        // Teachers don't have direct access to count students in user_profiles table
+        console.log('👥 Setting student count to "N/A" for', classData.name, '(DB permission issue)');
+        
+        classMap.set(classData.id, {
+          ...classData,
+          subjectsTaught: [],
+          studentCount: 0,
+          isGrouped: false
+        });
+      }
+      
+      // Add subject to class
+      const classEntry = classMap.get(classData.id);
+      classEntry.subjectsTaught.push({
+        subjectName: subjectData.name,
+        subjectId: subjectData.id,
+        teacherId: teacherId,
+        teacherName: 'Current Teacher', // Could be enhanced to get actual teacher name
+        department: subjectData.department
+      });
+    }
     
     const teacherClasses = [];
+
+    // Compute student counts per class (RLS-compliant)
+    let countsByClass = {};
+    try {
+      const classIdsForCount = Array.from(classMap.keys());
+      if (classIdsForCount.length) {
+        const { data: studentRows } = await supabase
+          .from('user_profiles')
+          .select('class_id')
+          .eq('role', 'student')
+          .in('class_id', classIdsForCount);
+        (studentRows || []).forEach(r => {
+          const cid = r.class_id || r.classId;
+          countsByClass[cid] = (countsByClass[cid] || 0) + 1;
+        });
+      }
+    } catch (e) {
+      console.warn('Could not compute student counts, defaulting to 0', e);
+    }
+
     const levelGroups = new Map(); // For grouping core subject classes by base class name
     
-    for (const classData of classes) {
-      // Find subjects taught by this teacher in this class
-      const teacherSubjects = classData.subjects?.filter(
-        subject => subject.teacherId === teacherId
-      ) || [];
+    // Process each class and group core subjects
+    for (const classData of classMap.values()) {
+      console.log('🔍 Processing class:', classData.name, 'with', classData.subjectsTaught.length, 'subjects');
       
-      if (teacherSubjects.length > 0) {
-        // Get student count
-        const { count: studentCount, error: countError } = await supabase
-          .from('user_profiles')
-          .select('*', { count: 'exact', head: true })
-          .eq('role', 'student')
-          .eq('classId', classData.id);
-
-        if (countError) {
-          console.error('Error counting students:', countError);
-          continue;
+      // Check if this class has core subjects
+      const coreSubjectsInClass = classData.subjectsTaught.filter(subject => 
+        coreSubjects.includes(subject.subjectName)
+      );
+      
+      const categorySubjectsInClass = classData.subjectsTaught.filter(subject => 
+        !coreSubjects.includes(subject.subjectName)
+      );
+      
+      console.log('🎯 Core subjects in class:', coreSubjectsInClass.length);
+      console.log('📚 Category subjects in class:', categorySubjectsInClass.length);
+      
+      // Handle core subjects - group by base class name (e.g., SSS1, SSS2)
+      if (coreSubjectsInClass.length > 0) {
+        const baseClassName = extractBaseClassName(classData.name);
+        const groupKey = baseClassName;
+        
+        console.log('🏷️ Grouping core subjects under:', baseClassName);
+        
+        if (!levelGroups.has(groupKey)) {
+          levelGroups.set(groupKey, {
+            id: `${baseClassName.toLowerCase().replace(/\s+/g, '_')}_grouped`,
+            name: baseClassName,
+            level: classData.level,
+            category: 'All Categories', // Indicates this is a grouped class
+            isGrouped: true,
+            subjectsTaught: [],
+            studentCount: 0,
+            individualClasses: []
+          });
         }
         
-        // Check if this class has core subjects
-        const coreSubjectsInClass = teacherSubjects.filter(subject => 
-          coreSubjects.includes(subject.subjectName)
-        );
+        const levelGroup = levelGroups.get(groupKey);
         
-        const categorySubjectsInClass = teacherSubjects.filter(subject => 
-          !coreSubjects.includes(subject.subjectName)
-        );
-        
-        // Handle core subjects - group by base class name (e.g., SSS1, SSS2)
-        if (coreSubjectsInClass.length > 0) {
-          const baseClassName = extractBaseClassName(classData.name);
-          const groupKey = baseClassName;
-          
-          if (!levelGroups.has(groupKey)) {
-            levelGroups.set(groupKey, {
-              id: `${baseClassName.toLowerCase().replace(/\s+/g, '_')}_grouped`,
-              name: baseClassName,
-              level: classData.level,
-              category: 'All Categories', // Indicates this is a grouped class
-              isGrouped: true,
-              subjectsTaught: [],
-              studentCount: 0,
-              individualClasses: []
-            });
+        // Add core subjects to the level group
+        coreSubjectsInClass.forEach(subject => {
+          if (!levelGroup.subjectsTaught.some(s => s.subjectName === subject.subjectName)) {
+            levelGroup.subjectsTaught.push(subject);
           }
-          
-          const levelGroup = levelGroups.get(groupKey);
-          
-          // Add core subjects to the level group
-          coreSubjectsInClass.forEach(subject => {
-            if (!levelGroup.subjectsTaught.some(s => s.subjectName === subject.subjectName)) {
-              levelGroup.subjectsTaught.push(subject);
-            }
-          });
-          
-          levelGroup.studentCount += studentCount || 0;
-          levelGroup.individualClasses.push({
-            id: classData.id,
-            name: classData.name,
-            category: classData.category,
-            studentCount: studentCount || 0
-          });
-        }
+        });
         
-        // Handle category subjects - show individual classes
-        if (categorySubjectsInClass.length > 0) {
-          teacherClasses.push({
-            ...classData,
-            subjectsTaught: categorySubjectsInClass,
-            studentCount: studentCount || 0,
-            isGrouped: false
-          });
-        }
+        const classCount = countsByClass[classData.id] || 0;
+        levelGroup.studentCount += classCount;
+        levelGroup.individualClasses.push({
+          id: classData.id,
+          name: classData.name,
+          category: classData.category,
+          studentCount: classCount
+        });
+      }
+      
+      // Handle category subjects - show individual classes
+      if (categorySubjectsInClass.length > 0) {
+        console.log('➕ Adding individual class:', classData.name);
+        const classCount = countsByClass[classData.id] || 0;
+        teacherClasses.push({
+          ...classData,
+          studentCount: classCount,
+          subjectsTaught: categorySubjectsInClass,
+          isGrouped: false
+        });
       }
     }
     
     // Add grouped level classes to the result
-    levelGroups.forEach(levelGroup => {
+    console.log('📊 Level groups created:', levelGroups.size);
+    levelGroups.forEach((levelGroup, key) => {
+      console.log('🏷️ Adding level group:', key, 'with', levelGroup.studentCount, 'students');
       teacherClasses.push(levelGroup);
     });
     
@@ -352,6 +441,9 @@ export const getTeacherClassesAndSubjects = async (teacherId) => {
       if (!a.isGrouped && b.isGrouped) return 1;
       return a.name.localeCompare(b.name);
     });
+    
+    console.log('✅ Final teacher classes count:', teacherClasses.length);
+    console.log('📋 Classes to return:', teacherClasses.map(c => ({ name: c.name, isGrouped: c.isGrouped, subjects: c.subjectsTaught?.length })));
     
     return { success: true, data: teacherClasses };
   } catch (error) {
@@ -366,8 +458,13 @@ export const getTeacherClassesAndSubjects = async (teacherId) => {
 export const getStudentsByTeacherSubjectAndClasses = async (teacherId, subjectName, classIds) => {
   try {
     // First, check if this is a core subject
-    const coreSubjectsResult = await getSubjectsByDepartment('core');
-    const coreSubjects = coreSubjectsResult.success ? coreSubjectsResult.data : [];
+    let coreSubjects = [];
+    try {
+      coreSubjects = await getSubjectsByDepartment('core');
+    } catch (error) {
+      console.error('Error fetching core subjects:', error);
+      coreSubjects = [];
+    }
     const isCoreSubject = coreSubjects.includes(subjectName);
     
     // Get all classes where this teacher teaches this subject AND class is in the filter list
@@ -399,7 +496,7 @@ export const getStudentsByTeacherSubjectAndClasses = async (teacherId, subjectNa
       .from('user_profiles')
       .select('*')
       .eq('role', 'student')
-      .in('classId', relevantClassIds);
+      .in('class_id', relevantClassIds);
 
     if (studentsError) {
       console.error('Supabase error fetching students:', studentsError);
@@ -485,7 +582,7 @@ export const getTeacherClassesAndSubjectsSimple = async (teacherId) => {
           .from('user_profiles')
           .select('*', { count: 'exact', head: true })
           .eq('role', 'student')
-          .eq('classId', classData.id);
+          .eq('class_id', classData.id);
 
         if (countError) {
           console.error('Error counting students:', countError);
@@ -553,8 +650,13 @@ export const getTeacherStatistics = async (teacherId) => {
     };
     
     // Get core subjects for categorization
-    const coreSubjectsResult = await getSubjectsByDepartment('core');
-    const coreSubjects = coreSubjectsResult.success ? coreSubjectsResult.data : [];
+    let coreSubjects = [];
+    try {
+      coreSubjects = await getSubjectsByDepartment('core');
+    } catch (error) {
+      console.error('Error fetching core subjects for stats:', error);
+      coreSubjects = [];
+    }
     
     classes.forEach(cls => {
       // Count by level
@@ -586,6 +688,48 @@ export const getTeacherStatistics = async (teacherId) => {
   }
 };
 
+// Get all students assigned to a teacher's classes via teacher_assignments
+export const getTeacherStudentList = async (teacherId) => {
+  try {
+    // Get all active assignments for this teacher
+    const { data: assignments, error: assignmentsError } = await supabase
+      .from('teacher_assignments')
+      .select('class_id')
+      .eq('teacher_id', teacherId)
+      .eq('is_active', true);
+
+    if (assignmentsError) {
+      console.error('Supabase error fetching assignments:', assignmentsError);
+      return { success: false, error: assignmentsError.message };
+    }
+    const classIds = (assignments || []).map(a => a.class_id);
+
+    if (classIds.length === 0) return { success: true, data: [] };
+    // Fetch all students in these classes
+    const { data: students, error: studentsError } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('role', 'student')
+      .in('class_id', classIds);
+    if (studentsError) {
+      console.error('Supabase error fetching students:', studentsError);
+      return { success: false, error: studentsError.message };
+    }
+    // Optionally: Enrich/adapt as needed for UI
+    const enriched = students.map(st => ({
+      ...st,
+      classId: st.class_id,
+      admissionNumber: st.admission_number,
+      profileImageUrl: st.profile_image,
+      name: st.full_name || [st.first_name, st.surname].filter(Boolean).join(' '),
+    }));
+    return { success: true, data: enriched };
+  } catch (error) {
+    console.error('Error in getTeacherStudentList:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 // Export as service object for easier usage
 export const teacherStudentService = {
   getStudentsByTeacherSubject,
@@ -595,5 +739,6 @@ export const teacherStudentService = {
   getStudentsByTeacherSubjectAndClasses,
   doesTeacherTeachSubject,
   getTeacherClassesAndSubjectsSimple,
-  getTeacherStatistics
+  getTeacherStatistics,
+  getTeacherStudentList
 };

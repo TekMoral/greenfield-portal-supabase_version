@@ -1,85 +1,106 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../../hooks/useAuth";
+import { getTeacherStudentList } from "../../../services/supabase/teacherStudentService";
+import { getFullName, getInitials } from "../../../utils/nameUtils";
+import { supabase } from "../../../lib/supabaseClient";
 
 const MyStudents = () => {
   const { user } = useAuth();
-  const [students, setStudents] = useState([]);
-  const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState("all");
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Mock data - replace with actual API call
-    const mockClasses = [
-      { id: "10a-math", name: "Mathematics - Grade 10A" },
-      { id: "11b-physics", name: "Physics - Grade 11B" },
-      { id: "9c-math", name: "Mathematics - Grade 9C" }
-    ];
+  // Fetch teacher classes and all students using React Query
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['teacher', 'all-students', user?.id],
+    queryFn: async () => {
+      if (!user?.id) throw new Error('No user logged in');
+      
+      // Get all students from teacher's assigned classes via service
+      const res = await getTeacherStudentList(user.id);
+      const students = res?.success ? (res.data || []) : (Array.isArray(res) ? res : []);
 
-    const mockStudents = [
-      {
-        id: 1,
-        name: "John Smith",
-        admissionNumber: "2024001",
-        email: "john.smith@student.com",
-        classId: "10a-math",
-        className: "Grade 10A",
-        subject: "Mathematics",
-        avatar: "JS"
-      },
-      {
-        id: 2,
-        name: "Sarah Johnson",
-        admissionNumber: "2024002",
-        email: "sarah.johnson@student.com",
-        classId: "10a-math",
-        className: "Grade 10A",
-        subject: "Mathematics",
-        avatar: "SJ"
-      },
-      {
-        id: 3,
-        name: "Mike Wilson",
-        admissionNumber: "2024003",
-        email: "mike.wilson@student.com",
-        classId: "11b-physics",
-        className: "Grade 11B",
-        subject: "Physics",
-        avatar: "MW"
-      },
-      {
-        id: 4,
-        name: "Emma Davis",
-        admissionNumber: "2024004",
-        email: "emma.davis@student.com",
-        classId: "9c-math",
-        className: "Grade 9C",
-        subject: "Mathematics",
-        avatar: "ED"
+      if (!students || students.length === 0) {
+        return { classes: [], students: [] };
       }
-    ];
 
-    setTimeout(() => {
-      setClasses(mockClasses);
-      setStudents(mockStudents);
-      setLoading(false);
-    }, 1000);
-  }, []);
+      // Derive class IDs from returned students
+      const classIds = [...new Set(students.map(s => s.classId).filter(Boolean))];
+
+      // Get class details for enriching student data
+      const { data: classDetails, error: classError } = await supabase
+        .from('classes')
+        .select('*')
+        .in('id', classIds);
+
+      if (classError) {
+        console.error('Error fetching class details:', classError);
+        throw new Error('Failed to fetch class details');
+      }
+
+      // Enrich students with class information
+      const enrichedStudents = students.map(student => {
+        const studentClass = classDetails.find(cls => String(cls.id) === String(student.class_id));
+        return {
+          ...student,
+          // Maintain a normalized classId for UI logic if needed
+          classId: student.class_id,
+          className: studentClass?.name || 'Unknown',
+          classLevel: studentClass?.level || 'Unknown',
+          classCategory: studentClass?.category || 'Unknown'
+        };
+      });
+
+      // Create simplified class list for filtering
+      const simplifiedClasses = classDetails.map(cls => ({
+        id: cls.id,
+        name: cls.name,
+        level: cls.level,
+        category: cls.category
+      }));
+
+      return { 
+        classes: simplifiedClasses, 
+        students: enrichedStudents 
+      };
+    },
+    enabled: !!user?.id,
+  });
+
+  const classes = data?.classes || [];
+  const students = data?.students || [];
 
   const filteredStudents = selectedClass === "all" 
     ? students 
-    : students.filter(student => student.classId === selectedClass);
+    : students.filter(student => String(student.class_id || student.classId) === String(selectedClass));
 
-  if (loading) {
+  // Loading state
+  if (isLoading) {
     return (
       <div className="animate-pulse space-y-4">
-        <div className="h-8 bg-teal-200 rounded w-1/3"></div>
-        <div className="h-10 bg-gray-200 rounded w-1/4"></div>
+        <div className="h-8 bg-slate-200 rounded w-1/3"></div>
+        <div className="h-10 bg-slate-200 rounded w-1/4"></div>
         <div className="space-y-3">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="bg-white p-4 rounded-lg shadow h-16"></div>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (isError) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4 sm:p-6 text-center mx-2 sm:mx-0">
+        <div className="text-red-600 text-3xl sm:text-4xl mb-3 sm:mb-4">⚠️</div>
+        <h2 className="text-lg sm:text-xl font-semibold text-slate-800 mb-2">Error Loading Students</h2>
+        <p className="text-sm sm:text-base text-slate-600 mb-3 sm:mb-4">{error?.message || 'Failed to load your students. Please try again.'}</p>
+        <button
+          onClick={() => refetch()}
+          className="bg-slate-800 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-slate-700 transition-colors font-medium text-sm sm:text-base"
+        >
+          Try Again
+        </button>
       </div>
     );
   }
@@ -130,18 +151,32 @@ const MyStudents = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center">
-                      <span className="text-teal-700 font-semibold text-sm">
-                        {student.avatar}
-                      </span>
+                      {student.profileImageUrl ? (
+                        <img 
+                          src={student.profileImageUrl} 
+                          alt={getFullName(student)}
+                          className="w-12 h-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-teal-700 font-semibold text-sm">
+                          {getInitials(student)}
+                        </span>
+                      )}
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-800">{student.name}</h3>
+                      <h3 className="text-lg font-semibold text-gray-800">{getFullName(student)}</h3>
                       <div className="flex items-center space-x-4 text-sm text-gray-600">
-                        <span>ID: {student.admissionNumber}</span>
+                        <span>ID: {student.admission_number}</span>
                         <span>•</span>
                         <span>{student.className}</span>
                         <span>•</span>
-                        <span>{student.subject}</span>
+                        <span>{student.classLevel}</span>
+                        {student.classCategory && (
+                          <>
+                            <span>•</span>
+                            <span>{student.classCategory}</span>
+                          </>
+                        )}
                       </div>
                       <p className="text-sm text-gray-500 mt-1">{student.email}</p>
                     </div>

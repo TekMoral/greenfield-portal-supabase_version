@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { getTeacherClassesAndSubjects, getStudentsByTeacherSubjectAndClasses } from '../../../services/teacherStudentService';
+import { getTeacherClassesAndSubjects, getStudentsByTeacherSubjectAndClasses } from '../../../services/supabase/teacherStudentService';
 
-import { submitResult } from '../../../services/studentResultService';
+import { submitResult } from '../../../services/supabase/studentResultService';
 import { useAuth } from '../../../hooks/useAuth';
 import useToast from '../../../hooks/useToast';
 import ExamResultEntryForm from '../../../components/results/ExamResultEntryForm';
@@ -16,6 +16,7 @@ const ExamResults = () => {
   const [teacherClasses, setTeacherClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
+  const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [students, setStudents] = useState([]);
 
   const [submittedResults, setSubmittedResults] = useState(new Set()); // Track submitted students
@@ -48,11 +49,12 @@ const ExamResults = () => {
 
 
   const fetchTeacherData = async () => {
-    if (!user?.uid) return;
+    if (!user?.id) return;
 
     try {
       setLoading(true);
-      const classes = await getTeacherClassesAndSubjects(user.uid);
+      const res = await getTeacherClassesAndSubjects(user.id);
+      const classes = res?.success ? (res.data || []) : (Array.isArray(res) ? res : []);
       console.log('Teacher classes:', classes); // Debug log
       setTeacherClasses(classes);
 
@@ -61,6 +63,7 @@ const ExamResults = () => {
         setSelectedClass(classes[0].id);
         if (classes[0].subjectsTaught && classes[0].subjectsTaught.length > 0) {
           setSelectedSubject(classes[0].subjectsTaught[0].subjectName);
+          setSelectedSubjectId(classes[0].subjectsTaught[0].subjectId);
         }
       }
     } catch (error) {
@@ -72,7 +75,7 @@ const ExamResults = () => {
   };
 
   const fetchStudents = async () => {
-    if (!selectedClass || !selectedSubject || !user?.uid) return;
+    if (!selectedClass || !selectedSubject || !user?.id) return;
 
     try {
       const selectedClassData = teacherClasses.find(c => c.id === selectedClass);
@@ -88,13 +91,25 @@ const ExamResults = () => {
           classIds = [selectedClass];
         }
 
-        const studentsData = await getStudentsByTeacherSubjectAndClasses(
-          user.uid,
+        const studentsRes = await getStudentsByTeacherSubjectAndClasses(
+          user.id,
           selectedSubject,
           classIds
         );
-        console.log('Students data:', studentsData); // Debug log
-        setStudents(studentsData);
+        console.log('Students data:', studentsRes); // Debug log
+        
+        // Normalize response to always be an array
+        const studentsArray = studentsRes?.success
+          ? (studentsRes.data || [])
+          : (Array.isArray(studentsRes) ? studentsRes : []);
+        
+        if (Array.isArray(studentsArray)) {
+          setStudents(studentsArray);
+        } else {
+          console.error('Failed to fetch students:', studentsRes?.error || 'Invalid response');
+          setStudents([]);
+          showToast('Failed to load students', 'error');
+        }
       }
     } catch (error) {
       console.error('Error fetching students:', error);
@@ -116,6 +131,7 @@ const ExamResults = () => {
     const classData = teacherClasses.find(c => c.id === classId);
     if (classData && classData.subjectsTaught && classData.subjectsTaught.length > 0) {
       setSelectedSubject(classData.subjectsTaught[0].subjectName);
+      setSelectedSubjectId(classData.subjectsTaught[0].subjectId || '');
     }
   };
 
@@ -139,7 +155,7 @@ const ExamResults = () => {
       // Use the new submitResult function
       await submitResult({
         studentId: resultData.studentId,
-        subjectId: selectedSubject,
+        subjectId: selectedSubjectId,
         term: resultData.term,
         year: resultData.session,
         testScore: resultData.testScore,
@@ -180,7 +196,7 @@ const ExamResults = () => {
         subject: selectedSubject,
         classId: selectedClass,
         className: classData?.name || 'Unknown Class',
-        teacherId: user.uid,
+        teacherId: user.id,
         teacherName: user.name || user.email,
         examTitle: `${selectedSubject} - Bulk Results`,
         session: bulkResults[0]?.session || new Date().getFullYear().toString(),
@@ -189,7 +205,7 @@ const ExamResults = () => {
           ...result,
           classId: selectedClass,
           subject: selectedSubject,
-          teacherId: user.uid
+          teacherId: user.id
         })),
         totalStudents: bulkResults.length
       };
@@ -201,7 +217,7 @@ const ExamResults = () => {
         try {
           await submitResult({
             studentId: result.studentId,
-            subjectId: selectedSubject,
+            subjectId: selectedSubjectId,
             term: result.term,
             year: result.session,
             testScore: result.testScore,
@@ -241,7 +257,7 @@ const ExamResults = () => {
   };
 
   const getResultsStats = () => {
-    const total = students.length;
+    const total = Array.isArray(students) ? students.length : 0;
     const submitted = submittedResults.size;
     const pending = total - submitted;
 
@@ -331,14 +347,19 @@ const ExamResults = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
             <select
-              value={selectedSubject}
-              onChange={(e) => setSelectedSubject(e.target.value)}
+              value={selectedSubjectId}
+              onChange={(e) => {
+                const newId = e.target.value;
+                setSelectedSubjectId(newId);
+                const subj = getAvailableSubjects().find(s => String(s.subjectId) === String(newId));
+                setSelectedSubject(subj ? subj.subjectName : '');
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={!selectedClass}
             >
               <option value="">Select a subject</option>
               {getAvailableSubjects().map(subject => (
-                <option key={subject.subjectName} value={subject.subjectName}>
+                <option key={subject.subjectId || subject.subjectName} value={subject.subjectId || ''}>
                   {subject.subjectName}
                 </option>
               ))}
@@ -477,7 +498,7 @@ const ExamResults = () => {
               </div>
 
               <div className="grid gap-4">
-                {students.map(student => {
+                {Array.isArray(students) && students.map(student => {
                   const isSubmitted = isStudentSubmitted(student.id);
                   const studentName = getStudentName(student);
                   return (
@@ -538,7 +559,7 @@ const ExamResults = () => {
 
           {activeTab === 'bulk' && selectedClass && (
             <BulkExamResultUpload
-              students={students.filter(student => !isStudentSubmitted(student.id))} // Only show unsubmitted students
+              students={Array.isArray(students) ? students.filter(student => !isStudentSubmitted(student.id)) : []} // Only show unsubmitted students
               subject={selectedSubject}
               onSubmit={handleBulkResultSubmit}
               submitting={submitting}

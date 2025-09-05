@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
-import { getStudentExamResults, calculateGrade } from "../../services/studentResultService";
-import { getActiveExamsForStudent, getAllExams } from "../../services/examService";
+import { getStudentExamResults, calculateGrade } from "../../services/supabase/studentResultService";
+import { getActiveExamsForStudent, getAllExams } from "../../services/supabase/examService";
 import { getAllSubjects } from "../../services/supabase/subjectService";
 import ResultCard from "../../components/student/ResultCard";
 

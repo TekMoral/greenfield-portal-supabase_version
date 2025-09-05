@@ -66,8 +66,8 @@ export const getStudentTimetable = async (studentId) => {
     // First get the student's class
     const { data: studentData, error: studentError } = await supabase
       .from('user_profiles')
-      .select('classId')
-      .eq('user_id', studentId)
+      .select('class_id')
+      .eq('id', studentId)
       .single();
 
     if (studentError) {
@@ -75,12 +75,12 @@ export const getStudentTimetable = async (studentId) => {
       return { success: false, error: studentError.message };
     }
 
-    if (!studentData?.classId) {
+    if (!studentData?.class_id) {
       return { success: true, data: [] };
     }
 
     // Get the class timetable
-    return await getClassTimetable(studentData.classId);
+    return await getClassTimetable(studentData.class_id);
   } catch (error) {
     console.error('Error fetching student timetable:', error);
     return { success: false, error: error.message };

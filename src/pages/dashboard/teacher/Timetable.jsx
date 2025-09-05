@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../../../hooks/useAuth";
-import { getTeacherTimetable, createOrUpdateTimetableEntry, deleteTimetableEntry } from "../../../services/timetableService";
-import { getTeacherClassesAndSubjects } from "../../../services/teacherStudentService";
+import { getTeacherTimetable, createOrUpdateTimetableEntry, deleteTimetableEntry } from "../../../services/supabase/timetableService";
+import { getTeacherClassesAndSubjects } from "../../../services/supabase/teacherStudentService";
 
 const Timetable = () => {
   const { user } = useAuth();
@@ -32,7 +32,7 @@ const Timetable = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!user?.uid) {
+      if (!user?.id) {
         setLoading(false);
         return;
       }
@@ -41,13 +41,16 @@ const Timetable = () => {
         setLoading(true);
         
         // Fetch teacher's classes and timetable
-        const [teacherClasses, teacherTimetable] = await Promise.all([
-          getTeacherClassesAndSubjects(user.uid),
-          getTeacherTimetable(user.uid)
+        const [classesRes, timetableRes] = await Promise.all([
+          getTeacherClassesAndSubjects(user.id),
+          getTeacherTimetable(user.id)
         ]);
         
-        setClasses(teacherClasses);
-        setTimetable(teacherTimetable);
+        const classesArr = classesRes?.success ? (classesRes.data || []) : (Array.isArray(classesRes) ? classesRes : []);
+        const timetableArr = timetableRes?.success ? (timetableRes.data || []) : (Array.isArray(timetableRes) ? timetableRes : []);
+        
+        setClasses(classesArr);
+        setTimetable(timetableArr);
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -56,10 +59,11 @@ const Timetable = () => {
     };
 
     fetchData();
-  }, [user?.uid]);
+  }, [user?.id]);
 
   const getTimetableForSlot = (day, timeSlot) => {
-    return timetable.find(item => item.day === day && item.timeSlot === timeSlot);
+    const list = Array.isArray(timetable) ? timetable : [];
+    return list.find(item => item.day === day && item.timeSlot === timeSlot);
   };
 
   const getCurrentTimeSlot = () => {
@@ -120,7 +124,8 @@ const Timetable = () => {
     }
 
     // Check for conflicts (same day and time slot)
-    const existingEntry = timetable.find(item => 
+    const list = Array.isArray(timetable) ? timetable : [];
+    const existingEntry = list.find(item => 
       item.day === newEntry.day && 
       item.timeSlot === newEntry.timeSlot && 
       item.id !== newEntry.id
@@ -135,19 +140,20 @@ const Timetable = () => {
     try {
       const entryData = {
         ...newEntry,
-        teacherId: user.uid
+        teacherId: user.id
       };
 
-      const savedEntry = await createOrUpdateTimetableEntry(entryData);
+      const savedRes = await createOrUpdateTimetableEntry(entryData);
+      const savedEntry = savedRes?.success ? savedRes.data : savedRes;
       
       if (newEntry.id) {
         // Update existing entry
-        setTimetable(timetable.map(item => 
-          item.id === newEntry.id ? savedEntry : item
-        ));
+        setTimetable(prev => Array.isArray(prev) ? prev.map(item => 
+          (item.id === newEntry.id ? savedEntry : item)
+        ) : prev);
       } else {
         // Add new entry
-        setTimetable([...timetable, savedEntry]);
+        setTimetable(prev => Array.isArray(prev) ? [...prev, savedEntry] : [savedEntry]);
       }
 
       setShowAddModal(false);
@@ -168,7 +174,7 @@ const Timetable = () => {
     setSaving(true);
     try {
       await deleteTimetableEntry(entryId);
-      setTimetable(timetable.filter(item => item.id !== entryId));
+      setTimetable(prev => Array.isArray(prev) ? prev.filter(item => item.id !== entryId) : prev);
       alert('Timetable entry deleted successfully!');
     } catch (error) {
       console.error('Error deleting timetable entry:', error);
@@ -180,7 +186,8 @@ const Timetable = () => {
 
   const getAvailableSubjects = () => {
     const subjects = new Set();
-    classes.forEach(classItem => {
+    const classList = Array.isArray(classes) ? classes : [];
+    classList.forEach(classItem => {
       classItem.subjectsTaught?.forEach(subject => {
         subjects.add(subject.subjectName);
       });
@@ -200,7 +207,8 @@ const Timetable = () => {
     ];
     const isCoreSubject = coreSubjects.includes(subjectName);
     
-    classes.forEach(classItem => {
+    const classList = Array.isArray(classes) ? classes : [];
+    classList.forEach(classItem => {
       const hasSubject = classItem.subjectsTaught?.some(subject => subject.subjectName === subjectName);
       if (hasSubject) {
         if (isCoreSubject) {
@@ -463,19 +471,19 @@ const Timetable = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white p-4 rounded-lg shadow border-l-4 border-blue-500">
           <div className="text-2xl font-bold text-slate-800">
-            {timetable.length}
+            {Array.isArray(timetable) ? timetable.length : 0}
           </div>
           <div className="text-sm text-slate-600">Total Classes This Week</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow border-l-4 border-green-500">
           <div className="text-2xl font-bold text-slate-800">
-            {[...new Set(timetable.map(item => item.subject))].length}
+            {[...new Set((Array.isArray(timetable) ? timetable : []).map(item => item.subject))].length}
           </div>
           <div className="text-sm text-slate-600">Subjects Teaching</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow border-l-4 border-slate-500">
           <div className="text-2xl font-bold text-slate-800">
-            {[...new Set(timetable.map(item => item.className))].length}
+            {[...new Set((Array.isArray(timetable) ? timetable : []).map(item => item.className))].length}
           </div>
           <div className="text-sm text-slate-600">Different Classes</div>
         </div>

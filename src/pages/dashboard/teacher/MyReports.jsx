@@ -1,13 +1,23 @@
 import React, { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../../hooks/useAuth";
-import { listenToTeacherReports, updateReportRemarks } from "../../../services/reportService";
+import { subscribeToTeacherReports, updateReportRemarks, getReportsByTeacher } from "../../../services/supabase/reportService";
 import { getInitials } from "../../../utils/nameUtils";
 
 const MyReports = () => {
   const { user } = useAuth();
-  const [reports, setReports] = useState([]);
+  const queryClient = useQueryClient();
+  const { data: reports = [], isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['teacher', 'reports', user?.id || user?.uid],
+    queryFn: async () => {
+      const teacherId = user?.id || user?.uid;
+      if (!teacherId) throw new Error('Not authenticated');
+      const res = await getReportsByTeacher(teacherId);
+      return res?.success ? (res.data || []) : (Array.isArray(res) ? res : []);
+    },
+    enabled: !!(user?.id || user?.uid),
+  });
   const [filteredReports, setFilteredReports] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [selectedReport, setSelectedReport] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [editingRemarks, setEditingRemarks] = useState(false);
@@ -29,21 +39,13 @@ const MyReports = () => {
   const [reportsPerPage] = useState(10);
 
   useEffect(() => {
-    if (!user?.uid) return;
-    setLoading(true);
-    const unsubscribe = listenToTeacherReports(user.uid, (reportsData) => {
-      const processedReports = reportsData.map(report => ({
-        ...report,
-        submittedAt: report.submittedAt?.toDate?.() || report.submittedAt,
-        createdAt: report.createdAt?.toDate?.() || report.createdAt,
-        updatedAt: report.updatedAt?.toDate?.() || report.updatedAt,
-        reviewedAt: report.reviewedAt?.toDate?.() || report.reviewedAt
-      }));
-      setReports(processedReports);
-      setLoading(false);
+    const teacherId = user?.id || user?.uid;
+    if (!teacherId) return;
+    const unsubscribe = subscribeToTeacherReports(teacherId, () => {
+      queryClient.invalidateQueries({ queryKey: ['teacher', 'reports', teacherId] });
     });
-    return () => unsubscribe();
-  }, [user]);
+    return () => { if (unsubscribe) unsubscribe(); };
+  }, [user?.id, user?.uid, queryClient]);
 
   useEffect(() => {
     applyFilters();
@@ -153,7 +155,7 @@ const MyReports = () => {
     return Array.from(values).sort();
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="animate-pulse space-y-4">
         <div className="h-8 bg-slate-200 rounded w-1/3"></div>

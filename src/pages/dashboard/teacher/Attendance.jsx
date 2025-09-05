@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../../../hooks/useAuth";
-import { getTeacherClassesAndSubjects, getStudentsByTeacherSubject } from "../../../services/teacherStudentService";
-import { 
-  markAttendance, 
-  getAttendanceByDate, 
-  getAttendanceStats,
-  bulkMarkAttendance 
-} from "../../../services/attendanceService";
+import { getTeacherClassesAndSubjects, getTeacherStudentList } from "../../../services/supabase/teacherStudentService";
+import {
+  markAttendance,
+  getAttendanceByDate,
+  getClassAttendanceSummary,
+  bulkMarkAttendance
+} from "../../../services/supabase/attendanceService";
 import { getFullName, getInitials } from "../../../utils/nameUtils";
 
 const Attendance = () => {
@@ -14,6 +14,7 @@ const Attendance = () => {
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("");
+  const [selectedSubjectId, setSelectedSubjectId] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [students, setStudents] = useState([]);
   const [attendance, setAttendance] = useState({});
@@ -26,18 +27,19 @@ const Attendance = () => {
   // Fetch teacher's classes
   useEffect(() => {
     const fetchClasses = async () => {
-      if (!user?.uid) {
+      if (!user?.id) {
         setLoading(false);
         return;
       }
 
       try {
         setLoading(true);
-        const teacherClasses = await getTeacherClassesAndSubjects(user.uid);
+        const res = await getTeacherClassesAndSubjects(user.id);
+        const teacherClasses = res?.success ? (res.data || []) : (Array.isArray(res) ? res : []);
         setClasses(teacherClasses);
         
         // Auto-select first class if available
-        if (teacherClasses.length > 0) {
+        if (Array.isArray(teacherClasses) && teacherClasses.length > 0) {
           setSelectedClass(teacherClasses[0].id);
         }
       } catch (error) {
@@ -48,13 +50,14 @@ const Attendance = () => {
     };
 
     fetchClasses();
-  }, [user?.uid]);
+  }, [user?.id]);
 
   // Get available subjects for selected class
   const getAvailableSubjects = () => {
     if (!selectedClass) return [];
     
-    const classData = classes.find(cls => cls.id === selectedClass);
+    const list = Array.isArray(classes) ? classes : [];
+    const classData = list.find(cls => cls.id === selectedClass);
     if (!classData) return [];
     
     return classData.subjectsTaught || [];
@@ -63,57 +66,62 @@ const Attendance = () => {
   // Fetch students when class and subject are selected
   useEffect(() => {
     const fetchStudents = async () => {
-      if (!selectedClass || !selectedSubject || !user?.uid) {
+      if (!selectedClass || !user?.id) {
         setStudents([]);
         return;
       }
 
       setLoadingStudents(true);
       try {
-        console.log('Fetching students for:', { selectedClass, selectedSubject, teacherId: user.uid });
+        console.log('Fetching students for class:', { selectedClass, teacherId: user.id });
         
-        // Get the selected class data to determine if it's grouped
-        const selectedClassData = classes.find(cls => cls.id === selectedClass);
-        
-        let classStudents = [];
-        
-        if (selectedClassData?.isGrouped && selectedClassData?.individualClasses) {
-          // For grouped classes, get students from all individual classes
-          const classIds = selectedClassData.individualClasses.map(cls => cls.id);
-          console.log('Fetching students from grouped classes:', classIds);
-          
-          // Import the function for getting students by multiple class IDs
-          const { getStudentsByTeacherSubjectAndClasses } = await import('../../../services/teacherStudentService');
-          classStudents = await getStudentsByTeacherSubjectAndClasses(user.uid, selectedSubject, classIds);
-        } else {
-          // For individual classes, get students normally
-          console.log('Fetching students from individual class:', selectedClass);
-          const subjectStudents = await getStudentsByTeacherSubject(user.uid, selectedSubject);
-          classStudents = subjectStudents.filter(student => student.classId === selectedClass);
-        }
+        // Load all teacher students once and filter by selected class
+        const res = await getTeacherStudentList(user.id);
+        const allStudents = res?.success ? (res.data || []) : (Array.isArray(res) ? res : []);
+        const classStudents = (allStudents || []).filter((student) => String(student.classId) === String(selectedClass));
         
         console.log('Found students:', classStudents.length);
         setStudents(classStudents);
         
         // Fetch existing attendance for the selected date
         if (classStudents.length > 0) {
-          const existingData = await getAttendanceByDate(selectedClass, selectedSubject, selectedDate);
-          const attendanceMap = {};
-          existingData.forEach(record => {
-            attendanceMap[record.studentId] = record.status;
-          });
-          setExistingAttendance(attendanceMap);
-          
-          // Initialize attendance state with existing data
-          setAttendance(attendanceMap);
+          try {
+            const existingResult = await getAttendanceByDate(selectedDate, selectedClass, selectedSubjectId);
+            const existingData = existingResult.success ? existingResult.data : [];
+            const attendanceMap = {};
+            existingData.forEach(record => {
+              attendanceMap[record.student_id] = record.status;
+            });
+            setExistingAttendance(attendanceMap);
+            
+            // Initialize attendance state with existing data
+            setAttendance(attendanceMap);
+          } catch (error) {
+            console.error('Error fetching existing attendance:', error);
+            setExistingAttendance({});
+            setAttendance({});
+          }
         } else {
           setExistingAttendance({});
           setAttendance({});
         }
         
         // Fetch attendance stats
-        const statsData = await getAttendanceStats(selectedClass, selectedSubject);
-        setStats(statsData);
+        try {
+          const statsResult = await getClassAttendanceSummary(selectedClass, selectedDate);
+          if (statsResult.success) {
+            setStats({
+              totalDays: 1, // For current date
+              averageAttendance: statsResult.data.attendanceRate,
+              presentToday: statsResult.data.present,
+              absentToday: statsResult.data.absent,
+              studentStats: {} // We'll need to implement this separately if needed
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching attendance stats:', error);
+          setStats(null);
+        }
       } catch (error) {
         console.error('Error fetching students:', error);
         setStudents([]);
@@ -125,7 +133,7 @@ const Attendance = () => {
     };
 
     fetchStudents();
-  }, [selectedClass, selectedSubject, selectedDate, user?.uid, classes]);
+  }, [selectedClass, selectedSubject, selectedDate, user?.id, classes]);
 
   const handleAttendanceChange = (studentId, status) => {
     setAttendance(prev => ({
@@ -143,44 +151,53 @@ const Attendance = () => {
   };
 
   const handleSaveAttendance = async () => {
-    if (!selectedClass || !selectedSubject || !selectedDate) {
+    if (!selectedClass || !selectedSubjectId || !selectedDate) {
       alert('Please select class, subject, and date.');
       return;
     }
 
     const attendanceRecords = students.map(student => ({
-      studentId: student.id,
-      teacherId: user.uid,
-      classId: selectedClass,
-      subjectName: selectedSubject,
+      student_id: student.id,
+      teacher_id: user.id,
+      class_id: selectedClass,
+      subject_id: selectedSubjectId,
       date: selectedDate,
       status: attendance[student.id] || 'absent',
-      markedAt: new Date().toISOString()
+      remarks: null
     }));
 
     setSaving(true);
     try {
-      const results = await bulkMarkAttendance(attendanceRecords);
+      const result = await bulkMarkAttendance(attendanceRecords);
       
-      // Update existing attendance
-      setExistingAttendance({ ...attendance });
-      
-      // Refresh stats
-      const statsData = await getAttendanceStats(selectedClass, selectedSubject);
-      setStats(statsData);
-      
-      // Check if results contain mock data (permissions issue)
-      const hasMockData = results.some(result => result.id.startsWith('mock_'));
-      
-      if (hasMockData) {
-        alert('Attendance saved locally (development mode). Note: This data may not persist due to database permissions.');
-      } else {
+      if (result.success) {
+        // Update existing attendance
+        setExistingAttendance({ ...attendance });
+        
+        // Refresh stats
+        try {
+          const statsResult = await getClassAttendanceSummary(selectedClass, selectedDate);
+          if (statsResult.success) {
+            setStats({
+              totalDays: 1,
+              averageAttendance: statsResult.data.attendanceRate,
+              presentToday: statsResult.data.present,
+              absentToday: statsResult.data.absent,
+              studentStats: {}
+            });
+          }
+        } catch (error) {
+          console.error('Error refreshing stats:', error);
+        }
+        
         alert('Attendance saved successfully!');
+      } else {
+        throw new Error(result.error || 'Failed to save attendance');
       }
     } catch (error) {
       console.error('Error saving attendance:', error);
       
-      if (error.code === 'permission-denied') {
+      if (error.message.includes('permission') || error.message.includes('denied')) {
         alert('Unable to save attendance due to insufficient permissions. Please contact your administrator.');
       } else {
         alert('Failed to save attendance. Please try again.');
@@ -243,7 +260,7 @@ const Attendance = () => {
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
             >
               <option value="">Choose a class...</option>
-              {classes.map((classItem) => (
+              {Array.isArray(classes) && classes.map((classItem) => (
                 <option key={classItem.id} value={classItem.id}>
                   {classItem.name} ({classItem.studentCount || 0} students)
                 </option>
@@ -255,13 +272,18 @@ const Attendance = () => {
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Subject</label>
               <select
-                value={selectedSubject}
-                onChange={(e) => setSelectedSubject(e.target.value)}
+                value={selectedSubjectId}
+                onChange={(e) => {
+                  const newId = e.target.value;
+                  setSelectedSubjectId(newId);
+                  const subj = getAvailableSubjects().find(s => String(s.subjectId) === String(newId));
+                  setSelectedSubject(subj ? subj.subjectName : "");
+                }}
                 className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
               >
                 <option value="">Choose a subject...</option>
                 {getAvailableSubjects().map((subject) => (
-                  <option key={subject.subjectName} value={subject.subjectName}>
+                  <option key={subject.subjectId || subject.subjectName} value={subject.subjectId || ''}>
                     {subject.subjectName}
                   </option>
                 ))}
@@ -280,7 +302,7 @@ const Attendance = () => {
             />
           </div>
 
-          {selectedClass && selectedSubject && (
+          {selectedClass && selectedSubjectId && (
             <button
               onClick={handleSaveAttendance}
               disabled={saving || !hasChanges()}
@@ -304,7 +326,7 @@ const Attendance = () => {
               className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
             >
               <option value="">Choose a class...</option>
-              {classes.map((classItem) => (
+              {Array.isArray(classes) && classes.map((classItem) => (
                 <option key={classItem.id} value={classItem.id}>
                   {classItem.name} ({classItem.studentCount || 0} students)
                 </option>
@@ -316,13 +338,18 @@ const Attendance = () => {
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">Subject</label>
               <select
-                value={selectedSubject}
-                onChange={(e) => setSelectedSubject(e.target.value)}
+                value={selectedSubjectId}
+                onChange={(e) => {
+                  const newId = e.target.value;
+                  setSelectedSubjectId(newId);
+                  const subj = getAvailableSubjects().find(s => String(s.subjectId) === String(newId));
+                  setSelectedSubject(subj ? subj.subjectName : "");
+                }}
                 className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
               >
                 <option value="">Choose a subject...</option>
                 {getAvailableSubjects().map((subject) => (
-                  <option key={subject.subjectName} value={subject.subjectName}>
+                  <option key={subject.subjectId || subject.subjectName} value={subject.subjectId || ''}>
                     {subject.subjectName}
                   </option>
                 ))}
@@ -341,7 +368,7 @@ const Attendance = () => {
             />
           </div>
 
-          {selectedClass && selectedSubject && (
+          {selectedClass && selectedSubjectId && (
             <div className="flex items-end">
               <button
                 onClick={handleSaveAttendance}
@@ -378,7 +405,7 @@ const Attendance = () => {
       )}
 
       {/* Attendance Interface - Mobile First */}
-      {selectedClass && selectedSubject && (
+      {selectedClass && (
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
           {/* Header */}
           <div className="p-4 border-b border-slate-200 bg-green-50">
@@ -388,7 +415,7 @@ const Attendance = () => {
                   Mark Attendance - {new Date(selectedDate).toLocaleDateString()}
                 </h2>
                 <p className="text-xs text-slate-600 sm:text-sm">
-                  {selectedSubject} | {classes.find(c => c.id === selectedClass)?.name} | {students.length} students
+                  {selectedSubject} | {(Array.isArray(classes) ? classes.find(c => c.id === selectedClass) : null)?.name} | {students.length} students
                 </p>
               </div>
               

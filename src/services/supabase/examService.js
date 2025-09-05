@@ -439,6 +439,58 @@ export const examService = {
       console.error('Error searching exams:', error);
       return { success: false, error: error.message };
     }
+  },
+
+  // Get active exams for a student (upcoming or ongoing for the student's class)
+  async getActiveExamsForStudent(studentId) {
+    try {
+      // Determine student's class_id (try user_profiles, then students table)
+      let classId = null;
+      try {
+        const { data: profile, error: profileErr } = await supabase
+          .from('user_profiles')
+          .select('class_id')
+          .eq('id', studentId)
+          .single();
+        if (!profileErr && profile?.class_id) classId = profile.class_id;
+      } catch (_) {}
+
+      if (!classId) {
+        try {
+          const { data: student, error: studentErr } = await supabase
+            .from('students')
+            .select('class_id')
+            .eq('id', studentId)
+            .single();
+          if (!studentErr && student?.class_id) classId = student.class_id;
+        } catch (_) {}
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+
+      let query = supabase
+        .from('exams')
+        .select(`
+          *,
+          subjects ( id, name, code ),
+          classes ( id, name )
+        `)
+        .gte('exam_date', today)
+        .in('status', ['scheduled', 'ongoing'])
+        .order('exam_date', { ascending: true });
+
+      if (classId) {
+        query = query.eq('class_id', classId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      // Return plain array to match existing callers
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching active exams for student:', error);
+      return [];
+    }
   }
 };
 
@@ -455,7 +507,8 @@ export const {
   getUpcomingExams,
   getRecentExams,
   getExamStats,
-  searchExams
+  searchExams,
+  getActiveExamsForStudent
 } = examService;
 
 // Legacy function names for compatibility

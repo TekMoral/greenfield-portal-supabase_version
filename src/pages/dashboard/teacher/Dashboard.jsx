@@ -4,7 +4,7 @@ import { useAuth } from "../../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { getTeacherByUid } from "../../../services/supabase/teacherService";
 import { getTeacherClassesAndSubjects } from "../../../services/supabase/teacherStudentService";
-import { getAssignmentsByTeacher, getAssignmentStats } from "../../../services/supabase/assignmentService";
+import { getAssignmentsByTeacher } from "../../../services/supabase/assignmentService";
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -32,8 +32,7 @@ const Dashboard = () => {
     try {
       const assignmentsRes = await getAssignmentsByTeacher(user.id);
       assignments = assignmentsRes?.success ? (assignmentsRes.data || []) : (assignmentsRes || []);
-      const statsRes = await getAssignmentStats(user.id);
-      assignmentStats = statsRes?.success ? (statsRes.data || {}) : (statsRes || {});
+      assignmentStats = { total: (assignments || []).length };
     } catch {
       assignments = [];
       assignmentStats = {};
@@ -42,7 +41,7 @@ const Dashboard = () => {
     return { teacher: teacherData, teacherClasses, assignments, assignmentStats };
   };
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['teacher', 'dashboard', user?.id],
     queryFn: fetchTeacherDashboard,
     enabled: !!user?.id,
@@ -56,12 +55,10 @@ const Dashboard = () => {
   
   if (isLoading) {
     return (
-      <div className="animate-pulse space-y-4 sm:space-y-6">
-        <div className="h-6 sm:h-8 bg-slate-200 rounded w-2/3 sm:w-1/3"></div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-white p-4 sm:p-6 rounded-lg shadow h-20 sm:h-24"></div>
-          ))}
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-12 h-12 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
+          <span className="text-slate-600 font-medium text-lg">Loading your dashboard...</span>
         </div>
       </div>
     );
@@ -91,7 +88,10 @@ const Dashboard = () => {
   };
 
   // Calculate real data for stats
-  const totalStudents = teacherClasses.reduce((total, cls) => total + (cls.studentCount || 0), 0);
+  const totalStudents = teacherClasses.reduce((total, cls) => {
+    const count = typeof cls.studentCount === 'number' ? cls.studentCount : 0;
+    return total + count;
+  }, 0);
   const pendingGrades = assignments.reduce((total, assignment) => {
     const submissions = assignment.submissions || [];
     const ungraded = submissions.filter(sub => sub.status !== 'graded').length;
@@ -99,7 +99,13 @@ const Dashboard = () => {
   }, 0);
 
   return (
-    <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto">
+    <>
+      {isFetching && (
+        <div className="pointer-events-none fixed top-3 right-3 z-50">
+          <div className="animate-spin h-8 w-8 border-2 border-green-500 border-t-transparent rounded-full"></div>
+        </div>
+      )}
+      <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto">
       {/* Welcome Section */}
       <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-4 sm:p-6 rounded-lg shadow-lg border-t-4 border-green-500">
         <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2">
@@ -313,6 +319,7 @@ const Dashboard = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

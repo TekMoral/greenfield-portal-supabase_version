@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getExamsByTeacher, deleteExam } from '../../../services/examService';
-import { getTeacherClassesAndSubjects } from '../../../services/teacherStudentService';
+import { getExamsByTeacher, deleteExam } from '../../../services/supabase/examService';
+import { getTeacherClassesAndSubjects } from '../../../services/supabase/teacherStudentService';
 import { useAuth } from '../../../hooks/useAuth';
 import useToast from '../../../hooks/useToast';
 import TeacherExamCard from '../../../components/exams/TeacherExamCard';
@@ -25,13 +25,16 @@ const TeacherExams = () => {
     
     try {
       setLoading(true);
-      const [examsData, teacherClassesData] = await Promise.all([
+      const [examsRes, teacherClassesRes] = await Promise.all([
         getExamsByTeacher(user.uid),
         getTeacherClassesAndSubjects(user.uid)
       ]);
       
-      setExams(examsData);
-      setTeacherData(teacherClassesData);
+      const examsArr = examsRes?.success ? (examsRes.data || []) : (Array.isArray(examsRes) ? examsRes : []);
+      const teacherDataVal = teacherClassesRes?.success ? (teacherClassesRes.data || teacherClassesRes) : (Array.isArray(teacherClassesRes) ? teacherClassesRes : teacherClassesRes);
+      
+      setExams(examsArr);
+      setTeacherData(teacherDataVal);
     } catch (error) {
       console.error('Error fetching data:', error);
       showToast('Failed to load exams data', 'error');
@@ -44,7 +47,7 @@ const TeacherExams = () => {
     if (window.confirm('Are you sure you want to delete this exam?')) {
       try {
         await deleteExam(examId);
-        setExams(exams.filter(exam => exam.id !== examId));
+        setExams(prev => Array.isArray(prev) ? prev.filter(exam => exam.id !== examId) : prev);
         showToast('Exam deleted successfully', 'success');
       } catch (error) {
         console.error('Error deleting exam:', error);
@@ -53,17 +56,18 @@ const TeacherExams = () => {
     }
   };
 
-  const filteredExams = exams.filter(exam => {
+  const filteredExams = Array.isArray(exams) ? exams.filter(exam => {
     if (filter === 'all') return true;
     return exam.status === filter;
-  });
+  }) : [];
 
   const getExamStats = () => {
+    const list = Array.isArray(exams) ? exams : [];
     return {
-      total: exams.length,
-      active: exams.filter(exam => exam.status === 'active').length,
-      upcoming: exams.filter(exam => exam.status === 'upcoming').length,
-      completed: exams.filter(exam => exam.status === 'completed').length
+      total: list.length,
+      active: list.filter(exam => exam.status === 'active').length,
+      upcoming: list.filter(exam => exam.status === 'upcoming').length,
+      completed: list.filter(exam => exam.status === 'completed').length
     };
   };
 

@@ -176,6 +176,7 @@ export const getSubjectsByTeacher = async (teacherId) => {
 // ✅ Export service object for easier usage
 export const subjectService = {
   getSubjects,
+  getAllSubjects: getSubjects,
   getSubjectById,
   createSubject,
   updateSubject,
@@ -184,3 +185,5 @@ export const subjectService = {
   searchSubjects,
   getSubjectsByTeacher
 }
+
+export const getAllSubjects = getSubjects

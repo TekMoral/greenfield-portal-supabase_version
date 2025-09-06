@@ -25,7 +25,7 @@ const BulkResultUpload = ({ exam, students, onSubmit, submitting }) => {
       grade: '',
       remarks: '',
       session: exam.session || new Date().getFullYear().toString(),
-      term: exam.term || 'First Term'
+      term: exam.term || '1st'
     }));
     setBulkResults(results);
   };
@@ -121,7 +121,7 @@ const BulkResultUpload = ({ exam, students, onSubmit, submitting }) => {
               grade: calculateGrade(parseFloat(score), exam.totalMarks),
               remarks: remarks,
               session: exam.session || new Date().getFullYear().toString(),
-              term: exam.term || 'First Term'
+              term: exam.term || '1st'
             });
           }
         }

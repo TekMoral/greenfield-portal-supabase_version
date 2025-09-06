@@ -23,110 +23,111 @@ const StudentLayout = () => {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-gray-100">
-      {/* Mobile Header */}
-      <div className="md:hidden bg-gradient-to-r from-slate-800 to-slate-900 text-white p-3  flex items-center ">
-        <button
-          onClick={toggleMobileMenu}
-          className="p-2 rounded-md hover:bg-slate-700 transition-colors"
-          aria-label="Toggle menu"
+      
+      {/* Mobile Toggle Button */}
+      <button
+        onClick={toggleMobileMenu}
+        className="md:hidden fixed top-[var(--mobile-header-height,84px)] left-4 z-[1000] bg-teal-800 text-white px-3 py-2 rounded-md shadow-lg"
+        aria-label="Toggle menu"
+      >
+        <svg
+          className="w-6 h-6"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
         >
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            {isMobileMenuOpen ? (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            ) : (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 6h16M4 12h16M4 18h16"
-              />
-            )}
-          </svg>
-        </button>
-        <div className="text-xl font-bold">Student Portal</div>
-      </div>
+          {isMobileMenuOpen ? (
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
+          ) : (
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 6h16M4 12h16M4 18h16"
+            />
+          )}
+        </svg>
+      </button>
 
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
-        <div className="md:hidden fixed left-0 right-0 bottom-0 top-[64px] z-50 h-80">
-          <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white w-64 h-full p-6 space-y-4">
-            <div className="flex items-center justify-between mb-6">
-              <div className="text-xl font-bold">Student Portal</div>
-              <button
-                onClick={toggleMobileMenu}
-                className="p-2 rounded-md hover:bg-slate-700 transition-colors"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-            <nav className="space-y-2">
-              {menuItems.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  end={item.path === "/student"}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={({ isActive }) =>
-                    isActive
-                      ? "block px-3 py-3 rounded bg-white text-green-700 font-semibold text-sm"
-                      : "block px-3 py-3 rounded hover:bg-green-600 transition text-sm"
-                  }
-                >
-                  {item.label}
-                </NavLink>
-              ))}
-            </nav>
-          </div>
-        </div>
+        <div
+          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-[900]"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
       )}
 
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:block w-48 lg:w-60 bg-gradient-to-r from-slate-800 to-slate-900 text-white p-4 lg:p-6 space-y-4">
-        <div className="text-xl lg:text-2xl font-bold mb-6">Student Portal</div>
-        <nav className="space-y-2">
-          {menuItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.path === "/student"}
-              className={({ isActive }) =>
-                isActive
-                  ? "block px-3 py-2 rounded bg-white text-green-700 font-semibold text-sm lg:text-base"
-                  : "block px-3 py-2 rounded hover:bg-green-600 transition text-sm lg:text-base"
-              }
-            >
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
+      {/* Mobile Sidebar */}
+      <aside
+        className={`md:hidden fixed top-[var(--mobile-header-height,74px)] left-0 z-[1001] w-64 h-[calc(100vh-var(--mobile-header-height,64px))] bg-gradient-to-b from-teal-700 to-teal-800 text-white transform transition-transform duration-300 ease-in-out ${
+          isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="p-4">
+          <div className="mb-6">
+            <h1 className="text-lg font-bold text-white text-center">
+              Student Portal
+            </h1>
+            <div className="w-full h-px bg-teal-500 mt-2"></div>
+          </div>
+
+          <nav className="space-y-2">
+            {menuItems.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={item.path === "/student"}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={({ isActive }) =>
+                  isActive
+                    ? "block px-3 py-3 rounded bg-white text-teal-700 font-semibold text-sm"
+                    : "block px-3 py-3 rounded hover:bg-teal-600 transition text-sm"
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+        </div>
+      </aside>
+
+      {/* Fixed Desktop Sidebar */}
+      <aside className="hidden md:block fixed top-0 left-0 h-full w-48 lg:w-60 bg-gradient-to-b from-slate-700 to-slate-800 text-white shadow-lg z-30">
+        <div className="p-4 lg:p-6 h-full overflow-y-auto">
+          <div className="mb-6 mt-12">
+            <h1 className="text-xl lg:text-2xl font-bold text-white text-center">
+              Student Portal
+            </h1>
+            <div className="w-full h-px bg-teal-500 mt-3"></div>
+          </div>
+          <nav className="space-y-2">
+            {menuItems.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={item.path === "/student"}
+                className={({ isActive }) =>
+                  isActive
+                    ? "block px-3 py-2 rounded bg-white text-teal-700 font-semibold text-sm lg:text-base"
+                    : "block px-3 py-2 rounded hover:bg-teal-600 transition text-sm lg:text-base"
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+        </div>
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex-1 flex flex-col min-h-0 md:ml-48 lg:ml-60">
         {/* Page Content */}
-        <main className="flex-1 p-3 sm:p-4 lg:p-6 overflow-auto">
+        <main className="flex-1 p-3 sm:p-4 lg:p-6 overflow-auto pt-24 md:pt-0">
           <Outlet />
         </main>
       </div>

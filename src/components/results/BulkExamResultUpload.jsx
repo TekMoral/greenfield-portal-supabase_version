@@ -7,7 +7,7 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
   const [errors, setErrors] = useState({});
   const [examType, setExamType] = useState('midterm');
   const [session, setSession] = useState(new Date().getFullYear().toString());
-  const [term, setTerm] = useState('First Term');
+  const [term, setTerm] = useState('1st');
 
   const examTypes = [
     { value: 'midterm', label: 'Mid-term Exam' },
@@ -17,7 +17,7 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
     { value: 'monthly', label: 'Monthly Test' }
   ];
 
-  const terms = ['First Term', 'Second Term', 'Third Term'];
+  const terms = ['1st Term', '2nd Term', '3rd Term'];
 
   // Helper function to get student full name (consistent with Assignment component)
   const getStudentName = (student) => {

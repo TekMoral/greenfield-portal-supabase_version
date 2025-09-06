@@ -5,6 +5,8 @@ import { useAuth } from '../../../../hooks/useAuth';
 import { getTeacherClassesAndSubjects, getTeacherStudentList } from '../../../../services/supabase/teacherStudentService';
 import { nameMatchesSearch } from '../../../../utils/nameUtils';
 import { supabase } from '../../../../lib/supabaseClient';
+import { aggregateSubjects, expandClassEntryToIds, getClassesForSubject } from '../../../../utils/teacherClassSubjectUtils';
+import { getSubjectsByDepartment } from '../../../../services/supabase/subjectService';
 
 const useStudentsData = () => {
   const { user } = useAuth();
@@ -17,90 +19,99 @@ const useStudentsData = () => {
 
   const urlClassIds = searchParams.get('classIds');
 
-  // Fetch teacher classes and build subjects map
+  // Fetch teacher classes and build subjects using centralized utilities
   const {
-    data: subjectsData,
+    data: teacherData,
     isLoading: loadingSubjects,
     isError,
     error,
     refetch,
   } = useQuery({
-    queryKey: ['teacher', 'subjects-only', user?.id],
+    queryKey: ['teacher', 'classes-subjects', user?.id],
     queryFn: async () => {
       if (!user?.id) throw new Error('No user logged in');
+      
       const classesRes = await getTeacherClassesAndSubjects(user.id);
       const classes = classesRes?.success ? (classesRes.data || []) : (Array.isArray(classesRes) ? classesRes : []);
 
-      const subjectMap = new Map();
-      classes.forEach((classItem) => {
-        classItem.subjectsTaught?.forEach((subject) => {
-          if (!subjectMap.has(subject.subjectName)) {
-            subjectMap.set(subject.subjectName, {
-              subjectName: subject.subjectName,
-              classes: [],
-              totalStudents: 0,
-            });
-          }
-          const subjectData = subjectMap.get(subject.subjectName);
-          if (classItem.isGrouped) {
-            classItem.individualClasses?.forEach((individualClass) => {
-              subjectData.classes.push({
-                classId: individualClass.id,
-                className: individualClass.name,
-                level: classItem.level,
-                category: individualClass.category,
-                studentCount: individualClass.studentCount,
-              });
-            });
-          } else {
-            subjectData.classes.push({
-              classId: classItem.id,
-              className: classItem.name,
-              level: classItem.level,
-              category: classItem.category,
-              studentCount: classItem.studentCount,
-            });
-          }
-          const add = typeof classItem.studentCount === 'number' ? classItem.studentCount : 0;
-          subjectData.totalStudents += add;
+      // Load core subject names for proper grouping
+      let coreSubjectNames = [];
+      try {
+        const coreRes = await getSubjectsByDepartment('core');
+        coreSubjectNames = Array.isArray(coreRes) ? coreRes.map(s => s.name || s.subjectName || s) : [];
+      } catch (_) {
+        coreSubjectNames = [];
+      }
+
+      // Use centralized utility to aggregate subjects
+      const subjects = aggregateSubjects(classes);
+
+      // Build subject metadata with class information
+      const subjectsWithClasses = subjects.map(subject => {
+        const classesForSubject = getClassesForSubject(classes, {
+          subjectName: subject.subjectName,
+          coreSubjects: coreSubjectNames
         });
+
+        const totalStudents = classesForSubject.reduce((sum, cls) => {
+          return sum + (typeof cls.studentCount === 'number' ? cls.studentCount : 0);
+        }, 0);
+
+        return {
+          subjectName: subject.subjectName,
+          subjectId: subject.subjectId,
+          classes: classesForSubject.map(cls => ({
+            classId: cls.id,
+            className: cls.name,
+            level: cls.level,
+            category: cls.category,
+            studentCount: cls.studentCount,
+            isGrouped: cls.isGrouped,
+            individualClasses: cls.individualClasses
+          })),
+          totalStudents
+        };
       });
 
-      const subjectsArray = Array.from(subjectMap.values());
-      return { subjects: subjectsArray, classes };
+      return { 
+        subjects: subjectsWithClasses, 
+        classes, 
+        coreSubjectNames 
+      };
     },
     enabled: !!user?.id,
   });
 
   // Auto-select the first subject when loaded
   useEffect(() => {
-    if (subjectsData?.subjects?.length > 0 && !selectedSubject) {
-      setSelectedSubject(subjectsData.subjects[0].subjectName);
+    if (teacherData?.subjects?.length > 0 && !selectedSubject) {
+      setSelectedSubject(teacherData.subjects[0].subjectName);
     }
-  }, [subjectsData?.subjects, selectedSubject]);
+  }, [teacherData?.subjects, selectedSubject]);
 
-  // Fetch students for selected subject
+  // Fetch students for selected subject using centralized utilities
   const { data: students = [], isLoading: loadingStudents } = useQuery({
     queryKey: ['teacher', 'students', user?.id, selectedSubject, urlClassIds],
     queryFn: async () => {
-      if (!selectedSubject || !user?.id || !subjectsData?.classes) return [];
+      if (!selectedSubject || !user?.id || !teacherData?.classes) return [];
+      
       const res = await getTeacherStudentList(user.id);
       const allStudents = res?.success ? (res.data || []) : (Array.isArray(res) ? res : []);
       if (!allStudents || allStudents.length === 0) return [];
 
-      // Determine relevant class IDs for the selected subject
+      // Determine relevant class IDs for the selected subject using centralized utilities
       let classIds = [];
       if (urlClassIds) {
         classIds = urlClassIds.split(',').map((id) => id.trim()).filter(Boolean);
       } else {
-        for (const cls of subjectsData.classes) {
+        // Use centralized utility to expand class IDs
+        teacherData.classes.forEach(cls => {
           const hasSubject = (cls.subjectsTaught || []).some((s) => s.subjectName === selectedSubject);
-          if (cls.isGrouped && hasSubject && Array.isArray(cls.individualClasses)) {
-            classIds.push(...cls.individualClasses.map((ic) => ic.id));
-          } else if (hasSubject) {
-            classIds.push(cls.id);
+          if (hasSubject) {
+            const ids = expandClassEntryToIds(cls);
+            classIds.push(...ids);
           }
-        }
+        });
         classIds = [...new Set(classIds)];
       }
 
@@ -116,11 +127,14 @@ const useStudentsData = () => {
           if (Array.isArray(classDetails)) {
             return filtered.map((st) => {
               const cl = classDetails.find((c) => String(c.id) === String(st.classId));
+              // Determine subject type based on core subjects
+              const isCoreSubject = teacherData.coreSubjectNames?.includes(selectedSubject);
               return {
                 ...st,
                 className: cl?.name || st.className || 'Unknown',
                 classLevel: cl?.level || st.classLevel || 'Unknown',
                 classCategory: cl?.category || st.classCategory || 'Unknown',
+                subjectType: isCoreSubject ? 'core' : (cl?.category || cl?.level || 'Unknown')
               };
             });
           }
@@ -131,17 +145,30 @@ const useStudentsData = () => {
 
       return filtered;
     },
-    enabled: !!selectedSubject && !!user?.id && !!subjectsData?.classes,
+    enabled: !!selectedSubject && !!user?.id && !!teacherData?.classes,
   });
 
-  const subjects = subjectsData?.subjects || [];
+  const subjects = teacherData?.subjects || [];
 
-  // Class options derived from selected subject
+  // Class options derived from selected subject using centralized utilities
   const classOptions = useMemo(() => {
-    if (!selectedSubject) return [];
-    const subj = (subjects || []).find((s) => s.subjectName === selectedSubject);
-    return subj?.classes || [];
-  }, [subjects, selectedSubject]);
+    if (!selectedSubject || !teacherData?.classes) return [];
+    
+    const classesForSubject = getClassesForSubject(teacherData.classes, {
+      subjectName: selectedSubject,
+      coreSubjects: teacherData.coreSubjectNames || []
+    });
+
+    return classesForSubject.map(cls => ({
+      classId: cls.id,
+      className: cls.name,
+      level: cls.level,
+      category: cls.category,
+      studentCount: cls.studentCount,
+      isGrouped: cls.isGrouped,
+      individualClasses: cls.individualClasses
+    }));
+  }, [teacherData, selectedSubject]);
 
   // Filtered students
   const filteredStudents = useMemo(() => {

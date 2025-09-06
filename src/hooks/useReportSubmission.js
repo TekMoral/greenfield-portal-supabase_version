@@ -1,7 +1,10 @@
 import { useState } from 'react';
-import { submitReport, checkReportExists, submitBulkReports } from '../services/supabase/reportService';
+import { checkReportExists, teacherUpsertSubjectReport } from '../services/supabase/reportService';
+import { supabase } from '../lib/supabaseClient';
 import { getFullName } from '../utils/nameUtils';
 import { getTeacherName, calculateAttendanceRate, calculateAverageScore } from '../utils/reportUtils';
+
+const isValidUUID = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 
 export const useReportSubmission = () => {
   const [submittingReport, setSubmittingReport] = useState(false);
@@ -26,17 +29,31 @@ export const useReportSubmission = () => {
 
     setSubmittingReport(true);
     try {
-      // Check if report already exists
-      const reportExists = await checkReportExists(
+      // Resolve subject_id from subjects table
+      const { data: subjRow, error: subjErr } = await supabase
+        .from('subjects')
+        .select('id')
+        .eq('name', selectedSubject)
+        .limit(1)
+        .single();
+      if (subjErr || !subjRow?.id) {
+        alert('Unable to find subject. Please refresh and try again.');
+        setSubmittingReport(false);
+        return;
+      }
+      const subjectId = subjRow.id;
+
+      // Check if report already exists by subject_id
+      const existsRes = await checkReportExists(
         selectedStudent.id,
-        selectedSubject,
+        subjectId,
         selectedTerm,
         selectedAcademicYear,
         user.uid
       );
 
-      if (reportExists) {
-        alert(`A report for this student, subject, term, and academic year already exists.`);
+      if (existsRes?.success && existsRes.data?.exists && !existsRes.data?.canResubmit) {
+        alert('A report for this student, subject, term, and academic year already exists.');
         setSubmittingReport(false);
         return;
       }
@@ -47,39 +64,26 @@ export const useReportSubmission = () => {
       const teacherName = getTeacherName(user);
       const className = classes.find(c => c.id === selectedClass)?.name || 'Unknown Class';
 
-      // Prepare report data
-      const reportData = {
-        studentId: selectedStudent.id,
-        studentName: getFullName(selectedStudent),
-        studentAdmissionNumber: selectedStudent.admissionNumber,
-        className: className,
-        subjectName: selectedSubject,
-        teacherId: user.uid,
-        teacherName: teacherName,
-        academicYear: selectedAcademicYear,
-        term: selectedTerm,
-        attendanceRate: attendanceRate,
-        averageScore: averageScore,
-        totalAssignments: assignmentSubmissions.length,
-        submittedAssignments: assignmentSubmissions.filter(sub => sub.submitted).length,
-        remarks: remarks || '',
-        attendanceData: {
-          totalDays: attendanceData.length,
-          presentDays: attendanceData.filter(record => 
-            record.status === 'present' || record.status === 'late'
-          ).length,
-          absentDays: attendanceData.length - attendanceData.filter(record => 
-            record.status === 'present' || record.status === 'late'
-          ).length
-        },
-        assignmentData: {
-          total: assignmentSubmissions.length,
-          submitted: assignmentSubmissions.filter(sub => sub.submitted).length,
-          averageScore: averageScore
-        }
+      // RPC payload (snake_case, minimal fields per table design)
+      const payload = {
+        p_student_id: selectedStudent.id,
+        p_subject_id: subjectId,
+        p_class_id: isValidUUID(selectedClass) ? selectedClass : null,
+        p_term: selectedTerm,
+        p_academic_year: Number(selectedAcademicYear),
+        p_total_assignments: assignmentSubmissions.length,
+        p_submitted_assignments: assignmentSubmissions.filter(sub => sub.submitted).length,
+        p_average_score: averageScore,
+        p_remarks: remarks || ''
       };
 
-      await submitReport(reportData);
+      const upsertRes = await teacherUpsertSubjectReport(payload);
+      if (!upsertRes?.success) {
+        console.error('Upsert RPC error:', upsertRes?.error);
+        alert('Failed to submit report. Please try again.');
+        setSubmittingReport(false);
+        return false;
+      }
       alert('Report submitted to admin successfully!');
       return true;
     } catch (error) {
@@ -103,6 +107,7 @@ export const useReportSubmission = () => {
     fetchAssignmentSubmissions,
     fetchRemarks
   }) => {
+
     if (!selectedClass || !selectedSubject || !user?.uid || students.length === 0) {
       alert('Please ensure class, subject, and students are selected');
       return;
@@ -173,14 +178,62 @@ export const useReportSubmission = () => {
         return;
       }
 
-      // Submit bulk reports
-      const result = await submitBulkReports(validReports);
-      
+      // Resolve subject_id once
+      const { data: subjRow, error: subjErr } = await supabase
+        .from('subjects')
+        .select('id')
+        .eq('name', selectedSubject)
+        .limit(1)
+        .single();
+      if (subjErr || !subjRow?.id) {
+        alert('Unable to find subject. Please refresh and try again.');
+        setSubmittingBulkReports(false);
+        return;
+      }
+      const subjectId = subjRow.id;
+
+      // Submit bulk via RPC per student
+      let totalSubmitted = 0;
+      let totalFailed = 0;
+      const failed = [];
+
+      for (const student of validReports.map(r => ({ id: r.studentId, admissionNumber: r.studentAdmissionNumber, name: r.studentName }))) {
+        try {
+          // Recompute metrics from the prepared report in validReports
+          const original = reportsData.find(x => x && x.studentId === student.id);
+          const averageScore = original?.averageScore ?? 0;
+          const totalAssignments = original?.totalAssignments ?? 0;
+          const submittedAssignments = original?.submittedAssignments ?? 0;
+          const teacherRemark = original?.remarks || '';
+
+          const payload = {
+            p_student_id: student.id,
+            p_subject_id: subjectId,
+            p_class_id: isValidUUID(selectedClass) ? selectedClass : null,
+            p_term: selectedTerm,
+            p_academic_year: Number(selectedAcademicYear),
+            p_total_assignments: totalAssignments,
+            p_submitted_assignments: submittedAssignments,
+            p_average_score: averageScore,
+            p_remarks: teacherRemark,
+          };
+
+          const res = await teacherUpsertSubjectReport(payload);
+          if (res?.success) totalSubmitted += 1; else {
+            totalFailed += 1;
+            failed.push({ studentName: student.name, error: res?.error || 'Unknown error' });
+          }
+        } catch (e) {
+          totalFailed += 1;
+          failed.push({ studentName: student.name, error: e?.message || 'Unknown error' });
+        }
+      }
+
       // Show results
-      const message = `Bulk submission completed!\n\nSuccessful: ${result.totalSubmitted}\nFailed: ${result.totalFailed}`;
+      const message = `Bulk submission completed!\n\nSuccessful: ${totalSubmitted}\nFailed: ${totalFailed}`;
       
-      if (result.totalFailed > 0) {
-        const failedStudents = result.failed.map(f => `${f.studentName}: ${f.error}`).join('\n');
+      if (totalFailed > 0) {
+        const failedStudents = failed.map(f => `${f.studentName}: ${f.error}`).join('\n');
         alert(`${message}\n\nFailed submissions:\n${failedStudents}`);
       } else {
         alert(message);

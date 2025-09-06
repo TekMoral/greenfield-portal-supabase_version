@@ -82,7 +82,7 @@ const ManageResults = () => {
       const updatedResults = await calculateClassPositions(
         exam.classId,
         exam.session || new Date().getFullYear().toString(),
-        exam.term || 'First Term'
+        exam.term || '1st'
       );
       setResults(updatedResults);
       showToast('Positions calculated successfully', 'success');

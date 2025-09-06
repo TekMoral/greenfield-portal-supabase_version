@@ -1,242 +1,259 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { supabase } from "../../lib/supabaseClient";
 import {
-  getAllReports,
-  getAcademicYears,
-  getReportSubjects,
-  getReportClasses,
-  updateReportStatus,
-  deleteReport
-} from "../../services/supabase/reportService";
-import { getInitials } from "../../utils/nameUtils";
+  getSubmittedResults,
+  getResultsStatistics,
+  calculateGrade,
+  publishResult,
+  updateResult
+} from "../../services/supabase/studentResultService";
+import { getAllSubjects } from "../../services/supabase/subjectService";
 
-const Reports = () => {
-  const [reports, setReports] = useState([]);
-  const [filteredReports, setFilteredReports] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedReport, setSelectedReport] = useState(null);
-  const [showReportModal, setShowReportModal] = useState(false);
-
-  // Filter states
+const ExamResults = () => {
+  // Filters specific to exam results
   const [filters, setFilters] = useState({
-    academicYear: '',
-    term: '',
-    subjectName: '',
-    className: '',
-    studentName: '',
-    teacherName: '',
-    status: ''
+    year: "",
+    term: "",
+    subjectId: "",
+    status: "submitted", // default to submitted for review
   });
 
-  // Data for filter dropdowns
-  const [academicYears, setAcademicYears] = useState([]);
+  // Data
   const [subjects, setSubjects] = useState([]);
-  const [classes, setClasses] = useState([]);
+  const [subjectsMap, setSubjectsMap] = useState({});
+  const [results, setResults] = useState([]); // raw exam_results rows (normalized)
+  const [profilesMap, setProfilesMap] = useState({}); // user_profiles by id
+  const [classesMap, setClassesMap] = useState({}); // classes by id
+  const [stats, setStats] = useState({ total: 0, submitted: 0, graded: 0, published: 0, averageScore: 0 });
 
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const [reportsPerPage] = useState(10);
+  // Loading states
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [resultsLoading, setResultsLoading] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [lookupsLoading, setLookupsLoading] = useState(false);
 
   useEffect(() => {
-    fetchInitialData();
+    // Initial data
+    const init = async () => {
+      setInitialLoading(true);
+      try {
+        const subjectsRes = await getAllSubjects();
+        const subs = Array.isArray(subjectsRes) ? subjectsRes : (subjectsRes?.data || []);
+        setSubjects(subs);
+        const subMap = subs.reduce((acc, s) => { acc[s.id] = s; return acc; }, {});
+        setSubjectsMap(subMap);
+      } catch (e) {
+        console.error("Error loading subjects:", e);
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+    init();
   }, []);
 
   useEffect(() => {
-    applyFilters();
-  }, [reports, filters]);
+    const fetchResults = async () => {
+      setResultsLoading(true);
+      try {
+        const { status, term, year, subjectId } = filters;
+        const res = await getSubmittedResults({ status, term: term || undefined, year: year || undefined, subjectId: subjectId || undefined });
+        const list = res?.success ? (res.data || []) : [];
+        setResults(list);
+        await buildLookups(list);
+      } catch (e) {
+        console.error("Error fetching exam results:", e);
+        setResults([]);
+      } finally {
+        setResultsLoading(false);
+      }
+    };
 
-  const fetchInitialData = async () => {
-    setLoading(true);
+    const fetchStats = async () => {
+      setStatsLoading(true);
+      try {
+        const { term, year, subjectId } = filters;
+        const res = await getResultsStatistics({ term: term || undefined, year: year || undefined, subjectId: subjectId || undefined });
+        setStats(res?.success ? (res.data || { total: 0, submitted: 0, graded: 0, published: 0, averageScore: 0 }) : { total: 0, submitted: 0, graded: 0, published: 0, averageScore: 0 });
+      } catch (e) {
+        console.error("Error fetching results statistics:", e);
+        setStats({ total: 0, submitted: 0, graded: 0, published: 0, averageScore: 0 });
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+
+    fetchResults();
+    fetchStats();
+  }, [filters]);
+
+  const buildLookups = async (list) => {
     try {
-      const [
-        reportsData,
-        yearsData,
-        subjectsData,
-        classesData
-      ] = await Promise.all([
-        getAllReports(),
-        getAcademicYears(),
-        getReportSubjects(),
-        getReportClasses()
-      ]);
+      setLookupsLoading(true);
+      // Collect IDs
+      const studentIds = Array.from(new Set(list.map((r) => r.studentId).filter(Boolean)));
+      const userIds = Array.from(new Set([...studentIds]));
 
-      setReports(reportsData);
-      setAcademicYears(yearsData);
-      setSubjects(subjectsData);
-      setClasses(classesData);
-    } catch (error) {
-      console.error('Error fetching initial data:', error);
+      let profiles = [];
+      if (userIds.length > 0) {
+        const { data: profs, error: profErr } = await supabase
+          .from("user_profiles")
+          .select("id, full_name, class_id, admission_number")
+          .in("id", userIds);
+        if (profErr) {
+          console.error("Error fetching user profiles:", profErr);
+        } else {
+          profiles = profs || [];
+        }
+      }
+      const profMap = profiles.reduce((acc, p) => { acc[p.id] = p; return acc; }, {});
+      setProfilesMap(profMap);
+
+      // Classes
+      const classIds = Array.from(new Set(profiles.map((p) => (p.class_id ?? p.classId)).filter(Boolean)));
+      let classes = [];
+      if (classIds.length > 0) {
+        const { data: classesData, error: classErr } = await supabase
+          .from("classes")
+          .select("id, name, category")
+          .in("id", classIds);
+        if (classErr) {
+          console.error("Error fetching classes:", classErr);
+        } else {
+          classes = classesData || [];
+        }
+      }
+      const clsMap = classes.reduce((acc, c) => { acc[c.id] = c; return acc; }, {});
+      setClassesMap(clsMap);
+    } catch (e) {
+      console.error("Error building lookups:", e);
+      setProfilesMap({});
+      setClassesMap({});
     } finally {
-      setLoading(false);
+      setLookupsLoading(false);
     }
   };
 
-  const applyFilters = () => {
-    let filtered = [...reports];
-
-    // Apply filters
-    if (filters.academicYear) {
-      filtered = filtered.filter(report => report.academicYear === parseInt(filters.academicYear));
-    }
-    if (filters.term) {
-      filtered = filtered.filter(report => report.term === parseInt(filters.term));
-    }
-    if (filters.subjectName) {
-      filtered = filtered.filter(report => report.subjectName === filters.subjectName);
-    }
-    if (filters.className) {
-      filtered = filtered.filter(report => report.className === filters.className);
-    }
-    if (filters.studentName) {
-      filtered = filtered.filter(report =>
-        report.studentName.toLowerCase().includes(filters.studentName.toLowerCase())
-      );
-    }
-    if (filters.teacherName) {
-      filtered = filtered.filter(report =>
-        report.teacherName.toLowerCase().includes(filters.teacherName.toLowerCase())
-      );
-    }
-    if (filters.status) {
-      filtered = filtered.filter(report => report.status === filters.status);
-    }
-
-    setFilteredReports(filtered);
-    setCurrentPage(1); // Reset to first page when filters change
-  };
-
-  const handleFilterChange = (filterName, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [filterName]: value
-    }));
+  const handleFilterChange = (key, value) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
   const clearFilters = () => {
-    setFilters({
-      academicYear: '',
-      term: '',
-      subjectName: '',
-      className: '',
-      studentName: '',
-      teacherName: '',
-      status: ''
+    setFilters({ year: "", term: "", subjectId: "", status: "submitted" });
+  };
+
+  const years = useMemo(() => {
+    const current = new Date().getFullYear();
+    return [current, current - 1, current - 2, current - 3, current - 4];
+  }, []);
+
+  const displayRows = useMemo(() => {
+    return results.map((r) => {
+      const student = profilesMap[r.studentId];
+      const classId = student ? (student.class_id ?? student.classId) : undefined;
+      const classInfo = classId ? classesMap[classId] : undefined;
+      const subject = subjectsMap[r.subjectId];
+      const total = r.totalScore ?? ((r.testScore || 0) + (r.examScore || 0));
+      const max = r.maxScore ?? 80;
+      const gradeInfo = calculateGrade(total, max);
+
+      return {
+        id: r.id,
+        studentId: r.studentId,
+        studentName: student?.full_name || r.studentId,
+        className: classInfo?.name || "-",
+        admissionNumber: (student?.admission_number ?? student?.admissionNumber) ?? '-',
+        category: (classInfo?.category ?? classInfo?.level) ?? '-',
+        subjectName: subject?.name || r.subjectId,
+        term: r.term,
+        year: r.year,
+        testScore: r.testScore ?? null,
+        examScore: r.examScore ?? null,
+        totalScore: total,
+        maxScore: max,
+        percentage: Math.round((gradeInfo.percentage ?? 0) * 100) / 100,
+        grade: gradeInfo.grade,
+        status: r.status,
+        published: r.published === true,
+                createdAt: r.created_at || r.createdAt || null,
+        updated_at: r.updated_at || r.updated_at || null,
+      };
     });
-  };
+  }, [results, profilesMap, classesMap, subjectsMap]);
 
-  const handleReportStatusUpdate = async (reportId, status, adminNotes = '') => {
+  const onTogglePublished = async (row) => {
     try {
-      // Show confirmation dialog for rejection
-      if (status === 'rejected') {
-        const reason = prompt('Please provide a reason for rejection (this will be visible to the teacher):');
-        if (reason === null) return; // User cancelled
-        adminNotes = reason || 'No specific reason provided';
+      if (row.published) {
+        // Unpublish by updating the row
+        const upd = await updateResult(row.id, { published: false, status: row.status === 'published' ? 'graded' : row.status });
+        if (upd?.success) {
+          setResults((prev) => prev.map((r) => (r.id === row.id ? { ...r, published: false, status: r.status === 'published' ? 'graded' : r.status } : r)));
+        } else {
+          alert(upd?.error || 'Failed to unpublish');
+        }
+      } else {
+        // Publish via RPC (requires identifiers)
+        const pub = await publishResult({ studentId: row.studentId, subjectId: results.find((r) => r.id === row.id)?.subjectId, term: row.term, year: row.year });
+        if (pub?.success) {
+          setResults((prev) => prev.map((r) => (r.id === row.id ? { ...r, published: true, status: 'published' } : r)));
+        } else {
+          alert(pub?.error || 'Failed to publish');
+        }
       }
-
-      console.log('Updating report status:', { reportId, status, adminNotes });
-
-      // The updateReportStatus function in reportService.js will handle notification creation
-      await updateReportStatus(reportId, status, adminNotes);
-
-      // Update local state
-      setReports(prev => prev.map(report =>
-        report.id === reportId
-          ? { ...report, status, adminNotes, reviewedAt: new Date() }
-          : report
-      ));
-
-      const statusText = status === 'reviewed' ? 'approved' : status;
-      alert(`Report ${statusText} successfully. The teacher will be notified.`);
-    } catch (error) {
-      console.error('Error updating report status:', error);
-      alert('Error updating report status');
+    } catch (e) {
+      console.error('Error toggling publish state:', e);
+      alert('Error toggling publish state');
     }
   };
 
-  const handleDeleteReport = async (reportId) => {
-    if (!window.confirm('Are you sure you want to delete this report?')) {
-      return;
-    }
+  const exportCSV = () => {
+    const headers = [
+      "Student Name",
+      "Admission Number",
+      "Class",
+      "Category",
+      "Subject",
+      "Term",
+      "Year",
+      "Score",
+      "Percentage",
+      "Grade",
+      "Status",
+      "Published",
+      "Created At",
+      "Updated At",
+    ];
 
-    try {
-      await deleteReport(reportId);
-      setReports(prev => prev.filter(report => report.id !== reportId));
-      alert('Report deleted successfully');
-    } catch (error) {
-      console.error('Error deleting report:', error);
-      alert('Error deleting report');
-    }
-  };
+    const rows = displayRows.map((r) => [
+      r.studentName || "",
+      r.admissionNumber || "",
+      r.className || "",
+      r.category || "",
+      r.subjectName || "",
+      r.term || "",
+      r.year || "",
+      `${r.totalScore ?? 0}/${r.maxScore ?? 80}`,
+      (Number(r.percentage) || 0).toFixed(2),
+      r.grade || "",
+      r.status || "",
+      r.published ? "Yes" : "No",
+      r.createdAt ? new Date(r.createdAt).toISOString() : "",
+      r.updated_at ? new Date(r.updated_at).toISOString() : "",
+    ]);
 
-  const exportReports = () => {
-    const csvContent = [
-      // CSV Headers
-      [
-        'Student Name',
-        'Admission Number',
-        'Class',
-        'Subject',
-        'Teacher',
-        'Academic Year',
-        'Term',
-        'Attendance Rate',
-        'Average Score',
-        'Status',
-        'Submitted Date',
-        'Remarks'
-      ].join(','),
-      // CSV Data
-      ...filteredReports.map(report => [
-        `"${report.studentName}"`,
-        `"${report.studentAdmissionNumber}"`,
-        `"${report.className}"`,
-        `"${report.subjectName}"`,
-        `"${report.teacherName}"`,
-        report.academicYear,
-        report.term,
-        `${report.attendanceRate || 0}%`,
-        `${report.averageScore || 0}%`,
-        `"${report.status}"`,
-        `"${report.submittedAt?.toLocaleDateString() || ''}"`,
-        `"${(report.remarks || '').replace(/"/g, '""')}"`
-      ].join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const csv = [headers.join(","), ...rows.map((row) => row.map((val) => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `student_reports_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `exam_results_${new Date().toISOString().split("T")[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
   };
 
-  // Pagination logic
-  const indexOfLastReport = currentPage * reportsPerPage;
-  const indexOfFirstReport = indexOfLastReport - reportsPerPage;
-  const currentReports = filteredReports.slice(indexOfFirstReport, indexOfLastReport);
-  const totalPages = Math.ceil(filteredReports.length / reportsPerPage);
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'submitted': return 'bg-blue-100 text-blue-800';
-      case 'reviewed': return 'bg-green-100 text-green-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getTermName = (term) => {
-    switch (term) {
-      case 1: return '1st Term';
-      case 2: return '2nd Term';
-      case 3: return '3rd Term';
-      default: return `Term ${term}`;
-    }
-  };
-
-  if (loading) {
+  if (initialLoading) {
     return (
       <div className="animate-pulse space-y-4">
         <div className="h-8 bg-slate-200 rounded w-1/3"></div>
@@ -259,52 +276,32 @@ const Reports = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-slate-800">
-            Student Reports
-          </h1>
-          <p className="text-slate-600 mt-1">
-            View and manage student progress reports from teachers
-          </p>
+          <h1 className="text-2xl lg:text-3xl font-bold text-slate-800">Exam Results</h1>
+          <p className="text-slate-600 mt-1">Review and manage teacher-submitted exam results</p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={exportReports}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
-          >
-            Export CSV
-          </button>
+          <button onClick={exportCSV} className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium">Export CSV</button>
+          <Link to="/dashboard/admin-review" className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium">Open Admin Review</Link>
         </div>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
-          <div className="text-sm text-slate-600">Total Reports</div>
-          <div className="text-2xl font-bold text-slate-800">
-            {reports.length}
-          </div>
+          <div className="text-sm text-slate-600">Total Results</div>
+          <div className="text-2xl font-bold text-slate-800">{statsLoading ? "…" : stats.total}</div>
         </div>
         <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
-          <div className="text-sm text-slate-600">Pending Review</div>
-          <div className="text-2xl font-bold text-blue-600">
-            {reports.filter((r) => r.status === "submitted").length}
-          </div>
+          <div className="text-sm text-slate-600">Submitted</div>
+          <div className="text-2xl font-bold text-blue-600">{statsLoading ? "…" : stats.submitted}</div>
         </div>
         <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
-          <div className="text-sm text-slate-600">Reviewed</div>
-          <div className="text-2xl font-bold text-green-600">
-            {reports.filter((r) => r.status === "reviewed").length}
-          </div>
+          <div className="text-sm text-slate-600">Graded</div>
+          <div className="text-2xl font-bold text-purple-600">{statsLoading ? "…" : stats.graded}</div>
         </div>
         <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
-          <div className="text-sm text-slate-600">This Term</div>
-          <div className="text-2xl font-bold text-purple-600">
-            {
-              reports.filter(
-                (r) => r.term === Math.ceil(new Date().getMonth() / 4) + 1
-              ).length
-            }
-          </div>
+          <div className="text-sm text-slate-600">Published</div>
+          <div className="text-2xl font-bold text-green-600">{statsLoading ? "…" : stats.published}</div>
         </div>
       </div>
 
@@ -312,39 +309,26 @@ const Reports = () => {
       <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-slate-800">Filters</h2>
-          <button
-            onClick={clearFilters}
-            className="text-sm text-slate-600 hover:text-slate-800 underline"
-          >
-            Clear All
-          </button>
+          <button onClick={clearFilters} className="text-sm text-slate-600 hover:text-slate-800 underline">Clear All</button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Academic Year
-            </label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Year</label>
             <select
-              value={filters.academicYear}
-              onChange={(e) =>
-                handleFilterChange("academicYear", e.target.value)
-              }
+              value={filters.year}
+              onChange={(e) => handleFilterChange("year", e.target.value)}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">All Years</option>
-              {academicYears.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
+              {years.map((y) => (
+                <option key={y} value={y}>{y}</option>
               ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Term
-            </label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Term</label>
             <select
               value={filters.term}
               onChange={(e) => handleFilterChange("term", e.target.value)}
@@ -358,546 +342,119 @@ const Reports = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Subject
-            </label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Subject</label>
             <select
-              value={filters.subjectName}
-              onChange={(e) =>
-                handleFilterChange("subjectName", e.target.value)
-              }
+              value={filters.subjectId}
+              onChange={(e) => handleFilterChange("subjectId", e.target.value)}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">All Subjects</option>
               {subjects.map((subject) => (
-                <option key={subject} value={subject}>
-                  {subject}
-                </option>
+                <option key={subject.id} value={subject.id}>{subject.name}</option>
               ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Class
-            </label>
-            <select
-              value={filters.className}
-              onChange={(e) => handleFilterChange("className", e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">All Classes</option>
-              {classes.map((className) => (
-                <option key={className} value={className}>
-                  {className}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Student Name
-            </label>
-            <input
-              type="text"
-              value={filters.studentName}
-              onChange={(e) =>
-                handleFilterChange("studentName", e.target.value)
-              }
-              placeholder="Search student..."
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Teacher Name
-            </label>
-            <input
-              type="text"
-              value={filters.teacherName}
-              onChange={(e) =>
-                handleFilterChange("teacherName", e.target.value)
-              }
-              placeholder="Search teacher..."
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Status
-            </label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
             <select
               value={filters.status}
               onChange={(e) => handleFilterChange("status", e.target.value)}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
-              <option value="">All Status</option>
               <option value="submitted">Submitted</option>
-              <option value="reviewed">Reviewed</option>
-              <option value="rejected">Rejected</option>
+              <option value="graded">Graded</option>
+              <option value="published">Published</option>
             </select>
           </div>
         </div>
       </div>
 
-      {/* Reports Table */}
+      {/* Results Table */}
       <div className="bg-white rounded-lg shadow-md border border-slate-200">
         <div className="bg-slate-50 px-6 py-4 border-b border-slate-200">
-          <h3 className="text-lg font-semibold text-slate-800">
-            Reports ({filteredReports.length})
-          </h3>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Student
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Subject
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Teacher
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Term/Year
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Performance
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-slate-200">
-              {currentReports.map((report) => (
-                <tr key={report.id} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-blue-600 font-semibold text-sm">
-                          {getInitials({
-                            firstName: report.studentName.split(" ")[0],
-                            lastName: report.studentName.split(" ")[1] || "",
-                          })}
-                        </span>
-                      </div>
-                      <div className="ml-3">
-                        <div className="text-sm font-medium text-slate-900">
-                          {report.studentName}
-                        </div>
-                        <div className="text-sm text-slate-500">
-                          {report.studentAdmissionNumber}
-                        </div>
-                        <div className="text-sm text-slate-500">
-                          {report.className}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-slate-900">
-                      {report.subjectName}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-slate-900">
-                      {report.teacherName}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-slate-900">
-                      {getTermName(report.term)}
-                    </div>
-                    <div className="text-sm text-slate-500">
-                      {report.academicYear}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-slate-900">
-                      Attendance: {report.attendanceRate || 0}%
-                    </div>
-                    <div className="text-sm text-slate-500">
-                      Average: {report.averageScore || 0}%
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                        report.status
-                      )}`}
-                    >
-                      {report.status.charAt(0).toUpperCase() +
-                        report.status.slice(1)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                    <button
-                      onClick={() => {
-                        setSelectedReport(report);
-                        setShowReportModal(true);
-                      }}
-                      className="text-blue-600 hover:text-blue-900"
-                    >
-                      View
-                    </button>
-                    {["submitted", "resubmitted"].includes(report.status) && (
-                      <>
-                        <button
-                          onClick={() =>
-                            handleReportStatusUpdate(report.id, "reviewed")
-                          }
-                          className="text-green-600 hover:text-green-900"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() =>
-                            handleReportStatusUpdate(report.id, "rejected")
-                          }
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          Reject
-                        </button>
-                      </>
-                    )}
-                    <button
-                      onClick={() => handleDeleteReport(report.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="bg-slate-50 px-6 py-3 border-t border-slate-200">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-slate-700">
-                Showing {indexOfFirstReport + 1} to{" "}
-                {Math.min(indexOfLastReport, filteredReports.length)} of{" "}
-                {filteredReports.length} results
-              </div>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.max(prev - 1, 1))
-                  }
-                  disabled={currentPage === 1}
-                  className="px-3 py-1 border border-slate-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-100"
-                >
-                  Previous
-                </button>
-                {[...Array(totalPages)].map((_, i) => (
-                  <button
-                    key={i + 1}
-                    onClick={() => setCurrentPage(i + 1)}
-                    className={`px-3 py-1 border rounded text-sm ${
-                      currentPage === i + 1
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "border-slate-300 hover:bg-slate-100"
-                    }`}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
-                <button
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                  }
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1 border border-slate-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-100"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Empty State */}
-        {filteredReports.length === 0 && (
-          <div className="text-center py-12">
-            <svg
-              className="w-16 h-16 mx-auto text-slate-400 mb-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              />
-            </svg>
-            <h3 className="text-lg font-medium text-slate-800 mb-2">
-              No Reports Found
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-slate-800">
+              Exam Results ({displayRows.length})
             </h3>
-            <p className="text-slate-600">
-              No student reports match your current filters.
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Report Detail Modal */}
-      {showReportModal && selectedReport && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[95vh] overflow-hidden">
-            <div className="bg-blue-600 text-white p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-bold">
-                    {selectedReport.studentName} - {selectedReport.subjectName}
-                  </h3>
-                  <p className="text-blue-100">
-                    {getTermName(selectedReport.term)}{" "}
-                    {selectedReport.academicYear} | {selectedReport.className}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowReportModal(false)}
-                  className="text-white hover:text-blue-200 transition-colors"
-                >
-                  <svg
-                    className="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6 overflow-y-auto max-h-[calc(95vh-120px)]">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Student Info */}
-                <div>
-                  <h4 className="text-lg font-semibold text-slate-800 mb-3">
-                    Student Information
-                  </h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Name:</span>
-                      <span className="font-medium">
-                        {selectedReport.studentName}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Admission Number:</span>
-                      <span className="font-medium">
-                        {selectedReport.studentAdmissionNumber}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Class:</span>
-                      <span className="font-medium">
-                        {selectedReport.className}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Subject:</span>
-                      <span className="font-medium">
-                        {selectedReport.subjectName}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Report Info */}
-                <div>
-                  <h4 className="text-lg font-semibold text-slate-800 mb-3">
-                    Report Information
-                  </h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Teacher:</span>
-                      <span className="font-medium">
-                        {selectedReport.teacherName}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Term:</span>
-                      <span className="font-medium">
-                        {getTermName(selectedReport.term)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Academic Year:</span>
-                      <span className="font-medium">
-                        {selectedReport.academicYear}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Submitted:</span>
-                      <span className="font-medium">
-                        {selectedReport.submittedAt?.toLocaleDateString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Status:</span>
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                          selectedReport.status
-                        )}`}
-                      >
-                        {selectedReport.status.charAt(0).toUpperCase() +
-                          selectedReport.status.slice(1)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Performance Summary */}
-              <div className="mt-6">
-                <h4 className="text-lg font-semibold text-slate-800 mb-3">
-                  Performance Summary
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-slate-50 rounded-lg p-4">
-                    <div className="text-sm text-slate-600">
-                      Attendance Rate
-                    </div>
-                    <div className="text-2xl font-bold text-green-600">
-                      {selectedReport.attendanceRate || 0}%
-                    </div>
-                  </div>
-                  <div className="bg-slate-50 rounded-lg p-4">
-                    <div className="text-sm text-slate-600">Average Score</div>
-                    <div className="text-2xl font-bold text-blue-600">
-                      {selectedReport.averageScore || 0}%
-                    </div>
-                  </div>
-                  <div className="bg-slate-50 rounded-lg p-4">
-                    <div className="text-sm text-slate-600">
-                      Total Assignments
-                    </div>
-                    <div className="text-2xl font-bold text-purple-600">
-                      {selectedReport.totalAssignments || 0}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Detailed Data */}
-              {selectedReport.attendanceData && (
-                <div className="mt-6">
-                  <h4 className="text-lg font-semibold text-slate-800 mb-3">
-                    Attendance Details
-                  </h4>
-                  <div className="bg-slate-50 rounded-lg p-4">
-                    <div className="grid grid-cols-3 gap-4 text-center">
-                      <div>
-                        <div className="text-sm text-slate-600">Total Days</div>
-                        <div className="text-xl font-bold">
-                          {selectedReport.attendanceData.totalDays || 0}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-slate-600">Present</div>
-                        <div className="text-xl font-bold text-green-600">
-                          {selectedReport.attendanceData.presentDays || 0}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-slate-600">Absent</div>
-                        <div className="text-xl font-bold text-red-600">
-                          {selectedReport.attendanceData.absentDays || 0}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {selectedReport.assignmentData && (
-                <div className="mt-6">
-                  <h4 className="text-lg font-semibold text-slate-800 mb-3">
-                    Assignment Performance
-                  </h4>
-                  <div className="bg-slate-50 rounded-lg p-4">
-                    <div className="grid grid-cols-3 gap-4 text-center">
-                      <div>
-                        <div className="text-sm text-slate-600">
-                          Total Assignments
-                        </div>
-                        <div className="text-xl font-bold">
-                          {selectedReport.assignmentData.total || 0}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-slate-600">Submitted</div>
-                        <div className="text-xl font-bold text-green-600">
-                          {selectedReport.assignmentData.submitted || 0}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-slate-600">
-                          Average Score
-                        </div>
-                        <div className="text-xl font-bold text-blue-600">
-                          {selectedReport.assignmentData.averageScore || 0}%
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Teacher Remarks */}
-              {selectedReport.remarks && (
-                <div className="mt-6">
-                  <h4 className="text-lg font-semibold text-slate-800 mb-3">
-                    Teacher Remarks
-                  </h4>
-                  <div className="bg-slate-50 rounded-lg p-4">
-                    <p className="text-slate-700">{selectedReport.remarks}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Admin Notes */}
-              {selectedReport.adminNotes && (
-                <div className="mt-6">
-                  <h4 className="text-lg font-semibold text-slate-800 mb-3">
-                    Admin Notes
-                  </h4>
-                  <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-                    <p className="text-slate-700">
-                      {selectedReport.adminNotes}
-                    </p>
-                  </div>
-                </div>
-              )}
+            <div className="text-sm text-slate-600">
+              {resultsLoading || lookupsLoading ? "Loading…" : `Ready`}
             </div>
           </div>
+          <p className="text-sm text-slate-600 mt-1">
+            All data rendered from exam_results with joined user/class/subject details.
+          </p>
         </div>
-      )}
+        <div className="p-6 overflow-x-auto">
+          {resultsLoading ? (
+            <div className="text-slate-600">Loading exam results...</div>
+          ) : displayRows.length === 0 ? (
+            <div className="text-slate-500">No exam results found for the selected filters.</div>
+          ) : (
+            <table className="w-full">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Student name</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Class</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Category</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Subject name</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Term / Year</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Score</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Percentage</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Grade</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Is Published</th>
+                                                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Created / Updated</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-slate-200">
+                {displayRows.map((row) => (
+                  <tr key={row.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-900">
+                      <div className="text-sm text-slate-900">{row.studentName}</div>
+                      <div className="text-xs text-slate-500">ADM: {row.admissionNumber}</div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-900">{row.className}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-900">{row.category}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-900">{row.subjectName}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-900">{row.term} / {row.year}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-900">{row.totalScore} / {row.maxScore}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-900">{row.percentage?.toFixed?.(2)}%</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-slate-900">{row.grade}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm">
+                      {row.status === "submitted" && (
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">submitted</span>
+                      )}
+                      {row.status === "graded" && (
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">graded</span>
+                      )}
+                      {row.status === "published" && (
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">published</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm">
+                      <button
+                        onClick={() => onTogglePublished(row)}
+                        disabled={resultsLoading || lookupsLoading}
+                        className={`px-3 py-1.5 rounded text-xs font-medium border ${row.published ? 'bg-green-600 text-white border-green-700 hover:bg-green-700' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+                        title={row.published ? 'Unpublish' : 'Publish'}
+                      >
+                        {row.published ? 'Unpublish' : 'Publish'}
+                      </button>
+                    </td>
+                                                            <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-700">
+                      <div>Created: {row.createdAt ? new Date(row.createdAt).toLocaleString() : '-'}</div>
+                      <div>Updated: {row.updated_at ? new Date(row.updated_at).toLocaleString() : '-'}</div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
 
-export default Reports;
+export default ExamResults;

@@ -1181,8 +1181,8 @@ export default function AdminAttendance() {
                     onChange={(e) => setTermSendConfig(r => ({ ...r, term: e.target.value }))} 
                     className="w-full border rounded px-2 py-2"
                   >
-                    <option value="first">First Term</option>
-                    <option value="second">Second Term</option>
+                    <option value="first">1st</option>
+                    <option value="second">2nd</option>
                     <option value="third">Third Term</option>
                   </select>
                 </div>

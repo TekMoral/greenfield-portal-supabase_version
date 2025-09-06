@@ -62,8 +62,6 @@ const TeacherAttendance = lazyWithRetry(() =>
 const TeacherReports = lazyWithRetry(() => import("../pages/dashboard/teacher/Reports"));
 const MyReports = lazyWithRetry(() => import("../pages/dashboard/teacher/MyReports"));
 const TeacherProfile = lazyWithRetry(() => import("../pages/dashboard/teacher/Profile"));
-const TeacherExams = lazyWithRetry(() => import("../pages/dashboard/teacher/Exams"));
-const CreateExam = lazyWithRetry(() => import("../pages/dashboard/teacher/CreateExam"));
 const TeacherExamResults = lazyWithRetry(() =>
   import("../pages/dashboard/teacher/ExamResults")
 );
@@ -79,6 +77,7 @@ const Admins = lazyWithRetry(() => import("../pages/dashboard/Admins"));
 const Settings = lazyWithRetry(() => import("../pages/dashboard/Settings"));
 const AdminSubjects = lazyWithRetry(() => import("../pages/dashboard/Subjects"));
 const AdminReports = lazyWithRetry(() => import("../pages/dashboard/Reports"));
+const AdminStudentReports = lazyWithRetry(() => import("../pages/dashboard/AdminStudentReports"));
 const ManageResults = lazyWithRetry(() => import("../pages/dashboard/ManageResults"));
 const AdminAttendance = lazyWithRetry(() => import("../pages/dashboard/AdminAttendance"));
 
@@ -188,12 +187,22 @@ const AppRouter = () => (
         }
       />
       <Route
-        path="reports"
-        element={
-          <Suspense fallback={<LoadingFallback />}>
-            <AdminReports />
-          </Suspense>
-        }
+      path="reports"
+      element={
+      <Suspense fallback={<LoadingFallback />}>
+      <AdminReports />
+      </Suspense>
+      }
+      />
+      <Route
+      path="student-reports"
+      element={
+      <RoleBasedRoute allowedRoles={["admin", "super_admin"]}>
+      <Suspense fallback={<LoadingFallback />}>
+      <AdminStudentReports />
+      </Suspense>
+      </RoleBasedRoute>
+      }
       />
       <Route
         path="attendance"
@@ -214,9 +223,11 @@ const AppRouter = () => (
       <Route
         path="admins"
         element={
-          <Suspense fallback={<LoadingFallback />}>
-            <Admins />
-          </Suspense>
+          <RoleBasedRoute allowedRoles={["super_admin"]}>
+            <Suspense fallback={<LoadingFallback />}>
+              <Admins />
+            </Suspense>
+          </RoleBasedRoute>
         }
       />
       <Route
@@ -390,23 +401,7 @@ const AppRouter = () => (
           </Suspense>
         }
       />
-      <Route
-        path="exams"
-        element={
-          <Suspense fallback={<LoadingFallback />}>
-            <TeacherExams />
-          </Suspense>
-        }
-      />
-      <Route
-        path="exams/create"
-        element={
-          <Suspense fallback={<LoadingFallback />}>
-            <CreateExam />
-          </Suspense>
-        }
-      />
-    </Route>
+                </Route>
 
     {/* Student Portal Routes (Nested) */}
     <Route

@@ -205,11 +205,11 @@ const Curriculum = () => {
               <h3 className="text-2xl font-bold text-gray-800 mb-6">Academic Calendar</h3>
               <div className="space-y-4">
                 <div className="flex justify-between items-center p-4 bg-blue-50 rounded-lg">
-                  <span className="font-semibold text-gray-800">First Term</span>
+                  <span className="font-semibold text-gray-800">1st</span>
                   <span className="text-blue-600">Sept - Dec</span>
                 </div>
                 <div className="flex justify-between items-center p-4 bg-green-50 rounded-lg">
-                  <span className="font-semibold text-gray-800">Second Term</span>
+                  <span className="font-semibold text-gray-800">2nd</span>
                   <span className="text-green-600">Jan - Apr</span>
                 </div>
                 <div className="flex justify-between items-center p-4 bg-yellow-50 rounded-lg">

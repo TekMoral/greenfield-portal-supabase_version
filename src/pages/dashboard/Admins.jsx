@@ -7,7 +7,7 @@ import { EditButton, DeleteButton, SuspendButton, ReactivateButton, CreateButton
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 const Admins = () => {
-  const { isSuperAdmin } = useAuth();
+  const { isSuperAdmin, user, role } = useAuth();
   const [admins, setAdmins] = useState([]);
   const [loading, setLoading] = useState(true);
   const queryClient = useQueryClient();
@@ -93,11 +93,30 @@ const Admins = () => {
   };
 
   const handleDeleteAdmin = (admin) => {
+    // Frontend guard: only super admins, cannot self-delete
+    if (!isSuperAdmin) {
+      toast.error('Only super admins can delete admins');
+      return;
+    }
+    if (admin?.id === user?.id) {
+      toast.error('You cannot delete your own account');
+      return;
+    }
+    if (admin?.role === 'super_admin') {
+      toast.error('Cannot delete super admin accounts');
+      return;
+    }
     setDeleteConfirm({ isOpen: true, admin });
   };
 
   const confirmDeleteAdmin = async () => {
     const adminId = deleteConfirm.admin.id;
+    // Re-validate guard before action
+    if (!isSuperAdmin || adminId === user?.id || deleteConfirm.admin?.role === 'super_admin') {
+      toast.error('Operation not permitted');
+      setDeleteConfirm({ isOpen: false, admin: null });
+      return;
+    }
     setLoadingStates(prev => ({ ...prev, deleting: { ...prev.deleting, [adminId]: true } }));
     
     try {
@@ -124,6 +143,11 @@ const Admins = () => {
 
   
   const handleEditAdmin = (admin) => {
+    // Only super admins can edit admins (optional UI rule)
+    if (!isSuperAdmin) {
+      toast.error('Only super admins can edit admin profiles');
+      return;
+    }
     setEditAdmin({
       id: admin.id,
       name: admin.name || admin.full_name,
@@ -169,11 +193,30 @@ const Admins = () => {
   };
 
   const handleSuspendAdmin = (admin) => {
+    // Frontend guard: only super admins, cannot self-suspend, cannot suspend super admins
+    if (!isSuperAdmin) {
+      toast.error('Only super admins can suspend admins');
+      return;
+    }
+    if (admin?.id === user?.id) {
+      toast.error('You cannot suspend your own account');
+      return;
+    }
+    if (admin?.role === 'super_admin') {
+      toast.error('Cannot suspend super admin accounts');
+      return;
+    }
     setSuspendConfirm({ isOpen: true, admin });
   };
 
   const confirmSuspendAdmin = async () => {
     const adminId = suspendConfirm.admin.id;
+    // Re-validate guard before action
+    if (!isSuperAdmin || adminId === user?.id || suspendConfirm.admin?.role === 'super_admin') {
+      toast.error('Operation not permitted');
+      setSuspendConfirm({ isOpen: false, admin: null });
+      return;
+    }
     setLoadingStates(prev => ({ ...prev, suspending: { ...prev.suspending, [adminId]: true } }));
     
     try {
@@ -203,6 +246,10 @@ const Admins = () => {
   };
 
   const handleReactivateAdmin = async (admin) => {
+    if (!isSuperAdmin) {
+      toast.error('Only super admins can reactivate admins');
+      return;
+    }
     setLoadingStates(prev => ({ ...prev, reactivating: { ...prev.reactivating, [admin.id]: true } }));
     
     try {
@@ -469,20 +516,21 @@ const Admins = () => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex space-x-2">
-                    {isSuperAdmin && admin.role !== 'super_admin' && (
-                      <>
-                        <EditButton onClick={() => handleEditAdmin(admin)} />
-                        {admin.status === 'suspended' ? (
-                          <ReactivateButton onClick={() => handleReactivateAdmin(admin)} />
-                        ) : (
-                          <SuspendButton onClick={() => handleSuspendAdmin(admin)} />
-                        )}
-                        <DeleteButton onClick={() => handleDeleteAdmin(admin)} />
-                      </>
-                    )}
-                    {!isSuperAdmin && (
-                      <span className="text-gray-400 text-sm">No permissions</span>
-                    )}
+                    {(() => {
+                      const canManage = isSuperAdmin && admin.role !== 'super_admin' && admin.id !== user?.id;
+                      if (!canManage) return <span className="text-gray-400 text-sm">No permissions</span>;
+                      return (
+                        <>
+                          <EditButton onClick={() => handleEditAdmin(admin)} />
+                          {admin.status === 'suspended' ? (
+                            <ReactivateButton onClick={() => handleReactivateAdmin(admin)} />
+                          ) : (
+                            <SuspendButton onClick={() => handleSuspendAdmin(admin)} />
+                          )}
+                          <DeleteButton onClick={() => handleDeleteAdmin(admin)} />
+                        </>
+                      );
+                    })()}
                   </div>
                 </td>
               </tr>

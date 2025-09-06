@@ -36,19 +36,18 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
     testScore: '',
     examType: 'midterm',
     session: new Date().getFullYear().toString(),
-    term: 'First Term'
+    term: '1st'
   });
   const [errors, setErrors] = useState({});
 
   const examTypes = [
     { value: 'midterm', label: 'Mid-term Exam' },
     { value: 'final', label: 'Final Exam' },
-    { value: 'quiz', label: 'Quiz' },
     { value: 'test', label: 'Class Test' },
     { value: 'monthly', label: 'Monthly Test' }
   ];
 
-  const terms = ['First Term', 'Second Term', 'Third Term'];
+  const terms = ['1st Term', '2nd Term', '3rd Term'];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -75,10 +74,10 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
       }
     }
 
-    if (!formData.testScore) {
+    if (!formdata.test_score) {
       newErrors.testScore = 'Test score is required';
     } else {
-      const score = parseFloat(formData.testScore);
+      const score = parseFloat(formdata.test_score);
       if (isNaN(score) || score < 0 || score > 30) {
         newErrors.testScore = 'Test score must be between 0 and 30';
       }
@@ -106,8 +105,8 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
     const resultData = {
       ...formData,
       examScore: parseFloat(formData.examScore),
-      testScore: parseFloat(formData.testScore),
-      totalTeacherScore: parseFloat(formData.examScore) + parseFloat(formData.testScore),
+      testScore: parseFloat(formdata.test_score),
+      totalTeacherScore: parseFloat(formData.examScore) + parseFloat(formdata.test_score),
       maxExamScore: 50,
       maxTestScore: 30,
       maxTeacherScore: 80
@@ -118,7 +117,7 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
 
   const getTotalScore = () => {
     const examScore = parseFloat(formData.examScore) || 0;
-    const testScore = parseFloat(formData.testScore) || 0;
+    const testScore = parseFloat(formdata.test_score) || 0;
     return examScore + testScore;
   };
 
@@ -250,7 +249,7 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
                 <input
                   type="number"
                   name="testScore"
-                  value={formData.testScore}
+                  value={formdata.test_score}
                   onChange={handleChange}
                   min="0"
                   max="30"
@@ -265,7 +264,7 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
             </div>
 
             {/* Score Summary */}
-            {(formData.examScore || formData.testScore) && (
+            {(formData.examScore || formdata.test_score) && (
               <div className="bg-green-50 rounded-lg p-4">
                 <h4 className="font-medium text-green-900 mb-2">Score Summary (Teacher's 80%)</h4>
                 <div className="grid grid-cols-2 gap-4 text-sm">
@@ -275,7 +274,7 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
                   </div>
                   <div>
                     <span className="text-green-700">Test Score:</span>
-                    <span className="font-medium ml-2">{formData.testScore || 0}/30</span>
+                    <span className="font-medium ml-2">{formdata.test_score || 0}/30</span>
                   </div>
                   <div>
                     <span className="text-green-700">Total Score:</span>

@@ -26,7 +26,7 @@ const Results = () => {
 
       try {
         setLoading(true);
-        const [resultsData, examsData, subjectsResult, allExamsData] = await Promise.all([
+        const [resultsResp, examsData, subjectsResult, allExamsData] = await Promise.all([
           getStudentExamResults(user.uid),
           getActiveExamsForStudent(user.uid),
           getAllSubjects(),
@@ -34,6 +34,7 @@ const Results = () => {
         ]);
 
         const subjectsData = subjectsResult.success ? subjectsResult.data : [];
+        const resultsArray = resultsResp?.success ? resultsResp.data : (Array.isArray(resultsResp) ? resultsResp : []);
 
         // Helper functions to resolve names
         const getSubjectName = (subjectId) => {
@@ -47,7 +48,7 @@ const Results = () => {
         };
 
         // Transform the data to match ResultCard expectations
-        const transformedResults = resultsData.map(result => {
+        const transformedResults = resultsArray.map(result => {
           const maxScore = 100; // Default max score
           const percentage = Math.round((result.totalScore / maxScore) * 100);
           const gradeInfo = calculateGrade(result.totalScore, maxScore);

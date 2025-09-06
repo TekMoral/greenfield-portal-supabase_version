@@ -384,11 +384,11 @@ export const examService = {
       // Get average score
       const { data: results } = await supabase
         .from('exam_results')
-        .select('score')
+        .select('total_score, max_score')
         .eq('exam_id', examId);
 
       const averageScore = results?.length > 0 
-        ? results.reduce((sum, result) => sum + (result.score || 0), 0) / results.length 
+        ? results.reduce((sum, result) => sum + ((result.total_score || 0) / (result.max_score || 100) * 100), 0) / results.length 
         : 0;
 
       return {

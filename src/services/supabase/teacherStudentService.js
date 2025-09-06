@@ -61,9 +61,21 @@ export const getStudentsByTeacherSubject = async (teacherId, subjectName) => {
 
     // Enrich student data with class information
     const enrichedStudents = students.map(student => {
-      const studentClass = relevantClasses.find(cls => cls.id === student.classId);
+      const studentClass = relevantClasses.find(cls => cls.id === (student.class_id ?? student.classId));
+      // Derive name fields consistently
+      const fullName = student.full_name || student.name || [student.first_name, student.surname].filter(Boolean).join(' ');
+      const first = student.first_name || (fullName ? fullName.split(' ')[0] : '');
+      const rest = student.surname || (fullName ? fullName.split(' ').slice(1).join(' ') : '');
       return {
         ...student,
+        id: student.id || student.uid,
+        classId: student.class_id ?? student.classId,
+        name: fullName || 'Student',
+        firstName: first,
+        surname: rest,
+        lastName: rest,
+        admissionNumber: student.admission_number ?? student.admissionNumber,
+        profileImageUrl: student.profile_image ?? student.profileImageUrl,
         className: studentClass?.name || 'Unknown',
         classLevel: studentClass?.level || 'Unknown',
         classCategory: studentClass?.category || 'Unknown',
@@ -252,15 +264,24 @@ export const getStudentSubjects = async (studentId) => {
 
 /**
  * Extract base class name from full class name
- * Examples: "SSS1 Science" -> "SSS1", "Grade 10A Science" -> "Grade 10A", "SSS 1 Science" -> "SSS 1"
+ * Uses the same normalization as the assignment modal for consistency
+ * Examples: "SSS1 Science" -> "SSS 1", "SSS 1 Science" -> "SSS 1", "JSS2 Art" -> "JSS 2"
  */
 const extractBaseClassName = (fullClassName) => {
   if (!fullClassName) return '';
-  
-  const categoryPattern = /\s+(Science|Art|Commercial)$/i;
-  const baseName = fullClassName.replace(categoryPattern, '').trim();
-  
-  return baseName;
+  const rawName = String(fullClassName).toUpperCase().trim().replace(/\s+/g, ' ');
+  // Strip trailing category labels
+  const stripped = rawName.replace(/\s+(SCIENCE|ARTS?|COMMERCIAL)$/, '');
+  // Match common senior/junior patterns and normalize to standard format
+  let m = stripped.match(/^(JSS|JS|JUNIOR( SECONDARY)?)\s*(\d+)/i);
+  if (m) return `JSS ${m[3]}`;
+  m = stripped.match(/^(SSS|SS|SENIOR( SECONDARY)?)\s*(\d+)/i);
+  if (m) return `SSS ${m[3]}`;
+  // Fallback: try to extract the first number and infer level by presence of SSS/JSS
+  const num = (stripped.match(/\b(\d)\b/) || [])[1];
+  if (/JSS|JUNIOR/.test(stripped) && num) return `JSS ${num}`;
+  if (/SSS|SENIOR/.test(stripped) && num) return `SSS ${num}`;
+  return stripped; // final fallback
 };
 
 /**
@@ -379,13 +400,13 @@ export const getTeacherClassesAndSubjects = async (teacherId) => {
       // Handle core subjects - group by base class name (e.g., SSS1, SSS2)
       if (coreSubjectsInClass.length > 0) {
         const baseClassName = extractBaseClassName(classData.name);
-        const groupKey = baseClassName;
+        const groupKey = baseClassName; // Use normalized base as key (already handles SSS1 vs SSS 1)
         
         console.log('🏷️ Grouping core subjects under:', baseClassName);
         
         if (!levelGroups.has(groupKey)) {
           levelGroups.set(groupKey, {
-            id: `${baseClassName.toLowerCase().replace(/\s+/g, '_')}_grouped`,
+            id: `${baseClassName.replace(/\s+/g, '_')}_grouped`,
             name: baseClassName,
             level: classData.level,
             category: 'All Categories', // Indicates this is a grouped class
@@ -407,12 +428,16 @@ export const getTeacherClassesAndSubjects = async (teacherId) => {
         
         const classCount = countsByClass[classData.id] || 0;
         levelGroup.studentCount += classCount;
-        levelGroup.individualClasses.push({
-          id: classData.id,
-          name: classData.name,
-          category: classData.category,
-          studentCount: classCount
-        });
+        // Deduplicate individualClasses by id
+        const icId = String(classData.id);
+        if (!levelGroup.individualClasses.some(ic => String(ic.id) === icId)) {
+          levelGroup.individualClasses.push({
+            id: classData.id,
+            name: classData.name,
+            category: classData.category,
+            studentCount: classCount
+          });
+        }
       }
       
       // Handle category subjects - show individual classes
@@ -457,7 +482,7 @@ export const getTeacherClassesAndSubjects = async (teacherId) => {
  */
 export const getStudentsByTeacherSubjectAndClasses = async (teacherId, subjectName, classIds) => {
   try {
-    // First, check if this is a core subject
+    // Determine if subject is core (optional enrichment)
     let coreSubjects = [];
     try {
       coreSubjects = await getSubjectsByDepartment('core');
@@ -466,32 +491,33 @@ export const getStudentsByTeacherSubjectAndClasses = async (teacherId, subjectNa
       coreSubjects = [];
     }
     const isCoreSubject = coreSubjects.includes(subjectName);
-    
-    // Get all classes where this teacher teaches this subject AND class is in the filter list
-    const { data: classes, error: classesError } = await supabase
-      .from('classes')
-      .select('*')
-      .in('id', classIds);
 
-    if (classesError) {
-      console.error('Supabase error fetching classes:', classesError);
-      return { success: false, error: classesError.message };
+    // Use teacher_assignments to identify classes where this teacher teaches the given subject
+    const { data: assignments, error: assignmentsError } = await supabase
+      .from('teacher_assignments')
+      .select(`
+        class_id,
+        subjects!inner (id, name),
+        classes!inner (id, name, level, category)
+      `)
+      .eq('teacher_id', teacherId)
+      .eq('is_active', true)
+      .in('class_id', classIds);
+
+    if (assignmentsError) {
+      console.error('Supabase error fetching teacher assignments:', assignmentsError);
+      return { success: false, error: assignmentsError.message };
     }
 
-    const relevantClasses = classes.filter(classData => {
-      // Check if this teacher teaches the subject in this class
-      return classData.subjects?.some(
-        subject => subject.teacherId === teacherId && subject.subjectName === subjectName
-      );
-    });
-
-    if (relevantClasses.length === 0) {
+    // Filter to only the assignments matching the subject name
+    const relevantAssignments = (assignments || []).filter(a => a.subjects?.name === subjectName);
+    if (relevantAssignments.length === 0) {
       return { success: true, data: [] };
     }
 
-    // Get all students from these filtered classes
-    const relevantClassIds = relevantClasses.map(cls => cls.id);
-    
+    const relevantClassIds = [...new Set(relevantAssignments.map(a => a.class_id))];
+
+    // Fetch students in those classes
     const { data: students, error: studentsError } = await supabase
       .from('user_profiles')
       .select('*')
@@ -503,15 +529,30 @@ export const getStudentsByTeacherSubjectAndClasses = async (teacherId, subjectNa
       return { success: false, error: studentsError.message };
     }
 
-    // Enrich student data with class information
-    const enrichedStudents = students.map(student => {
-      const studentClass = relevantClasses.find(cls => cls.id === student.classId);
+    // Enrich student data with class information from the assignments' joined classes
+    const classById = new Map(
+      relevantAssignments.map(a => [a.classes.id, a.classes])
+    );
+
+    const enrichedStudents = (students || []).map(student => {
+      const studentClass = classById.get(student.class_id) || classById.get(student.classId);
+      const fullName = student.full_name || student.name || [student.first_name, student.surname].filter(Boolean).join(' ');
+      const first = student.first_name || (fullName ? fullName.split(' ')[0] : '');
+      const rest = student.surname || (fullName ? fullName.split(' ').slice(1).join(' ') : '');
       return {
         ...student,
+        id: student.id || student.uid,
+        classId: student.class_id ?? student.classId,
+        name: fullName || 'Student',
+        firstName: first,
+        surname: rest,
+        lastName: rest,
+        admissionNumber: student.admission_number ?? student.admissionNumber,
+        profileImageUrl: student.profile_image ?? student.profileImageUrl,
         className: studentClass?.name || 'Unknown',
         classLevel: studentClass?.level || 'Unknown',
         classCategory: studentClass?.category || 'Unknown',
-        subjectType: isCoreSubject ? 'core' : studentClass?.category || studentClass?.level
+        subjectType: isCoreSubject ? 'core' : (studentClass?.category || studentClass?.level)
       };
     });
 
@@ -716,13 +757,22 @@ export const getTeacherStudentList = async (teacherId) => {
       return { success: false, error: studentsError.message };
     }
     // Optionally: Enrich/adapt as needed for UI
-    const enriched = students.map(st => ({
-      ...st,
-      classId: st.class_id,
-      admissionNumber: st.admission_number,
-      profileImageUrl: st.profile_image,
-      name: st.full_name || [st.first_name, st.surname].filter(Boolean).join(' '),
-    }));
+    const enriched = students.map(st => {
+      const fullName = st.full_name || st.name || [st.first_name, st.surname].filter(Boolean).join(' ');
+      const first = st.first_name || (fullName ? fullName.split(' ')[0] : '');
+      const rest = st.surname || (fullName ? fullName.split(' ').slice(1).join(' ') : '');
+      return {
+        ...st,
+        id: st.id || st.uid,
+        classId: st.class_id,
+        admissionNumber: st.admission_number,
+        profileImageUrl: st.profile_image,
+        name: fullName || 'Student',
+        firstName: first,
+        surname: rest,
+        lastName: rest,
+      };
+    });
     return { success: true, data: enriched };
   } catch (error) {
     console.error('Error in getTeacherStudentList:', error);

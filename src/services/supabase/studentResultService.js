@@ -5,60 +5,60 @@ import { supabase } from '../../lib/supabaseClient';
  */
 export const submitResult = async ({ studentId, subjectId, term, year, testScore, examScore }) => {
   try {
-    // Get current user (teacher)
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return { success: false, error: 'Not authenticated' };
+    const test = parseFloat(testScore) || 0;
+    const exam = parseFloat(examScore) || 0;
+    const totalScore = test + exam; // Teacher subtotal out of 80
+
+    // Try RPC first. If it fails due to outdated implementation (e.g., referencing removed `score` column),
+    // fall back to direct insert with the new schema.
+    const rpcRes = await supabase.rpc('submit_result', {
+      p_student_id: studentId,
+      p_subject_id: subjectId,
+      p_term: term,
+      p_year: year,
+      // Some RPC versions may accept component scores; include when available
+      p_test_score: test,
+      p_exam_score: exam,
+      // Legacy RPCs may accept a consolidated score and max
+      p_score: totalScore
+    });
+
+    if (!rpcRes.error) {
+      return { success: true, data: rpcRes.data };
     }
 
-    // Compose deterministic doc ID to prevent duplicates
-    const resultId = `${studentId}_${subjectId}_${term}_${year}`;
-    
-    // Check if result already exists
-    const { data: existing, error: checkError } = await supabase
-      .from('student_results')
-      .select('id')
-      .eq('id', resultId)
-      .single();
+    console.warn('RPC submit_result failed, applying direct insert fallback:', rpcRes.error?.message);
 
-    if (checkError && checkError.code !== 'PGRST116') {
-      console.error('Error checking existing result:', checkError);
-      return { success: false, error: checkError.message };
-    }
-
-    if (existing) {
-      return { success: false, error: 'Result already submitted for this student/subject/term/year' };
-    }
-
-    // Create initial result
-    const resultData = {
-      id: resultId,
-      studentId,
-      subjectId,
-      term,
-      year,
-      testScore: parseFloat(testScore),
-      examScore: parseFloat(examScore),
-      status: 'submitted',
-      teacherId: user.id,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    const { data, error } = await supabase
-      .from('student_results')
-      .insert(resultData)
+    const { data: insertData, error: insertErr } = await supabase
+      .from('exam_results')
+      .insert({
+        student_id: studentId,
+        subject_id: subjectId,
+        term,
+        year,
+        test_score: test,
+        exam_score: exam,
+        total_score: totalScore,
+        status: 'submitted',
+        is_published: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
       .select()
       .single();
 
-    if (error) {
-      console.error('Supabase error submitting result:', error);
-      return { success: false, error: error.message };
+    if (insertErr) {
+      const msg = insertErr.message || 'Insert failed';
+      if (msg.toLowerCase().includes('duplicate') || msg.includes('23505')) {
+        return { success: false, error: 'Result already submitted for this student and subject for this term/year' };
+      }
+      console.error('Direct insert fallback failed:', insertErr);
+      return { success: false, error: msg };
     }
 
-    return { success: true, data: { id: resultId } };
+    return { success: true, data: insertData };
   } catch (error) {
-    console.error('Error submitting result:', error);
+    console.error('Error submitting result via service:', error);
     return { success: false, error: error.message };
   }
 };
@@ -66,59 +66,67 @@ export const submitResult = async ({ studentId, subjectId, term, year, testScore
 /**
  * Admin grades result (adds adminScore, totalScore, sets status: graded, published: false)
  */
-export const gradeResultByAdmin = async ({ studentId, subjectId, term, year, adminScore }) => {
+export const gradeResultByAdmin = async ({ studentId, subjectId, term, year, adminScore, teacherScore }) => {
   try {
-    // Get current user (admin)
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return { success: false, error: 'Not authenticated' };
+    let baseTeacherScore = Number(teacherScore);
+    if (!Number.isFinite(baseTeacherScore)) {
+      // Fetch current teacher subtotal from DB if not provided
+      const { data: existing, error: fetchErr } = await supabase
+        .from('exam_results')
+        .select('test_score, exam_score')
+        .eq('student_id', studentId)
+        .eq('subject_id', subjectId)
+        .eq('term', term)
+        .eq('year', year)
+        .single();
+      if (fetchErr) {
+        console.warn('Could not fetch existing teacher score, defaulting to 0:', fetchErr?.message);
+      }
+      baseTeacherScore = Number(((existing?.test_score || 0) + (existing?.exam_score || 0)) ?? 0) || 0;
     }
 
-    const resultId = `${studentId}_${subjectId}_${term}_${year}`;
+    const admin = parseFloat(adminScore) || 0;
+    const combinedTotal = baseTeacherScore + admin;
     
-    // Get existing result
-    const { data: existingResult, error: fetchError } = await supabase
-      .from('student_results')
-      .select('*')
-      .eq('id', resultId)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching result:', fetchError);
-      return { success: false, error: 'Result not found' };
-    }
-
-    if (existingResult.status !== 'submitted' && existingResult.status !== 'graded') {
-      return { success: false, error: 'Result is not in submitted state' };
-    }
-
-    // Calculate total score
-    const totalScore = existingResult.testScore + existingResult.examScore + parseFloat(adminScore);
-
-    // Update result with admin score
-    const { data, error } = await supabase
-      .from('student_results')
-      .update({
-        adminScore: parseFloat(adminScore),
-        totalScore,
-        status: 'graded',
-        published: false,
-        gradedBy: user.id,
-        gradedAt: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', resultId)
-      .select()
-      .single();
-
+    // Try RPC first (RPC-first approach). Some deployments only update admin_score.
+    const { data, error } = await supabase.rpc('grade_result', {
+    p_student_id: studentId,
+    p_subject_id: subjectId,
+    p_term: term,
+    p_year: year,
+    // Prefer explicit params if RPC supports them; otherwise ignore
+    p_admin_score: admin,
+    p_total_score: combinedTotal
+    });
+    
     if (error) {
-      console.error('Supabase error grading result:', error);
-      return { success: false, error: error.message };
+    console.error('Supabase RPC error grade_result:', error);
+    return { success: false, error: error.message };
     }
-
-    return { success: true, data: { id: resultId } };
+    
+    // Ensure total_score and status are correct even if RPC only saved admin_score.
+    // This may be skipped by RLS; it's a best-effort consistency pass.
+    const { error: updErr } = await supabase
+    .from('exam_results')
+    .update({
+    admin_score: admin,
+    total_score: combinedTotal,
+    status: 'graded',
+    updated_at: new Date().toISOString()
+    })
+    .eq('student_id', studentId)
+    .eq('subject_id', subjectId)
+    .eq('term', term)
+    .eq('year', year);
+    
+    if (updErr) {
+    // Not fatal if RLS blocks direct updates; RPC may have already applied changes.
+    console.warn('Post-RPC total update skipped (likely RLS):', updErr.message);
+    }
+    
+    return { success: true, data };
   } catch (error) {
-    console.error('Error grading result:', error);
+    console.error('Error grading result via RPC:', error);
     return { success: false, error: error.message };
   }
 };
@@ -128,51 +136,21 @@ export const gradeResultByAdmin = async ({ studentId, subjectId, term, year, adm
  */
 export const publishResult = async ({ studentId, subjectId, term, year }) => {
   try {
-    // Get current user (admin)
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return { success: false, error: 'Not authenticated' };
-    }
-
-    const resultId = `${studentId}_${subjectId}_${term}_${year}`;
-    
-    // Get existing result
-    const { data: existingResult, error: fetchError } = await supabase
-      .from('student_results')
-      .select('status')
-      .eq('id', resultId)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching result:', fetchError);
-      return { success: false, error: 'Result not found' };
-    }
-
-    if (existingResult.status !== 'graded') {
-      return { success: false, error: 'Result must be graded before publishing' };
-    }
-
-    // Publish result
-    const { data, error } = await supabase
-      .from('student_results')
-      .update({
-        published: true,
-        publishedBy: user.id,
-        publishedAt: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', resultId)
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc('publish_result', {
+      p_student_id: studentId,
+      p_subject_id: subjectId,
+      p_term: term,
+      p_year: year
+    });
 
     if (error) {
-      console.error('Supabase error publishing result:', error);
+      console.error('Supabase RPC error publish_result:', error);
       return { success: false, error: error.message };
     }
 
-    return { success: true, data: { id: resultId } };
+    return { success: true, data };
   } catch (error) {
-    console.error('Error publishing result:', error);
+    console.error('Error publishing result via RPC:', error);
     return { success: false, error: error.message };
   }
 };
@@ -183,10 +161,10 @@ export const publishResult = async ({ studentId, subjectId, term, year }) => {
 export const getPublishedResultsByStudent = async (studentId) => {
   try {
     const { data, error } = await supabase
-      .from('student_results')
+      .from('exam_results')
       .select('*')
-      .eq('studentId', studentId)
-      .eq('published', true)
+      .eq('student_id', studentId)
+      .eq('is_published', true)
       .order('year', { ascending: false })
       .order('term', { ascending: false });
 
@@ -195,7 +173,23 @@ export const getPublishedResultsByStudent = async (studentId) => {
       return { success: false, error: error.message };
     }
 
-    return { success: true, data: data || [] };
+    const mapped = (data || []).map((r) => ({
+      ...r,
+      id: r.id,
+      studentId: r.student_id ?? r.studentId,
+      subjectId: r.subject_id ?? r.subjectId,
+      term: r.term,
+      year: r.year,
+      published: (r.is_published ?? r.published),
+      createdAt: r.created_at ?? r.createdAt,
+      totalScore: r.total_score ?? r.totalScore ?? ((r.test_score || 0) + (r.exam_score || 0)),
+      maxScore: 100,
+      testScore: r.test_score ?? r.testScore ?? null,
+      examScore: r.exam_score ?? r.examScore ?? null,
+      adminScore: r.admin_score ?? r.adminScore ?? null,
+    }));
+
+    return { success: true, data: mapped };
   } catch (error) {
     console.error('Error fetching published results:', error);
     return { success: false, error: error.message };
@@ -207,7 +201,7 @@ export const getPublishedResultsByStudent = async (studentId) => {
  */
 export const getSubmittedResults = async (filters = {}) => {
   try {
-    let query = supabase.from('student_results').select('*');
+    let query = supabase.from('exam_results').select('*');
     
     if (filters.status) {
       query = query.eq('status', filters.status);
@@ -225,7 +219,8 @@ export const getSubmittedResults = async (filters = {}) => {
     }
 
     if (filters.subjectId) {
-      query = query.eq('subjectId', filters.subjectId);
+      // DB uses snake_case column names
+      query = query.eq('subject_id', filters.subjectId);
     }
 
     query = query.order('created_at', { ascending: false });
@@ -237,7 +232,31 @@ export const getSubmittedResults = async (filters = {}) => {
       return { success: false, error: error.message };
     }
 
-    return { success: true, data: data || [] };
+    // Normalize snake_case -> camelCase for UI and provide score fallbacks
+    const mapped = (data || []).map((r) => {
+      const teacherSubtotal = (r.test_score || 0) + (r.exam_score || 0);
+      // Before admin grading, total_score stores teacher subtotal (out of 80). After grading, it's final (out of 100).
+      const total = r.total_score ?? r.totalScore ?? teacherSubtotal;
+      const hasAdmin = (r.admin_score ?? r.adminScore) != null;
+      const max = hasAdmin ? 100 : 80;
+      return {
+        ...r,
+        id: r.id,
+        studentId: r.student_id ?? r.studentId,
+        subjectId: r.subject_id ?? r.subjectId,
+        term: r.term,
+        year: r.year,
+        status: r.status,
+        createdAt: r.created_at ?? r.createdAt,
+        totalScore: total,
+        maxScore: max,
+        testScore: r.test_score ?? r.testScore ?? null,
+        examScore: r.exam_score ?? r.examScore ?? null,
+        adminScore: r.admin_score ?? r.adminScore ?? null
+      };
+    });
+
+    return { success: true, data: mapped };
   } catch (error) {
     console.error('Error fetching submitted results:', error);
     return { success: false, error: error.message };
@@ -264,10 +283,10 @@ export const calculateGrade = (totalScore, maxScore = 100) => {
 export const getStudentExamResults = async (studentId) => {
   try {
     const { data, error } = await supabase
-      .from('student_results')
+      .from('exam_results')
       .select('*')
-      .eq('studentId', studentId)
-      .eq('published', true)
+      .eq('student_id', studentId)
+      .eq('is_published', true)
       .order('year', { ascending: false })
       .order('term', { ascending: false });
 
@@ -276,16 +295,31 @@ export const getStudentExamResults = async (studentId) => {
       return { success: false, error: error.message };
     }
 
-    // Enrich results with calculated grades
-    const enrichedResults = data.map(result => {
-      const gradeInfo = calculateGrade(result.totalScore);
+    // Normalize snake_case -> camelCase and enrich with grades
+    const mapped = (data || []).map((r) => {
+      const total = r.total_score ?? r.totalScore ?? ((r.test_score || 0) + (r.exam_score || 0));
+      const hasAdmin = (r.admin_score ?? r.adminScore) != null;
+      const max = hasAdmin ? 100 : 80;
+      const gradeInfo = calculateGrade(total, max);
       return {
-        ...result,
-        ...gradeInfo
+        ...r,
+        id: r.id,
+        studentId: r.student_id ?? r.studentId,
+        subjectId: r.subject_id ?? r.subjectId,
+        term: r.term,
+        year: r.year,
+        published: (r.is_published ?? r.published),
+        createdAt: r.created_at ?? r.createdAt,
+        totalScore: total,
+        maxScore: max,
+        testScore: r.test_score ?? r.testScore ?? null,
+        examScore: r.exam_score ?? r.examScore ?? null,
+        adminScore: r.admin_score ?? r.adminScore ?? null,
+        ...gradeInfo,
       };
     });
 
-    return { success: true, data: enrichedResults };
+    return { success: true, data: mapped };
   } catch (error) {
     console.error('Error fetching student exam results:', error);
     return { success: false, error: error.message };
@@ -298,7 +332,7 @@ export const getStudentExamResults = async (studentId) => {
 export const getResultById = async (resultId) => {
   try {
     const { data, error } = await supabase
-      .from('student_results')
+      .from('exam_results')
       .select('*')
       .eq('id', resultId)
       .single();
@@ -312,9 +346,14 @@ export const getResultById = async (resultId) => {
     }
 
     // Add calculated grade information
-    const gradeInfo = calculateGrade(data.totalScore);
+    const normalizedTotal = Math.max(
+      Number(data.total_score ?? 0),
+      Number(((data.test_score || 0) + (data.exam_score || 0))) + Number(data.admin_score ?? 0)
+    );
+    const gradeInfo = calculateGrade(normalizedTotal, 100);
     const enrichedResult = {
       ...data,
+      totalScore: normalizedTotal,
       ...gradeInfo
     };
 
@@ -331,7 +370,7 @@ export const getResultById = async (resultId) => {
 export const updateResult = async (resultId, updateData) => {
   try {
     const { data, error } = await supabase
-      .from('student_results')
+      .from('exam_results')
       .update({
         ...updateData,
         updated_at: new Date().toISOString()
@@ -358,7 +397,7 @@ export const updateResult = async (resultId, updateData) => {
 export const deleteResult = async (resultId) => {
   try {
     const { error } = await supabase
-      .from('student_results')
+      .from('exam_results')
       .delete()
       .eq('id', resultId);
 
@@ -379,7 +418,7 @@ export const deleteResult = async (resultId) => {
  */
 export const getResultsStatistics = async (filters = {}) => {
   try {
-    let query = supabase.from('student_results').select('status, totalScore, published');
+    let query = supabase.from('exam_results').select('status, total_score, is_published');
 
     if (filters.term) {
       query = query.eq('term', filters.term);
@@ -390,7 +429,7 @@ export const getResultsStatistics = async (filters = {}) => {
     }
 
     if (filters.subjectId) {
-      query = query.eq('subjectId', filters.subjectId);
+      query = query.eq('subject_id', filters.subjectId);
     }
 
     const { data, error } = await query;
@@ -404,20 +443,22 @@ export const getResultsStatistics = async (filters = {}) => {
       total: data.length,
       submitted: data.filter(r => r.status === 'submitted').length,
       graded: data.filter(r => r.status === 'graded').length,
-      published: data.filter(r => r.published === true).length,
+      published: data.filter(r => (r.is_published === true || r.published === true)).length,
       averageScore: 0,
       gradeDistribution: { A: 0, B: 0, C: 0, D: 0, F: 0 }
     };
 
     // Calculate average score and grade distribution for graded results
-    const gradedResults = data.filter(r => r.status === 'graded' && r.totalScore !== null);
+    const gradedResults = data.filter(r => r.status === 'graded' && (r.total_score != null));
     
     if (gradedResults.length > 0) {
-      const totalScore = gradedResults.reduce((sum, r) => sum + r.totalScore, 0);
-      stats.averageScore = Math.round((totalScore / gradedResults.length) * 100) / 100;
+      const totalScoreSum = gradedResults.reduce((sum, r) => sum + (r.total_score ?? 0), 0);
+      const avg = totalScoreSum / gradedResults.length;
+      stats.averageScore = Math.round(avg * 100) / 100;
 
       gradedResults.forEach(result => {
-        const gradeInfo = calculateGrade(result.totalScore);
+        const normalizedTotal = result.total_score ?? 0;
+        const gradeInfo = calculateGrade(normalizedTotal);
         const letterGrade = gradeInfo.grade.charAt(0); // Get first letter (A, B, C, D, F)
         if (stats.gradeDistribution[letterGrade] !== undefined) {
           stats.gradeDistribution[letterGrade]++;
@@ -534,6 +575,37 @@ export const bulkPublishResults = async (publishData) => {
   }
 };
 
+// New bulk insert via RPC for teacher exam results
+export const insertExamResultsBulk = async ({ results, subjectId, term, year, teacherId, status = 'submitted' }) => {
+  try {
+    const payload = (results || []).map(r => {
+      const item = {
+        student_id: r.studentId,
+        subject_id: subjectId,
+        term: r.term ?? term,
+        year: parseInt(r.session ?? year, 10),
+        teacher_id: teacherId,
+        status: status,
+        total_score: (parseFloat(r.examScore) || 0) + (parseFloat(r.testScore) || 0),
+        test_score: parseFloat(r.testScore) || 0,
+        exam_score: parseFloat(r.examScore) || 0,
+        admin_score: parseFloat(r.adminScore ?? 0) || 0
+      };
+      return item;
+    });
+
+    const { error } = await supabase.rpc('insert_exam_results_bulk', { p_results: payload });
+    if (error) {
+      console.error('Supabase RPC error insert_exam_results_bulk:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true, data: { inserted: payload.length } };
+  } catch (err) {
+    console.error('Error bulk inserting exam results:', err);
+    return { success: false, error: err.message };
+  }
+};
+
 // Export as service object for easier usage
 export const studentResultService = {
   submitResult,
@@ -549,5 +621,6 @@ export const studentResultService = {
   getResultsStatistics,
   bulkSubmitResults,
   bulkGradeResults,
-  bulkPublishResults
+  bulkPublishResults,
+  insertExamResultsBulk
 };

@@ -1,11 +1,16 @@
 import { useState, useEffect } from 'react';
 import { teacherStudentService, reportService } from "../services/supabase";
+import { attendanceService } from "../services/supabase/attendanceService";
 import { getFullName } from "../utils/nameUtils";
+import { aggregateSubjects, getClassesForSubject, expandClassEntryToIds } from "../utils/teacherClassSubjectUtils";
+import { getSubjectsByDepartment } from "../services/supabase/subjectService";
 
 export const useReportsData = (user) => {
-  const [classes, setClasses] = useState([]);
-  const [selectedClass, setSelectedClass] = useState("");
+  const [allClasses, setAllClasses] = useState([]);
+  const [coreSubjectNames, setCoreSubjectNames] = useState([]);
+  const [availableSubjects, setAvailableSubjects] = useState([]);
   const [selectedSubject, setSelectedSubject] = useState("");
+  const [selectedClass, setSelectedClass] = useState("");
   const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   
@@ -25,9 +30,9 @@ export const useReportsData = (user) => {
   const [selectedTerm, setSelectedTerm] = useState(1);
   const [selectedAcademicYear, setSelectedAcademicYear] = useState(new Date().getFullYear());
 
-  // Fetch teacher's classes
+  // Fetch teacher's classes and subjects using centralized utilities
   useEffect(() => {
-    const fetchClasses = async () => {
+    const fetchClassesAndSubjects = async () => {
       if (!user?.id) {
         setLoading(false);
         return;
@@ -35,13 +40,29 @@ export const useReportsData = (user) => {
 
       try {
         setLoading(true);
+        
+        // Fetch teacher classes
         const classesRes = await teacherStudentService.getTeacherClassesAndSubjects(user.id);
         const teacherClasses = classesRes?.success ? (classesRes.data || []) : (Array.isArray(classesRes) ? classesRes : []);
-        setClasses(teacherClasses);
+        setAllClasses(teacherClasses);
         
-        // Auto-select first class if available
-        if (Array.isArray(teacherClasses) && teacherClasses.length > 0) {
-          setSelectedClass(teacherClasses[0].id);
+        // Load core subject names for proper grouping
+        let coreNames = [];
+        try {
+          const coreRes = await getSubjectsByDepartment('core');
+          coreNames = Array.isArray(coreRes) ? coreRes.map(s => s.name || s.subjectName || s) : [];
+        } catch (_) {
+          coreNames = [];
+        }
+        setCoreSubjectNames(coreNames);
+        
+        // Use centralized utility to aggregate subjects
+        const subjects = aggregateSubjects(teacherClasses);
+        setAvailableSubjects(subjects);
+        
+        // Auto-select first subject if available
+        if (subjects.length > 0) {
+          setSelectedSubject(subjects[0].subjectName);
         }
       } catch (error) {
         console.error('Error fetching classes:', error);
@@ -50,21 +71,29 @@ export const useReportsData = (user) => {
       }
     };
 
-    fetchClasses();
+    fetchClassesAndSubjects();
   }, [user?.id]);
 
-  // Get available subjects for selected class
-  const getAvailableSubjects = () => {
-    if (!selectedClass) return [];
-    
-    const list = Array.isArray(classes) ? classes : [];
-    const classData = list.find(cls => cls.id === selectedClass);
-    if (!classData) return [];
-    
-    return classData.subjectsTaught || [];
+  // Get available classes for selected subject using centralized utilities
+  const getAvailableClasses = () => {
+    if (!selectedSubject) return [];
+    // Resolve subject_id from availableSubjects; prefer ID-based filtering
+    const subj = (availableSubjects || []).find((s) => s.subjectName === selectedSubject);
+    const subjectId = subj?.subjectId || '';
+
+    return getClassesForSubject(allClasses, {
+      subjectId,
+      subjectName: selectedSubject, // kept for fallback compatibility
+      coreSubjects: coreSubjectNames
+    });
   };
 
-  // Fetch students when class and subject are selected
+  // Legacy function for backward compatibility with components
+  const getAvailableSubjects = () => {
+    return availableSubjects;
+  };
+
+  // Fetch students when class and subject are selected using centralized utilities
   useEffect(() => {
     const fetchStudents = async () => {
       if (!selectedClass || !selectedSubject || !user?.id) {
@@ -76,26 +105,21 @@ export const useReportsData = (user) => {
       try {
         console.log('Fetching students for reports:', { selectedClass, selectedSubject, teacherId: user.id });
         
-        // Get the selected class data to determine if it's grouped
-        const list = Array.isArray(classes) ? classes : [];
-        const selectedClassData = list.find(cls => cls.id === selectedClass);
+        // Find the selected class entry and expand to individual class IDs
+        const availableClasses = getAvailableClasses();
+        const selectedClassEntry = availableClasses.find(cls => cls.id === selectedClass);
         
-        let classStudents = [];
-        
-        if (selectedClassData?.isGrouped && selectedClassData?.individualClasses) {
-          // For grouped classes, get students from all individual classes
-          const classIds = selectedClassData.individualClasses.map(cls => cls.id);
-          console.log('Fetching students from grouped classes for reports:', classIds);
-          
-          const res = await teacherStudentService.getStudentsByTeacherSubjectAndClasses(user.id, selectedSubject, classIds);
-          classStudents = res?.success ? (res.data || []) : (Array.isArray(res) ? res : []);
-        } else {
-          // For individual classes, get students normally
-          console.log('Fetching students from individual class for reports:', selectedClass);
-          const subjectRes = await teacherStudentService.getStudentsByTeacherSubject(user.id, selectedSubject);
-          const subjectStudents = subjectRes?.success ? (subjectRes.data || []) : (Array.isArray(subjectRes) ? subjectRes : []);
-          classStudents = subjectStudents.filter(student => student.classId === selectedClass);
+        if (!selectedClassEntry) {
+          setStudents([]);
+          return;
         }
+        
+        // Use centralized utility to expand class IDs
+        const classIds = expandClassEntryToIds(selectedClassEntry);
+        
+        console.log('Fetching students from class IDs for reports:', classIds);
+        const res = await teacherStudentService.getStudentsByTeacherSubjectAndClasses(user.id, selectedSubject, classIds);
+        const classStudents = res?.success ? (res.data || []) : (Array.isArray(res) ? res : []);
         
         console.log('Found students for reports:', classStudents.length);
         setStudents(classStudents);
@@ -108,38 +132,25 @@ export const useReportsData = (user) => {
     };
 
     fetchStudents();
-  }, [selectedClass, selectedSubject, user?.id, classes]);
+  }, [selectedClass, selectedSubject, user?.id, allClasses, availableSubjects, coreSubjectNames]);
 
   // Fetch attendance data for selected student with error handling
   const fetchAttendanceData = async (studentId, subjectName) => {
     try {
-      const attendance = await reportService.getStudentAttendance(studentId, subjectName);
-      
+      const res = await attendanceService.getStudentAttendance(studentId);
+      const rows = res?.success ? (res.data || []) : [];
+      // Normalize to UI shape (markedAt expected by AttendanceSection)
+      const normalized = rows.map((r) => ({
+        id: r.id ?? r.record_id ?? r.attendance_id ?? null,
+        date: r.date,
+        status: r.status,
+        markedAt: r.last_updated_at ?? r.markedAt ?? null,
+      }));
       // Sort by date in JavaScript
-      return attendance.sort((a, b) => new Date(b.date) - new Date(a.date));
+      return normalized.sort((a, b) => new Date(b.date) - new Date(a.date));
     } catch (error) {
       console.error('Error fetching attendance data:', error);
-      // Return mock data for development
-      return [
-        {
-          id: 'mock1',
-          date: '2024-01-15',
-          status: 'present',
-          markedAt: new Date().toISOString()
-        },
-        {
-          id: 'mock2',
-          date: '2024-01-14',
-          status: 'present',
-          markedAt: new Date().toISOString()
-        },
-        {
-          id: 'mock3',
-          date: '2024-01-13',
-          status: 'absent',
-          markedAt: new Date().toISOString()
-        }
-      ];
+      return [];
     }
   };
 
@@ -195,7 +206,9 @@ export const useReportsData = (user) => {
   // Fetch remarks for selected student with improved error handling
   const fetchRemarks = async (studentId, subjectName, classId) => {
     try {
-      const remarksData = await reportService.getStudentRemarks(studentId, subjectName, classId, user.id);
+      // Resolve subject_id (UUID) from the provided subjectName
+      const subjId = (availableSubjects || []).find(s => s.subjectName === subjectName)?.subjectId || '';
+      const remarksData = await reportService.getStudentRemarks(studentId, subjId, classId, user?.uid || user?.id);
       return remarksData || { remarks: '', id: null };
     } catch (error) {
       console.error('Error fetching remarks:', error);
@@ -210,12 +223,13 @@ export const useReportsData = (user) => {
     
     setSavingRemarks(true);
     try {
+      const subjId = (availableSubjects || []).find(s => s.subjectName === selectedSubject)?.subjectId || '';
       await reportService.saveStudentRemarks({
         studentId: selectedStudent.id,
         studentName: getFullName(selectedStudent),
-        subjectName: selectedSubject,
+        subjectId: subjId,
         classId: selectedClass,
-        teacherId: user.id,
+        teacherId: user?.uid || user?.id,
         remarks: remarksText.slice(0, 100) // Limit to 100 characters
       });
       
@@ -265,7 +279,9 @@ export const useReportsData = (user) => {
 
   return {
     // State
-    classes,
+    classes: getAvailableClasses(), // Return filtered classes for selected subject
+    allClasses,
+    availableSubjects,
     selectedClass,
     selectedSubject,
     students,
@@ -291,7 +307,8 @@ export const useReportsData = (user) => {
     setSelectedAcademicYear,
 
     // Functions
-    getAvailableSubjects,
+    getAvailableSubjects, // Legacy compatibility
+    getAvailableClasses,
     fetchAttendanceData,
     fetchAssignmentSubmissions,
     fetchRemarks,

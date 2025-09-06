@@ -37,7 +37,7 @@ export const createTestReportNotification = async (userId) => {
         subjectName: 'Mathematics',
         className: 'Grade 10A',
         status: 'reviewed',
-        adminNotes: '',
+        admin_notes: '',
         term: 1,
         academicYear: 2024
       },

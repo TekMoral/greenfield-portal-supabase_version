@@ -335,7 +335,7 @@ const Examinations = () => {
           <div className="bg-white rounded-3xl p-8 shadow-lg border border-gray-200">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="text-center">
-                <h3 className="text-2xl font-bold text-gray-800 mb-4">First Term</h3>
+                <h3 className="text-2xl font-bold text-gray-800 mb-4">1st</h3>
                 <div className="space-y-3">
                   <div className="p-3 bg-blue-50 rounded-lg">
                     <div className="font-semibold text-blue-800">CAT 1</div>
@@ -353,7 +353,7 @@ const Examinations = () => {
               </div>
 
               <div className="text-center">
-                <h3 className="text-2xl font-bold text-gray-800 mb-4">Second Term</h3>
+                <h3 className="text-2xl font-bold text-gray-800 mb-4">2nd</h3>
                 <div className="space-y-3">
                   <div className="p-3 bg-blue-50 rounded-lg">
                     <div className="font-semibold text-blue-800">CAT 2</div>

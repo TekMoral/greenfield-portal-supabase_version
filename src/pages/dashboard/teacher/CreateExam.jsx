@@ -25,7 +25,7 @@ const CreateExam = () => {
     endDate: '',
     instructions: '',
     session: new Date().getFullYear().toString(),
-    term: 'First Term'
+    term: '1st'
   });
   const [errors, setErrors] = useState({});
 
@@ -38,7 +38,7 @@ const CreateExam = () => {
     { value: 'practical', label: 'Practical Exam' }
   ];
 
-  const terms = ['First Term', 'Second Term', 'Third Term'];
+  const terms = ['1st', '2nd', 'Third Term'];
 
   useEffect(() => {
     fetchTeacherData();

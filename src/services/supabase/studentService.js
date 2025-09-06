@@ -321,13 +321,13 @@ export const studentService = {
       // Get average score
       const { data: avgData } = await supabase
         .from("exam_results")
-        .select("score, max_score")
+        .select("total_score, max_score")
         .eq("student_id", studentId);
 
       let averagePercentage = 0;
       if (avgData?.length > 0) {
         const totalPercentage = avgData.reduce((sum, result) => {
-          const percentage = (result.score / result.max_score) * 100;
+          const percentage = ((result.total_score || 0) / (result.max_score || 100)) * 100;
           return sum + percentage;
         }, 0);
         averagePercentage = totalPercentage / avgData.length;

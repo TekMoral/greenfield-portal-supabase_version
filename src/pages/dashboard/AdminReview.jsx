@@ -45,14 +45,19 @@ const AdminReview = () => {
 
   const fetchInitialData = async () => {
     try {
-      const [examsData, classesData, subjectsData, studentsData] = await Promise.all([
+      const [examsRes, classesRes, subjectsRes, studentsRes] = await Promise.all([
         getAllExams(),
         getAllClasses(),
         getSubjects(),
         getAllStudents()
       ]);
 
-      console.log('Fetched students:', studentsData); // Debug log
+      const examsData = Array.isArray(examsRes?.data) ? examsRes.data : (Array.isArray(examsRes) ? examsRes : []);
+      const classesData = Array.isArray(classesRes?.data) ? classesRes.data : (Array.isArray(classesRes) ? classesRes : []);
+      const subjectsData = Array.isArray(subjectsRes?.data) ? subjectsRes.data : (Array.isArray(subjectsRes) ? subjectsRes : []);
+      const studentsData = Array.isArray(studentsRes?.data) ? studentsRes.data : (Array.isArray(studentsRes) ? studentsRes : []);
+
+      console.log('Fetched students:', studentsData?.length || 0); // Debug log
       setExams(examsData);
       setClasses(classesData);
       setSubjects(subjectsData);
@@ -68,22 +73,25 @@ const AdminReview = () => {
       let results = [];
 
       if (activeTab === 'pending') {
-        results = await getSubmittedResults(filters);
+        const res = await getSubmittedResults(filters);
+        results = res?.success ? (res.data || []) : [];
         console.log('Fetched pending results:', results); // Debug log
         setPendingResults(results);
       } else {
         if (activeTab === 'reviewed') {
-          results = await getSubmittedResults({
+          const res = await getSubmittedResults({
             ...filters,
             status: 'graded'
           });
+          results = res?.success ? (res.data || []) : [];
           // Filter for non-published graded results
           results = results.filter(r => !r.published);
         } else { // published
-          results = await getSubmittedResults({
+          const res = await getSubmittedResults({
             ...filters,
             status: 'graded'
           });
+          results = res?.success ? (res.data || []) : [];
           // Filter for published graded results
           results = results.filter(r => r.published);
         }
@@ -122,11 +130,12 @@ const AdminReview = () => {
   };
 
   const handleSelectAll = () => {
-    const currentResults = activeTab === 'pending' ? pendingResults : reviewedResults;
-    if (selectedResults.length === currentResults.length) {
+    const currentResultsList = activeTab === 'pending' ? pendingResults : reviewedResults;
+    const eligibleIds = currentResultsList.filter(isEligibleForPublish).map(r => r.id);
+    if (selectedResults.length === eligibleIds.length) {
       setSelectedResults([]);
     } else {
-      setSelectedResults(currentResults.map(result => result.id));
+      setSelectedResults(eligibleIds);
     }
   };
 
@@ -137,13 +146,14 @@ const AdminReview = () => {
 
   const handleSubmitReview = async (reviewData) => {
     try {
-      await gradeResultByAdmin({
+      const res = await gradeResultByAdmin({
         studentId: selectedResult.studentId,
         subjectId: selectedResult.subjectId,
         term: selectedResult.term,
         year: selectedResult.year,
-        adminScore: reviewData.adminScore
+        adminScore: reviewdata.admin_score
       });
+      if (!res?.success) throw new Error(res?.error || 'Failed to submit review');
       setShowReviewModal(false);
       setSelectedResult(null);
       await fetchResults();
@@ -160,6 +170,13 @@ const AdminReview = () => {
       return;
     }
 
+    const selectedObjs = currentResults.filter(r => selectedResults.includes(r.id));
+    const ineligible = selectedObjs.filter(r => !isEligibleForPublish(r));
+    if (ineligible.length > 0) {
+      alert(`${ineligible.length} selected result(s) must be reviewed and graded (20%) before publishing.`);
+      return;
+    }
+
     if (!window.confirm(`Are you sure you want to publish ${selectedResults.length} result(s)? Students will be able to see them.`)) {
       return;
     }
@@ -168,12 +185,13 @@ const AdminReview = () => {
       for (const resultId of selectedResults) {
         const result = currentResults.find(r => r.id === resultId);
         if (result) {
-          await publishResult({
+          const res = await publishResult({
             studentId: result.studentId,
             subjectId: result.subjectId,
             term: result.term,
             year: result.year
           });
+          if (!res?.success) throw new Error(res?.error || 'Failed to publish result');
         }
       }
       setSelectedResults([]);
@@ -186,15 +204,11 @@ const AdminReview = () => {
   };
 
   const getStudentName = (studentId) => {
-    const student = students.find(s => s.uid === studentId);
-    if (student) {
-      if (student.firstName && student.surname) {
-        return `${student.firstName} ${student.surname}`;
-      }
-      if (student.name) {
-        return student.name;
-      }
-    }
+    const student = students.find(s => s.id === studentId || s.uid === studentId);
+    if (!student) return 'Unknown Student';
+    if (student.full_name) return student.full_name;
+    if (student.firstName && student.surname) return `${student.firstName} ${student.surname}`;
+    if (student.name) return student.name;
     return 'Unknown Student';
   };
 
@@ -222,8 +236,8 @@ const AdminReview = () => {
   };
 
   const getStudentAdmissionNumber = (studentId) => {
-    const student = students.find(s => s.uid === studentId);
-    return student ? (student.admissionNumber || student.uid) : studentId;
+    const student = students.find(s => s.id === studentId || s.uid === studentId);
+    return student ? (student.admission_number || student.admissionNumber || student.id) : studentId;
   };
 
   const getStatusColor = (status, published = false) => {
@@ -239,6 +253,8 @@ const AdminReview = () => {
     if (status === 'submitted') return 'Pending Review';
     return 'Draft';
   };
+
+  const isEligibleForPublish = (r) => r?.status === 'graded' && r?.adminScore !== null && r?.adminScore !== undefined;
 
   const currentResults = activeTab === 'pending' ? pendingResults : reviewedResults;
 
@@ -271,7 +287,15 @@ const AdminReview = () => {
         {selectedResults.length > 0 && activeTab === 'reviewed' && (
           <button
             onClick={handleBulkPublish}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
+            disabled={!currentResults.filter(r => selectedResults.includes(r.id)).every(isEligibleForPublish)}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors text-white ${
+              currentResults.filter(r => selectedResults.includes(r.id)).every(isEligibleForPublish)
+                ? 'bg-green-600 hover:bg-green-700'
+                : 'bg-green-600 opacity-50 cursor-not-allowed'
+            }`}
+            title={!currentResults.filter(r => selectedResults.includes(r.id)).every(isEligibleForPublish)
+              ? 'Select only results that have been reviewed and graded (20%)'
+              : 'Publish Selected'}
           >
             Publish Selected ({selectedResults.length})
           </button>
@@ -432,19 +456,23 @@ const AdminReview = () => {
             <tbody className="bg-white divide-y divide-slate-200">
               {currentResults.map((result) => {
                 console.log('Rendering result:', result); // Debug log
-                const originalScore = (result.testScore || 0) + (result.examScore || 0);
-                const originalMaxScore = 80; // 30 (test) + 50 (exam)
-                const totalScore = result.totalScore || originalScore;
+                const teacherScore = Number((result.testScore || 0) + (result.examScore || 0)) || Number(result.score ?? 0) || 0;
+                const originalScore = teacherScore; // out of 80
+                const originalMaxScore = 80;
+                const adminScore = Number(result.adminScore ?? 0) || 0; // out of 20
+                const totalScore = teacherScore + adminScore; // out of 100
                 const gradeInfo = calculateGrade(totalScore, 100);
 
                 return (
                   <tr key={result.id} className="hover:bg-slate-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <input
-                        type="checkbox"
-                        checked={selectedResults.includes(result.id)}
-                        onChange={() => handleSelectResult(result.id)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      type="checkbox"
+                      checked={selectedResults.includes(result.id)}
+                      onChange={() => handleSelectResult(result.id)}
+                      disabled={!isEligibleForPublish(result)}
+                      title={!isEligibleForPublish(result) ? 'Review and grade the admin 20% before publishing' : 'Select for publish'}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -474,18 +502,14 @@ const AdminReview = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {result.adminScore !== undefined ? (
-                        <div>
-                          <div className="text-sm text-slate-900">
-                            {result.adminScore}/20
-                          </div>
-                          <div className="text-sm text-green-600">
-                            Final: {totalScore}/100 ({gradeInfo.grade})
-                          </div>
+                      <div>
+                        <div className="text-sm text-slate-900">
+                          {adminScore}/20
                         </div>
-                      ) : (
-                        <div className="text-sm text-slate-500">Not reviewed</div>
-                      )}
+                        <div className="text-sm text-green-600">
+                          Final: {totalScore}/100 ({gradeInfo.grade})
+                        </div>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(result.status, result.published)}`}>

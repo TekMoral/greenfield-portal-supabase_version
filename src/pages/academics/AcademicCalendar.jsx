@@ -12,7 +12,7 @@ const AcademicCalendar = () => {
 
   const terms = {
     first: {
-      name: "First Term",
+      name: "1st",
       period: "September - December 2024",
       color: "from-blue-500 to-indigo-600",
       weeks: 13,
@@ -30,7 +30,7 @@ const AcademicCalendar = () => {
       ]
     },
     second: {
-      name: "Second Term",
+      name: "2nd",
       period: "January - April 2025",
       color: "from-green-500 to-emerald-600",
       weeks: 13,
@@ -81,9 +81,9 @@ const AcademicCalendar = () => {
 
   const importantDates = [
     { date: "September 9, 2024", event: "Academic Session Begins", icon: "🎓" },
-    { date: "December 20, 2024", event: "First Term Ends", icon: "📅" },
-    { date: "January 8, 2025", event: "Second Term Begins", icon: "📚" },
-    { date: "April 25, 2025", event: "Second Term Ends", icon: "📅" },
+    { date: "December 20, 2024", event: "1st Ends", icon: "📅" },
+    { date: "January 8, 2025", event: "2nd Begins", icon: "📚" },
+    { date: "April 25, 2025", event: "2nd Ends", icon: "📅" },
     { date: "May 5, 2025", event: "Third Term Begins", icon: "📖" },
     { date: "July 25, 2025", event: "Academic Session Ends", icon: "🏁" }
   ];

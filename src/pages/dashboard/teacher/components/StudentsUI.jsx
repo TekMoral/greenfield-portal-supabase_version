@@ -71,13 +71,25 @@ export const StudentsFilters = ({
             className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
           >
             <option value="all">All Classes</option>
-            {classOptions.map((classItem) => (
-              <option key={classItem.classId || classItem.id} value={classItem.classId || classItem.id}>
-                {classItem.className || classItem.name} - {classItem.level}
-                {classItem.category && ` (${classItem.category})`}
-              </option>
-            ))}
+            {classOptions.map((classItem) => {
+              const classId = classItem.classId || classItem.id;
+              const className = classItem.className || classItem.name;
+              const displayName = classItem.isGrouped 
+                ? `${className} (Grouped - ${classItem.individualClasses?.length || 0} classes)`
+                : `${className} - ${classItem.level}${classItem.category ? ` (${classItem.category})` : ''}`;
+              
+              return (
+                <option key={classId} value={classId}>
+                  {displayName}
+                </option>
+              );
+            })}
           </select>
+          {classOptions.some(c => c.isGrouped) && (
+            <p className="text-xs text-slate-500 mt-1">
+              Grouped classes show students from all categories for that level
+            </p>
+          )}
         </div>
       </div>
     </div>

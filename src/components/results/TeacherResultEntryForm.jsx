@@ -9,7 +9,7 @@ const TeacherResultEntryForm = ({ student, exam, onSubmit, onClose, submitting }
     grade: '',
     remarks: '',
     session: new Date().getFullYear().toString(),
-    term: 'First Term'
+    term: '1st'
   });
   const [errors, setErrors] = useState({});
 
@@ -58,10 +58,10 @@ const TeacherResultEntryForm = ({ student, exam, onSubmit, onClose, submitting }
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.totalScore) {
+    if (!formdata.total_score) {
       newErrors.totalScore = 'Total score is required';
     } else {
-      const score = parseFloat(formData.totalScore);
+      const score = parseFloat(formdata.total_score);
       if (isNaN(score) || score < 0 || score > exam.totalMarks) {
         newErrors.totalScore = `Score must be between 0 and ${exam.totalMarks}`;
       }
@@ -88,15 +88,15 @@ const TeacherResultEntryForm = ({ student, exam, onSubmit, onClose, submitting }
 
     const resultData = {
       ...formData,
-      totalScore: parseFloat(formData.totalScore),
-      percentage: Math.round((parseFloat(formData.totalScore) / exam.totalMarks) * 100),
-      status: parseFloat(formData.totalScore) >= exam.passingMarks ? 'passed' : 'failed'
+      totalScore: parseFloat(formdata.total_score),
+      percentage: Math.round((parseFloat(formdata.total_score) / exam.totalMarks) * 100),
+      status: parseFloat(formdata.total_score) >= exam.passingMarks ? 'passed' : 'failed'
     };
 
     await onSubmit(resultData);
   };
 
-  const terms = ['First Term', 'Second Term', 'Third Term'];
+  const terms = ['1st', '2nd', 'Third Term'];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -172,7 +172,7 @@ const TeacherResultEntryForm = ({ student, exam, onSubmit, onClose, submitting }
               <input
                 type="number"
                 name="totalScore"
-                value={formData.totalScore}
+                value={formdata.total_score}
                 onChange={handleChange}
                 min="0"
                 max={exam?.totalMarks}
@@ -217,18 +217,18 @@ const TeacherResultEntryForm = ({ student, exam, onSubmit, onClose, submitting }
             </div>
 
             {/* Score Summary */}
-            {formData.totalScore && (
+            {formdata.total_score && (
               <div className="bg-blue-50 rounded-lg p-4">
                 <h4 className="font-medium text-blue-900 mb-2">Score Summary</h4>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-blue-700">Score:</span>
-                    <span className="font-medium ml-2">{formData.totalScore}/{exam?.totalMarks}</span>
+                    <span className="font-medium ml-2">{formdata.total_score}/{exam?.totalMarks}</span>
                   </div>
                   <div>
                     <span className="text-blue-700">Percentage:</span>
                     <span className="font-medium ml-2">
-                      {Math.round((parseFloat(formData.totalScore) / exam?.totalMarks) * 100)}%
+                      {Math.round((parseFloat(formdata.total_score) / exam?.totalMarks) * 100)}%
                     </span>
                   </div>
                   <div>
@@ -238,9 +238,9 @@ const TeacherResultEntryForm = ({ student, exam, onSubmit, onClose, submitting }
                   <div>
                     <span className="text-blue-700">Status:</span>
                     <span className={`font-medium ml-2 ${
-                      parseFloat(formData.totalScore) >= exam?.passingMarks ? 'text-green-600' : 'text-red-600'
+                      parseFloat(formdata.total_score) >= exam?.passingMarks ? 'text-green-600' : 'text-red-600'
                     }`}>
-                      {parseFloat(formData.totalScore) >= exam?.passingMarks ? 'Passed' : 'Failed'}
+                      {parseFloat(formdata.total_score) >= exam?.passingMarks ? 'Passed' : 'Failed'}
                     </span>
                   </div>
                 </div>

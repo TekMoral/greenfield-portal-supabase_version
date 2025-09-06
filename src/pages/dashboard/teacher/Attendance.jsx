@@ -8,13 +8,16 @@ import {
   bulkMarkAttendance
 } from "../../../services/supabase/attendanceService";
 import { getFullName, getInitials } from "../../../utils/nameUtils";
+import { aggregateSubjects, getClassesForSubject, expandClassEntryToIds } from "../../../utils/teacherClassSubjectUtils";
+import { getSubjectsByDepartment } from "../../../services/supabase/subjectService";
 
 const Attendance = () => {
   const { user } = useAuth();
-  const [classes, setClasses] = useState([]);
-  const [selectedClass, setSelectedClass] = useState("");
+  const [allClasses, setAllClasses] = useState([]);
+  const [coreSubjectNames, setCoreSubjectNames] = useState([]);
+  const [availableSubjects, setAvailableSubjects] = useState([]);
   const [selectedSubject, setSelectedSubject] = useState("");
-  const [selectedSubjectId, setSelectedSubjectId] = useState("");
+  const [selectedClass, setSelectedClass] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [students, setStudents] = useState([]);
   const [attendance, setAttendance] = useState({});
@@ -24,9 +27,9 @@ const Attendance = () => {
   const [saving, setSaving] = useState(false);
   const [stats, setStats] = useState(null);
 
-  // Fetch teacher's classes
+  // Fetch teacher's classes and subjects using centralized utilities
   useEffect(() => {
-    const fetchClasses = async () => {
+    const fetchClassesAndSubjects = async () => {
       if (!user?.id) {
         setLoading(false);
         return;
@@ -34,13 +37,29 @@ const Attendance = () => {
 
       try {
         setLoading(true);
+        
+        // Fetch teacher classes
         const res = await getTeacherClassesAndSubjects(user.id);
         const teacherClasses = res?.success ? (res.data || []) : (Array.isArray(res) ? res : []);
-        setClasses(teacherClasses);
+        setAllClasses(teacherClasses);
         
-        // Auto-select first class if available
-        if (Array.isArray(teacherClasses) && teacherClasses.length > 0) {
-          setSelectedClass(teacherClasses[0].id);
+        // Load core subject names for proper grouping
+        let coreNames = [];
+        try {
+          const coreRes = await getSubjectsByDepartment('core');
+          coreNames = Array.isArray(coreRes) ? coreRes.map(s => s.name || s.subjectName || s) : [];
+        } catch (_) {
+          coreNames = [];
+        }
+        setCoreSubjectNames(coreNames);
+        
+        // Use centralized utility to aggregate subjects
+        const subjects = aggregateSubjects(teacherClasses);
+        setAvailableSubjects(subjects);
+        
+        // Auto-select first subject if available
+        if (subjects.length > 0) {
+          setSelectedSubject(subjects[0].subjectName);
         }
       } catch (error) {
         console.error('Error fetching classes:', error);
@@ -49,44 +68,61 @@ const Attendance = () => {
       }
     };
 
-    fetchClasses();
+    fetchClassesAndSubjects();
   }, [user?.id]);
 
-  // Get available subjects for selected class
-  const getAvailableSubjects = () => {
-    if (!selectedClass) return [];
+  // Get available classes for selected subject using centralized utilities
+  const getAvailableClasses = () => {
+    if (!selectedSubject) return [];
     
-    const list = Array.isArray(classes) ? classes : [];
-    const classData = list.find(cls => cls.id === selectedClass);
-    if (!classData) return [];
-    
-    return classData.subjectsTaught || [];
+    return getClassesForSubject(allClasses, {
+      subjectName: selectedSubject,
+      coreSubjects: coreSubjectNames
+    });
   };
 
-  // Fetch students when class and subject are selected
+  // Fetch students when class and subject are selected using centralized utilities
   useEffect(() => {
     const fetchStudents = async () => {
-      if (!selectedClass || !user?.id) {
+      if (!selectedClass || !selectedSubject || !user?.id) {
         setStudents([]);
         return;
       }
 
       setLoadingStudents(true);
       try {
-        console.log('Fetching students for class:', { selectedClass, teacherId: user.id });
+        console.log('Fetching students for class:', { selectedClass, selectedSubject, teacherId: user.id });
         
-        // Load all teacher students once and filter by selected class
+        // Load all teacher students once and filter by selected class IDs
         const res = await getTeacherStudentList(user.id);
         const allStudents = res?.success ? (res.data || []) : (Array.isArray(res) ? res : []);
-        const classStudents = (allStudents || []).filter((student) => String(student.classId) === String(selectedClass));
+        
+        // Find the selected class entry and expand to individual class IDs
+        const availableClasses = getAvailableClasses();
+        const selectedClassEntry = availableClasses.find(cls => cls.id === selectedClass);
+        
+        if (!selectedClassEntry) {
+          setStudents([]);
+          return;
+        }
+        
+        // Use centralized utility to expand class IDs
+        const classIds = expandClassEntryToIds(selectedClassEntry);
+        const classStudents = (allStudents || []).filter((student) => 
+          classIds.includes(student.classId)
+        );
         
         console.log('Found students:', classStudents.length);
         setStudents(classStudents);
         
+        // Get subject ID for attendance queries
+        const subjectEntry = availableSubjects.find(s => s.subjectName === selectedSubject);
+        const subjectId = subjectEntry?.subjectId || '';
+        
         // Fetch existing attendance for the selected date
         if (classStudents.length > 0) {
           try {
-            const existingResult = await getAttendanceByDate(selectedDate, selectedClass, selectedSubjectId);
+            const existingResult = await getAttendanceByDate(selectedDate, selectedClass, subjectId);
             const existingData = existingResult.success ? existingResult.data : [];
             const attendanceMap = {};
             existingData.forEach(record => {
@@ -133,7 +169,7 @@ const Attendance = () => {
     };
 
     fetchStudents();
-  }, [selectedClass, selectedSubject, selectedDate, user?.id, classes]);
+  }, [selectedClass, selectedSubject, selectedDate, user?.id, allClasses, availableSubjects, coreSubjectNames]);
 
   const handleAttendanceChange = (studentId, status) => {
     setAttendance(prev => ({
@@ -151,16 +187,20 @@ const Attendance = () => {
   };
 
   const handleSaveAttendance = async () => {
-    if (!selectedClass || !selectedSubjectId || !selectedDate) {
+    if (!selectedClass || !selectedSubject || !selectedDate) {
       alert('Please select class, subject, and date.');
       return;
     }
 
+    // Get subject ID
+    const subjectEntry = availableSubjects.find(s => s.subjectName === selectedSubject);
+    const subjectId = subjectEntry?.subjectId || '';
+
     const attendanceRecords = students.map(student => ({
       student_id: student.id,
       teacher_id: user.id,
-      class_id: selectedClass,
-      subject_id: selectedSubjectId,
+      class_id: student.classId, // Use actual student's class ID
+      subject_id: subjectId,
       date: selectedDate,
       status: attendance[student.id] || 'absent',
       remarks: null
@@ -250,41 +290,37 @@ const Attendance = () => {
         {/* Mobile: Stacked Layout */}
         <div className="space-y-3 sm:hidden">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Class</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Subject</label>
             <select
-              value={selectedClass}
+              value={selectedSubject}
               onChange={(e) => {
-                setSelectedClass(e.target.value);
-                setSelectedSubject("");
+                setSelectedSubject(e.target.value);
+                setSelectedClass("");
               }}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
             >
-              <option value="">Choose a class...</option>
-              {Array.isArray(classes) && classes.map((classItem) => (
-                <option key={classItem.id} value={classItem.id}>
-                  {classItem.name} ({classItem.studentCount || 0} students)
+              <option value="">Choose a subject...</option>
+              {availableSubjects.map((subject) => (
+                <option key={subject.subjectName} value={subject.subjectName}>
+                  {subject.subjectName}
                 </option>
               ))}
             </select>
           </div>
 
-          {selectedClass && (
+          {selectedSubject && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Subject</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Class</label>
               <select
-                value={selectedSubjectId}
-                onChange={(e) => {
-                  const newId = e.target.value;
-                  setSelectedSubjectId(newId);
-                  const subj = getAvailableSubjects().find(s => String(s.subjectId) === String(newId));
-                  setSelectedSubject(subj ? subj.subjectName : "");
-                }}
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
                 className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
               >
-                <option value="">Choose a subject...</option>
-                {getAvailableSubjects().map((subject) => (
-                  <option key={subject.subjectId || subject.subjectName} value={subject.subjectId || ''}>
-                    {subject.subjectName}
+                <option value="">Choose a class...</option>
+                {getAvailableClasses().map((classItem) => (
+                  <option key={classItem.id} value={classItem.id}>
+                    {classItem.name} ({classItem.studentCount || 0} students)
+                    {classItem.isGrouped && ' - Grouped'}
                   </option>
                 ))}
               </select>
@@ -302,7 +338,7 @@ const Attendance = () => {
             />
           </div>
 
-          {selectedClass && selectedSubjectId && (
+          {selectedClass && selectedSubject && (
             <button
               onClick={handleSaveAttendance}
               disabled={saving || !hasChanges()}
@@ -316,41 +352,37 @@ const Attendance = () => {
         {/* Desktop: Grid Layout */}
         <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Class</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Subject</label>
             <select
-              value={selectedClass}
+              value={selectedSubject}
               onChange={(e) => {
-                setSelectedClass(e.target.value);
-                setSelectedSubject("");
+                setSelectedSubject(e.target.value);
+                setSelectedClass("");
               }}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
             >
-              <option value="">Choose a class...</option>
-              {Array.isArray(classes) && classes.map((classItem) => (
-                <option key={classItem.id} value={classItem.id}>
-                  {classItem.name} ({classItem.studentCount || 0} students)
+              <option value="">Choose a subject...</option>
+              {availableSubjects.map((subject) => (
+                <option key={subject.subjectName} value={subject.subjectName}>
+                  {subject.subjectName}
                 </option>
               ))}
             </select>
           </div>
 
-          {selectedClass && (
+          {selectedSubject && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Subject</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Class</label>
               <select
-                value={selectedSubjectId}
-                onChange={(e) => {
-                  const newId = e.target.value;
-                  setSelectedSubjectId(newId);
-                  const subj = getAvailableSubjects().find(s => String(s.subjectId) === String(newId));
-                  setSelectedSubject(subj ? subj.subjectName : "");
-                }}
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
                 className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
               >
-                <option value="">Choose a subject...</option>
-                {getAvailableSubjects().map((subject) => (
-                  <option key={subject.subjectId || subject.subjectName} value={subject.subjectId || ''}>
-                    {subject.subjectName}
+                <option value="">Choose a class...</option>
+                {getAvailableClasses().map((classItem) => (
+                  <option key={classItem.id} value={classItem.id}>
+                    {classItem.name} ({classItem.studentCount || 0} students)
+                    {classItem.isGrouped && ' - Grouped'}
                   </option>
                 ))}
               </select>
@@ -368,7 +400,7 @@ const Attendance = () => {
             />
           </div>
 
-          {selectedClass && selectedSubjectId && (
+          {selectedClass && selectedSubject && (
             <div className="flex items-end">
               <button
                 onClick={handleSaveAttendance}
@@ -415,7 +447,7 @@ const Attendance = () => {
                   Mark Attendance - {new Date(selectedDate).toLocaleDateString()}
                 </h2>
                 <p className="text-xs text-slate-600 sm:text-sm">
-                  {selectedSubject} | {(Array.isArray(classes) ? classes.find(c => c.id === selectedClass) : null)?.name} | {students.length} students
+                  {selectedSubject} | {getAvailableClasses().find(c => c.id === selectedClass)?.name} | {students.length} students
                 </p>
               </div>
               
@@ -587,13 +619,13 @@ const Attendance = () => {
       )}
 
       {/* Empty State */}
-      {classes.length === 0 && (
+      {availableSubjects.length === 0 && (
         <div className="text-center py-8 sm:py-12">
           <svg className="w-12 h-12 mx-auto text-slate-400 mb-4 sm:w-16 sm:h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
           </svg>
-          <h3 className="text-base font-medium text-slate-800 mb-2 sm:text-lg">No Classes Found</h3>
-          <p className="text-sm text-slate-600 sm:text-base">You haven't been assigned to any classes yet. Contact your administrator to get started.</p>
+          <h3 className="text-base font-medium text-slate-800 mb-2 sm:text-lg">No Subjects Found</h3>
+          <p className="text-sm text-slate-600 sm:text-base">You haven't been assigned to teach any subjects yet. Contact your administrator to get started.</p>
         </div>
       )}
     </div>

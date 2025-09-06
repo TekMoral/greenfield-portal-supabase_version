@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { getTeacherClassesAndSubjects, getStudentsByTeacherSubjectAndClasses } from '../../../services/supabase/teacherStudentService';
 
-import { submitResult } from '../../../services/supabase/studentResultService';
+import { submitResult, insertExamResultsBulk } from '../../../services/supabase/studentResultService';
 import { useAuth } from '../../../hooks/useAuth';
 import useToast from '../../../hooks/useToast';
 import ExamResultEntryForm from '../../../components/results/ExamResultEntryForm';
 import BulkExamResultUpload from '../../../components/results/BulkExamResultUpload';
+import { aggregateSubjects, getClassesForSubject as buildClassesForSubject, expandClassEntryToIds } from '../../../utils/teacherClassSubjectUtils';
+import { getSubjectsByDepartment } from '../../../services/supabase/subjectService';
 
 
 const ExamResults = () => {
@@ -25,6 +27,7 @@ const ExamResults = () => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [coreSubjectNames, setCoreSubjectNames] = useState([]);
 
   // Helper function to get student full name
   const getStudentName = (student) => {
@@ -55,15 +58,34 @@ const ExamResults = () => {
       setLoading(true);
       const res = await getTeacherClassesAndSubjects(user.id);
       const classes = res?.success ? (res.data || []) : (Array.isArray(res) ? res : []);
-      console.log('Teacher classes:', classes); // Debug log
       setTeacherClasses(classes);
 
-      // Auto-select first class and subject if available
+      // Load core subject names for grouping
+      let coreNames = [];
+      try {
+        const coreRes = await getSubjectsByDepartment('core');
+        coreNames = Array.isArray(coreRes) ? coreRes.map(s => s.name || s.subjectName || s) : [];
+      } catch (_) {
+        coreNames = [];
+      }
+      setCoreSubjectNames(coreNames);
+
+      // Auto-select default subject and class respecting grouping
       if (classes.length > 0) {
-        setSelectedClass(classes[0].id);
-        if (classes[0].subjectsTaught && classes[0].subjectsTaught.length > 0) {
-          setSelectedSubject(classes[0].subjectsTaught[0].subjectName);
-          setSelectedSubjectId(classes[0].subjectsTaught[0].subjectId);
+        const firstClass = classes[0];
+        const firstSubject = firstClass.subjectsTaught && firstClass.subjectsTaught[0];
+        if (firstSubject) {
+          const subjName = firstSubject.subjectName;
+          const subjId = firstSubject.subjectId || '';
+          setSelectedSubject(subjName);
+          setSelectedSubjectId(subjId);
+          const opts = buildClassesForSubject(classes, { subjectName: subjName, subjectId: subjId, coreSubjects: coreNames });
+          const initialClassId = opts.some(o => String(o.id) === String(firstClass.id))
+            ? firstClass.id
+            : (opts[0]?.id || firstClass.id);
+          setSelectedClass(initialClassId);
+        } else {
+          setSelectedClass(firstClass.id);
         }
       }
     } catch (error) {
@@ -81,15 +103,7 @@ const ExamResults = () => {
       const selectedClassData = teacherClasses.find(c => c.id === selectedClass);
 
       if (selectedClassData) {
-        let classIds = [];
-
-        if (selectedClassData.isGrouped) {
-          // For grouped classes, get all individual class IDs
-          classIds = selectedClassData.individualClasses.map(c => c.id);
-        } else {
-          // For individual classes, use the single class ID
-          classIds = [selectedClass];
-        }
+        const classIds = expandClassEntryToIds(selectedClassData);
 
         const studentsRes = await getStudentsByTeacherSubjectAndClasses(
           user.id,
@@ -123,26 +137,18 @@ const ExamResults = () => {
 
   const handleClassChange = (classId) => {
     setSelectedClass(classId);
-    setSelectedSubject('');
     setStudents([]);
     setSubmittedResults(new Set());
-
-    // Auto-select first subject for the new class
-    const classData = teacherClasses.find(c => c.id === classId);
-    if (classData && classData.subjectsTaught && classData.subjectsTaught.length > 0) {
-      setSelectedSubject(classData.subjectsTaught[0].subjectName);
-      setSelectedSubjectId(classData.subjectsTaught[0].subjectId || '');
-    }
   };
 
-  const getAvailableSubjects = () => {
-    const classData = teacherClasses.find(c => c.id === selectedClass);
-    return classData ? classData.subjectsTaught : [];
-  };
+  const getAvailableSubjects = () => aggregateSubjects(teacherClasses);
 
   const getSelectedClassData = () => {
     return teacherClasses.find(c => c.id === selectedClass);
   };
+
+  // Build class options based on selected subject
+  const getClassesForSubject = (subjectName, subjectId) => buildClassesForSubject(teacherClasses, { subjectName, subjectId, coreSubjects: coreSubjectNames });
 
   const handleIndividualResultSubmit = async (resultData) => {
     if (!selectedClass || !selectedSubject) {
@@ -153,7 +159,7 @@ const ExamResults = () => {
     try {
       setSubmitting(true);
       // Use the new submitResult function
-      await submitResult({
+      const res = await submitResult({
         studentId: resultData.studentId,
         subjectId: selectedSubjectId,
         term: resultData.term,
@@ -161,10 +167,13 @@ const ExamResults = () => {
         testScore: resultData.testScore,
         examScore: resultData.examScore,
       });
+      if (!res?.success) {
+        throw new Error(res?.error || 'Failed to submit result');
+      }
       setSubmittedResults(prev => new Set([...prev, resultData.studentId]));
       setShowEntryForm(false);
       setSelectedStudent(null);
-      showToast('Exam result submitted for admin approval', 'success');
+      showToast('Result submitted to admin for review', 'success');
     } catch (error) {
       console.error('Error submitting result:', error);
       if (error.message.includes('already submitted')) {
@@ -191,54 +200,32 @@ const ExamResults = () => {
       setSubmitting(true);
 
       const classData = getSelectedClassData();
-      const submissionData = {
-        type: 'bulk',
-        subject: selectedSubject,
-        classId: selectedClass,
-        className: classData?.name || 'Unknown Class',
-        teacherId: user.id,
-        teacherName: user.name || user.email,
-        examTitle: `${selectedSubject} - Bulk Results`,
-        session: bulkResults[0]?.session || new Date().getFullYear().toString(),
-        term: bulkResults[0]?.term || 'First Term',
-        results: bulkResults.map(result => ({
-          ...result,
-          classId: selectedClass,
-          subject: selectedSubject,
-          teacherId: user.id
-        })),
-        totalStudents: bulkResults.length
-      };
+      const term = bulkResults[0]?.term || '1st Term';
+      const year = bulkResults[0]?.session || new Date().getFullYear().toString();
 
-      // Submit each result individually
-      let successCount = 0;
-      let alreadySubmittedCount = 0;
-      for (const result of bulkResults) {
-        try {
-          await submitResult({
-            studentId: result.studentId,
-            subjectId: selectedSubjectId,
-            term: result.term,
-            year: result.session,
-            testScore: result.testScore,
-            examScore: result.examScore,
-          });
-          successCount++;
-        } catch (error) {
-          if (error.message.includes('already submitted')) {
-            alreadySubmittedCount++;
-          } else {
-            throw error;
-          }
-        }
+      const res = await insertExamResultsBulk({
+        results: bulkResults,
+        subjectId: selectedSubjectId,
+        term,
+        year,
+        teacherId: user.id,
+        examId: null,
+        status: 'submitted'
+      });
+
+      if (!res?.success) {
+        throw new Error(res?.error || 'Failed to submit bulk results');
       }
+
       // Mark all students as submitted
       const submittedStudentIds = bulkResults.map(r => r.studentId);
       setSubmittedResults(prev => new Set([...prev, ...submittedStudentIds]));
-      showToast(`${successCount} results submitted. ${alreadySubmittedCount} already submitted.`, 'success');
+      showToast(`${submittedStudentIds.length} result(s) submitted to admin.`, 'success');
     } catch (error) {
       console.error('Error submitting bulk results:', error);
-      if (error.message.includes('already submitted')) {
+      if (error.message.toLowerCase().includes('row-level security') || error.message.toLowerCase().includes('rls')) {
+        showToast('Submission blocked by security policy. Please contact your administrator.', 'error');
+      } else if (error.message.includes('already submitted')) {
         showToast(error.message, 'error');
       } else if (error.message.includes('permission')) {
         showToast('Permission denied. Please contact your administrator.', 'error');
@@ -283,7 +270,7 @@ const ExamResults = () => {
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h2 className="text-3xl font-bold text-gray-900">Submit Exam Results</h2>
+          <h2 className="text-3xl font-bold text-gray-900">Submit Exam Results to Admin</h2>
           <p className="text-gray-600 mt-1">Submit exam and test scores for admin review and final grading</p>
         </div>
       </div>
@@ -334,7 +321,7 @@ const ExamResults = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select a class</option>
-              {teacherClasses.map(cls => (
+              {(selectedSubjectId || selectedSubject ? getClassesForSubject(selectedSubject, selectedSubjectId) : teacherClasses).map(cls => (
                 <option key={cls.id} value={cls.id}>
                   {cls.name} - {cls.level}
                   {cls.category && cls.category !== 'All Categories' && ` (${cls.category})`}
@@ -347,19 +334,26 @@ const ExamResults = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
             <select
-              value={selectedSubjectId}
+              value={selectedSubjectId || selectedSubject}
               onChange={(e) => {
-                const newId = e.target.value;
-                setSelectedSubjectId(newId);
-                const subj = getAvailableSubjects().find(s => String(s.subjectId) === String(newId));
-                setSelectedSubject(subj ? subj.subjectName : '');
+                const newKey = e.target.value;
+                const subj = getAvailableSubjects().find(s => String(s.subjectId) === String(newKey) || String(s.subjectName) === String(newKey));
+                const name = subj ? subj.subjectName : '';
+                const sid = subj ? (subj.subjectId || '') : '';
+                setSelectedSubjectId(sid);
+                setSelectedSubject(name);
+                const options = getClassesForSubject(name, sid);
+                if (!options.some(o => String(o.id) === String(selectedClass))) {
+                  setSelectedClass(options.length ? options[0].id : '');
+                }
+                setStudents([]);
+                setSubmittedResults(new Set());
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={!selectedClass}
             >
               <option value="">Select a subject</option>
               {getAvailableSubjects().map(subject => (
-                <option key={subject.subjectId || subject.subjectName} value={subject.subjectId || ''}>
+                <option key={subject.subjectId || subject.subjectName} value={subject.subjectId || subject.subjectName}>
                   {subject.subjectName}
                 </option>
               ))}
@@ -492,9 +486,9 @@ const ExamResults = () => {
                   onClick={() => setShowEntryForm(true)}
                   disabled={!selectedSubject}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Add Result
-                </button>
+                  >
+                  Submit to Admin
+                  </button>
               </div>
 
               <div className="grid gap-4">
@@ -529,7 +523,7 @@ const ExamResults = () => {
                       <div className="flex items-center space-x-4">
                         {isSubmitted ? (
                           <div className="text-right">
-                            <p className="font-medium text-green-700">Result Submitted</p>
+                            <p className="font-medium text-green-700">Submitted to Admin</p>
                             <p className="text-sm text-green-600">Pending Admin Review</p>
                           </div>
                         ) : (
@@ -547,7 +541,7 @@ const ExamResults = () => {
                               : 'bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed'
                           }`}
                         >
-                          {isSubmitted ? 'Submitted' : 'Add Result'}
+                          {isSubmitted ? 'Submitted to Admin' : 'Submit to Admin'}
                         </button>
                       </div>
                     </div>

@@ -18,7 +18,8 @@ const Sidebar = ({ onMenuItemClick }) => {
     { path: "/dashboard/admins", label: "Admins" },
     { path: "/dashboard/classes", label: "Classes" },
     { path: "/dashboard/subjects", label: "Subjects" },
-    { path: "/dashboard/reports", label: "Reports" },
+    { path: "/dashboard/reports", label: "Exam Results" },
+    { path: "/dashboard/student-reports", label: "Student Reports" },
     { path: "/dashboard/attendance", label: "Attendance" },
     { path: "/dashboard/carousel", label: "Carousel Management" },
     { path: "/dashboard/news", label: "News & Events" },
@@ -50,14 +51,19 @@ const Sidebar = ({ onMenuItemClick }) => {
     <div className="h-full">
       {onMenuItemClick && (
         <button
-          className="mb-4 text-white bg-red-500 px-3 py-1 rounded"
+          className="mb-2 text-white bg-red-500 px-3 py-1 rounded"
           onClick={onMenuItemClick}
         >
           Close Menu
         </button>
       )}
-      <h2 className="mt-4 h-6 text-xl font-bold mb-6">Admin Panel</h2>
-      <nav className="space-y-4">
+      <div className={`mb-6 ${onMenuItemClick ? 'mt-2' : 'mt-12'}`}>
+        <h1 className="text-xl lg:text-2xl font-bold text-white text-center">
+          Admin Panel
+        </h1>
+        <div className="w-full h-px bg-teal-500 mt-3"></div>
+      </div>
+      <nav className="space-y-2">
         {navItems.map((item) => (
           <NavLink
             key={item.path}
@@ -65,8 +71,8 @@ const Sidebar = ({ onMenuItemClick }) => {
             end={item.path === "/dashboard"}
             onClick={onMenuItemClick}
             className={({ isActive }) =>
-              `block px-3 py-2 rounded hover:bg-gray-700 transition-colors duration-200 ${
-                isActive ? "bg-gray-700 font-medium" : ""
+              `block px-3 py-2 rounded transition-colors duration-200 ${
+                isActive ? "bg-white text-teal-700 font-semibold" : "hover:bg-teal-600"
               } ${item.restricted ? "border-l-4 border-orange-500" : ""}`
             }
           >

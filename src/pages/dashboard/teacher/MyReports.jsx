@@ -376,9 +376,9 @@ const MyReports = () => {
                          report.status.charAt(0).toUpperCase() + report.status.slice(1)}
                       </span>
                     </div>
-                    {report.reviewedAt && (
+                    {report.reviewed_at && (
                       <div className="text-xs text-slate-500 mt-1">
-                        Reviewed: {report.reviewedAt?.toLocaleDateString()}
+                        Reviewed: {report.reviewed_at?.toLocaleDateString()}
                       </div>
                     )}
                   </td>
@@ -532,10 +532,10 @@ const MyReports = () => {
                       <span className="text-slate-600">Submitted:</span>
                       <div className="font-medium">{selectedReport.submittedAt?.toLocaleString()}</div>
                     </div>
-                    {selectedReport.reviewedAt && (
+                    {selectedReport.reviewed_at && (
                       <div>
                         <span className="text-slate-600">Reviewed:</span>
-                        <div className="font-medium">{selectedReport.reviewedAt?.toLocaleString()}</div>
+                        <div className="font-medium">{selectedReport.reviewed_at?.toLocaleString()}</div>
                       </div>
                     )}
                   </div>
@@ -543,7 +543,7 @@ const MyReports = () => {
               </div>
 
               {/* Admin Notes */}
-              {selectedReport.adminNotes && (
+              {selectedReport.admin_notes && (
                 <div className="mb-6">
                   <h4 className="text-lg font-semibold text-slate-800 mb-3">Admin Feedback</h4>
                   <div className={`rounded-lg p-4 border ${
@@ -551,7 +551,7 @@ const MyReports = () => {
                       ? 'bg-red-50 border-red-200' 
                       : 'bg-blue-50 border-blue-200'
                   }`}>
-                    <p className="text-slate-700">{selectedReport.adminNotes}</p>
+                    <p className="text-slate-700">{selectedReport.admin_notes}</p>
                   </div>
                 </div>
               )}

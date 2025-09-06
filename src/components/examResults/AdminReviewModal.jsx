@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { calculateGrade, gradeResultByAdmin, publishResult } from '../../services/supabase/studentResultService';
+import { calculateGrade } from '../../services/supabase/studentResultService';
 
 const AdminReviewModal = ({
   isOpen,
@@ -48,11 +48,12 @@ const AdminReviewModal = ({
 
   const validateForm = () => {
     const newErrors = {};
+    const adminScoreVal = formData.adminScore;
 
-    if (!formData.adminScore && formData.adminScore !== 0) {
+    if (adminScoreVal === '' || adminScoreVal === null || adminScoreVal === undefined) {
       newErrors.adminScore = 'Admin score is required';
     } else {
-      const score = parseFloat(formData.adminScore);
+      const score = parseFloat(adminScoreVal);
       const maxScore = parseFloat(formData.adminMaxScore);
 
       if (isNaN(score) || score < 0) {
@@ -81,14 +82,14 @@ const AdminReviewModal = ({
     if (isReadOnly) return;
     if (!validateForm()) return;
     try {
-      await gradeResultByAdmin({
-        studentId: result.studentId,
-        subjectId: result.subjectId,
-        term: result.term,
-        year: result.year,
-        adminScore: parseFloat(formData.adminScore)
-      });
-      if (onSubmit) onSubmit({ adminScore: parseFloat(formData.adminScore) });
+      if (onSubmit) {
+        await onSubmit({
+          adminScore: parseFloat(formData.adminScore),
+          adminMaxScore: parseFloat(formData.adminMaxScore),
+          adminComments: formData.adminComments,
+          teacherScore: originalScore
+        });
+      }
     } catch (error) {
       setErrors({ adminScore: error.message });
     }
@@ -111,15 +112,11 @@ const AdminReviewModal = ({
   if (!isOpen || !result) return null;
 
   const getStudentName = (studentId) => {
-    const student = students.find(s => s.uid === studentId);
-    if (student) {
-      if (student.firstName && student.surname) {
-        return `${student.firstName} ${student.surname}`;
-      }
-      if (student.name) {
-        return student.name;
-      }
-    }
+    const student = students.find(s => s.id === studentId || s.uid === studentId);
+    if (!student) return 'Unknown Student';
+    if (student.full_name) return student.full_name;
+    if (student.firstName && student.surname) return `${student.firstName} ${student.surname}`;
+    if (student.name) return student.name;
     return 'Unknown Student';
   };
 
@@ -133,19 +130,27 @@ const AdminReviewModal = ({
     return subject ? subject.name : 'Unknown Subject';
   };
 
+  const getTermName = (t) => {
+    if (t === 1 || t === '1') return '1st Term';
+    if (t === 2 || t === '2') return '2nd Term';
+    if (t === 3 || t === '3') return '3rd Term';
+    return ` ${t}`;
+  };
+
   const getClassName = (classId) => {
     const classData = classes.find(c => c.id === classId);
     return classData ? classData.name : 'Unknown Class';
   };
 
   const getStudentAdmissionNumber = (studentId) => {
-    const student = students.find(s => s.uid === studentId);
-    return student ? (student.admissionNumber || student.uid) : studentId;
+    const student = students.find(s => s.id === studentId || s.uid === studentId);
+    return student ? (student.admission_number || student.admissionNumber || student.id) : studentId;
   };
 
-  // Calculate original scores (test + exam scores)
-  const originalScore = (result.testScore || 0) + (result.examScore || 0);
-  const originalMaxScore = 80; // 30 (test) + 50 (exam)
+  // Calculate teacher subtotal (out of 80) with robust fallbacks
+  const teacherScore = Number(result.totalScore ?? result.score ?? ((result.testScore || 0) + (result.examScore || 0))) || 0;
+  const originalScore = teacherScore; // out of 80
+  const originalMaxScore = 80;
 
   // Calculate projected final scores
   const projectedAdminScore = parseFloat(formData.adminScore) || 0;
@@ -196,7 +201,7 @@ const AdminReviewModal = ({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-600">Exam:</span>
-                  <span className="font-medium">{getExamName(result.examId)}</span>
+                  <span className="font-medium">{`${getTermName(result.term)} / ${result.year || new Date().getFullYear()}`}</span>
                 </div>
               </div>
             </div>
@@ -204,16 +209,20 @@ const AdminReviewModal = ({
             <div>
               <h3 className="text-lg font-semibold text-slate-800 mb-3">Current Scores</h3>
               <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Test Score:</span>
-                  <span className="font-medium">{result.testScore || 0}/30</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Exam Score:</span>
-                  <span className="font-medium">{result.examScore || 0}/50</span>
-                </div>
+                {result.testScore != null && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Test Score:</span>
+                    <span className="font-medium">{result.testScore}/30</span>
+                  </div>
+                )}
+                {result.examScore != null && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Exam Score:</span>
+                    <span className="font-medium">{result.examScore}/50</span>
+                  </div>
+                )}
                 <div className="flex justify-between border-t pt-2">
-                  <span className="text-slate-600 font-medium">Subtotal:</span>
+                  <span className="text-slate-600 font-medium">Teacher Subtotal (80%):</span>
                   <span className="font-bold">{originalScore}/{originalMaxScore}</span>
                 </div>
               </div>

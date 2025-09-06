@@ -1,4 +1,8 @@
 import { supabase } from '../../lib/supabaseClient';
+import { getAssignmentsByTeacher } from './assignmentService';
+
+// Simple UUID validator to avoid invalid input syntax when grouped class IDs are used
+const isValidUUID = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 
 /**
  * Submit a report from teacher to admin
@@ -12,7 +16,7 @@ export const submitReport = async (reportData) => {
       academicYear: reportData.academicYear || new Date().getFullYear(),
       term: reportData.term || 1, // 1, 2, or 3
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updated_at: new Date().toISOString()
     };
 
     const { data, error } = await supabase
@@ -70,7 +74,7 @@ export const submitBulkReports = async (reportsData) => {
             submittedAt: new Date().toISOString(),
             status: 'submitted',
             createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            updated_at: new Date().toISOString()
           };
 
           const { data, error } = await supabase
@@ -135,23 +139,31 @@ export const getAllReports = async (filters = {}) => {
     let query = supabase
       .from('student_reports')
       .select('*')
-      .order('submittedAt', { ascending: false });
+      .order('created_at', { ascending: false });
 
-    // Apply filters
-    if (filters.academicYear) {
-      query = query.eq('academicYear', filters.academicYear);
+    // Apply filters (support both snake_case and camelCase for compatibility)
+    if (filters.academicYear || filters.academic_year) {
+      query = query.eq('academic_year', filters.academicYear || filters.academic_year);
     }
     if (filters.term) {
       query = query.eq('term', filters.term);
     }
+    if (filters.subjectId || filters.subject_id) {
+      query = query.eq('subject_id', filters.subjectId || filters.subject_id);
+    }
     if (filters.subjectName) {
+      // Legacy support - filter by subject name if subjectId not provided
       query = query.eq('subjectName', filters.subjectName);
     }
+    if (filters.classId || filters.class_id) {
+      query = query.eq('class_id', filters.classId || filters.class_id);
+    }
     if (filters.className) {
+      // Legacy support
       query = query.eq('className', filters.className);
     }
-    if (filters.teacherId) {
-      query = query.eq('teacherId', filters.teacherId);
+    if (filters.teacherId || filters.teacher_id) {
+      query = query.eq('teacher_id', filters.teacherId || filters.teacher_id);
     }
     if (filters.status) {
       query = query.eq('status', filters.status);
@@ -283,15 +295,15 @@ export const getReportsByTeacher = async (teacherId, filters = {}) => {
 /**
  * Update report status (for admin actions)
  */
-export const updateReportStatus = async (reportId, status, adminNotes = '') => {
+export const updateReportStatus = async (reportId, status, admin_notes = '') => {
   try {
     const { data, error } = await supabase
       .from('student_reports')
       .update({
         status,
-        adminNotes,
-        reviewedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        admin_notes,
+        reviewed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
       .eq('id', reportId)
       .select()
@@ -367,7 +379,7 @@ export const updateReportRemarks = async (reportId, remarks) => {
         remarks,
         status: 'resubmitted',
         submittedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updated_at: new Date().toISOString()
       })
       .eq('id', reportId)
       .select()
@@ -396,7 +408,7 @@ export const resubmitReport = async (reportId, updatedData) => {
         remarks: updatedData.remarks || '',
         status: 'resubmitted',
         submittedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updated_at: new Date().toISOString()
       })
       .eq('id', reportId)
       .select()
@@ -467,16 +479,20 @@ export const getReportClasses = async () => {
 /**
  * Check if report already exists for student, subject, term, and year
  */
-export const checkReportExists = async (studentId, subjectName, term, academicYear, teacherId) => {
+export const checkReportExists = async (studentId, subjectId, term, academicYear, teacherId) => {
   try {
+    if (!isValidUUID(subjectId)) {
+      // Avoid invalid UUID errors; treat as non-existing to let RPC handle correctness
+      return { success: true, data: { exists: false } };
+    }
     const { data, error } = await supabase
       .from('student_reports')
       .select('*')
-      .eq('studentId', studentId)
-      .eq('subjectName', subjectName)
+      .eq('student_id', studentId)
+      .eq('subject_id', subjectId)
       .eq('term', term)
-      .eq('academicYear', academicYear)
-      .eq('teacherId', teacherId)
+      .eq('academic_year', String(academicYear))
+      .eq('teacher_id', teacherId)
       .limit(1);
 
     if (error) {
@@ -606,6 +622,215 @@ export const subscribeToTeacherReports = (teacherId, callback) => {
   };
 };
 
+// New helpers and RPC wrappers
+
+/**
+ * RPC wrapper: teacher upsert subject report
+ * Expects payload keys aligned with the SQL function (e.g.,
+ *  student_id, subject_id or subject_name, class_id, term, academic_year,
+ *  total_assignments, submitted_assignments, average_score, teacher_remark)
+ */
+export const teacherUpsertSubjectReport = async (payload) => {
+  try {
+    const { data, error } = await supabase.rpc('rpc_teacher_upsert_subject_report', payload);
+    if (error) {
+      console.error('Supabase error upserting subject report:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error upserting subject report via RPC:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * RPC wrapper: get term report card for a student
+ */
+export const getTermReportCard = async (studentId, term, academicYear) => {
+  try {
+    const { data, error } = await supabase.rpc('rpc_get_term_report_card', {
+      student_id: studentId,
+      term,
+      academic_year: academicYear,
+    });
+    if (error) {
+      console.error('Supabase error fetching term report card:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error fetching term report card via RPC:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * RPC wrapper: list teacher subject reports
+ */
+export const listTeacherSubjectReports = async (teacherId, term, academicYear) => {
+  try {
+    const { data, error } = await supabase.rpc('rpc_list_teacher_subject_reports', {
+      teacher_id: teacherId,
+      term,
+      academic_year: academicYear,
+    });
+    if (error) {
+      console.error('Supabase error listing teacher subject reports:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error listing teacher subject reports via RPC:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Compute student assignment submissions for a subject based on teacher assignments
+ * Returns an array (for UI compatibility)
+ */
+export const getStudentAssignmentSubmissions = async (teacherId, studentId, subjectName) => {
+  try {
+    const res = await getAssignmentsByTeacher(teacherId);
+    const assignments = res?.success ? (res.data || []) : (Array.isArray(res) ? res : []);
+
+    const subjectAssignments = assignments.filter((a) => a.subjectName === subjectName);
+
+    const mapped = subjectAssignments.map((a) => {
+      const sub = (a.submissions || []).find((s) => s.studentId === studentId) || null;
+      const maxPoints = a.maxPoints ?? a.totalPoints ?? 100;
+      const score = sub?.total_score ?? sub?.grade ?? sub?.score ?? 0;
+      const percentage = sub?.percentage != null
+        ? Math.round(sub.percentage)
+        : (maxPoints > 0 ? Math.round((Number(score) / Number(maxPoints)) * 100) : 0);
+      const status = sub?.status || 'not_submitted';
+
+      return {
+        assignmentId: a.id,
+        title: a.title || a.name || 'Assignment',
+        dueDate: a.dueDate || a.deadline || null,
+        maxPoints,
+        submitted: status === 'submitted' || status === 'graded',
+        submittedAt: sub?.submitted_at || sub?.submittedAt || null,
+        score: Number(score) || 0,
+        percentage: Number(percentage) || 0,
+        feedback: sub?.feedback || '',
+        status,
+      };
+    });
+
+    return mapped;
+  } catch (error) {
+    console.error('Error computing student assignment submissions:', error);
+    return [];
+  }
+};
+
+/**
+ * Get latest teacher remark for a student/subject/class (UI compatibility)
+ * Tries subjectName/subject_name filter; returns { id, remarks }
+ */
+export const getStudentRemarks = async (studentId, subjectId, classId, teacherId) => {
+  try {
+    if (subjectId && !isValidUUID(subjectId)) {
+      console.warn('getStudentRemarks: invalid subjectId, returning empty remarks');
+      return { remarks: '', id: null };
+    }
+    let query = supabase
+      .from('student_reports')
+      .select('id, teacher_remark, subject_id, status')
+      .eq('student_id', studentId)
+      .eq('teacher_id', teacherId);
+
+    if (classId && isValidUUID(classId)) query = query.eq('class_id', classId);
+    if (subjectId) query = query.eq('subject_id', subjectId);
+
+    const { data, error } = await query.limit(1);
+    if (error) {
+      console.error('Supabase error fetching student remarks:', error);
+      return { remarks: '', id: null };
+    }
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) return { remarks: '', id: null };
+    return { remarks: row.teacher_remark || '', id: row.id };
+  } catch (error) {
+    console.error('Error fetching student remarks:', error);
+    return { remarks: '', id: null };
+  }
+};
+
+/**
+ * Save/update teacher remark as a draft row in student_reports
+ * If a matching row exists (by teacher/student/class + subjectName or subject_name), update; otherwise insert.
+ */
+export const saveStudentRemarks = async ({
+  studentId,
+  studentName,
+  subjectId,
+  classId,
+  teacherId,
+  remarks,
+}) => {
+  try {
+    if (!isValidUUID(subjectId)) {
+      return { success: false, error: 'Invalid subjectId' };
+    }
+    // Try to find an existing row strictly by subject_id
+    let findQuery = supabase
+      .from('student_reports')
+      .select('id')
+      .eq('student_id', studentId)
+      .eq('teacher_id', teacherId)
+      .eq('subject_id', subjectId)
+      .limit(1);
+    if (classId && isValidUUID(classId)) {
+      findQuery = findQuery.eq('class_id', classId);
+    }
+
+    const { data: existing, error: findErr } = await findQuery;
+    if (findErr) {
+      console.error('Supabase error searching existing remark row:', findErr);
+    }
+
+    if (existing && existing.length > 0) {
+      const id = existing[0].id;
+      const { data, error } = await supabase
+        .from('student_reports')
+        .update({ teacher_remark: remarks, status: 'draft' })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, data };
+    }
+
+    // Insert a new draft row
+    const insertPayload = {
+      student_id: studentId,
+      teacher_id: teacherId,
+      subject_id: subjectId,
+      ...(classId && isValidUUID(classId) ? { class_id: classId } : {}),
+      studentName: studentName, // legacy UI convenience if column exists
+      teacher_remark: remarks,
+      status: 'draft',
+    };
+
+    const { data, error } = await supabase
+      .from('student_reports')
+      .insert(insertPayload)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error saving student remarks:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 // Export as service object for easier usage
 export const reportService = {
   submitReport,
@@ -623,5 +848,12 @@ export const reportService = {
   getReportClasses,
   checkReportExists,
   getReportStatistics,
-  subscribeToTeacherReports
+  subscribeToTeacherReports,
+  // New RPC wrappers and helpers
+  teacherUpsertSubjectReport,
+  getTermReportCard,
+  listTeacherSubjectReports,
+  getStudentAssignmentSubmissions,
+  getStudentRemarks,
+  saveStudentRemarks,
 };

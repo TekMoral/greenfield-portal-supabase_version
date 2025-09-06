@@ -21,7 +21,10 @@ const Toast = ({ isVisible, message, type = 'success', onClose }) => {
   };
 
   return (
-    <div className="fixed top-4 right-4 z-50 transition-all duration-300 ease-in-out transform translate-x-0" style={{ backgroundColor: 'rgba(255,0,0,0.1)', border: '2px solid red' }}>
+    <div
+      className="fixed right-4 z-[11000] transition-all duration-300 ease-in-out transform translate-x-0"
+      style={{ top: 'calc(var(--header-height, 72px) + 16px)' }}
+    >
       <div className={`px-4 py-3 rounded-lg shadow-lg ${getTypeStyles()} flex items-center gap-2 max-w-sm`}>
         <span className="text-sm font-medium">{message}</span>
         <button onClick={onClose} className="ml-2 hover:opacity-75">

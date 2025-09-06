@@ -296,8 +296,7 @@ export const dashboardService = {
         const { data } = await supabase
           .from('exam_results')
           .select(`
-            score,
-            max_score,
+            total_score,
             grade,
             exams (
               title,
@@ -312,7 +311,7 @@ export const dashboardService = {
         examResults = data || [];
 
         // Calculate average score
-        const scores = examResults.map(result => (result.score / result.max_score) * 100);
+        const scores = examResults.map(result => (result.total_score || 0));
         averageScore = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
       } catch (error) {
         console.log('ℹ️ Could not fetch exam results');

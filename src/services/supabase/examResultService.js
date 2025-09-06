@@ -10,8 +10,10 @@ export const examResultService = {
         .upsert({
           exam_id: resultData.exam_id,
           student_id: resultData.student_id,
-          score: resultData.score,
-          max_score: resultData.max_score || 100,
+          test_score: resultData.test_score ?? null,
+          exam_score: resultData.exam_score ?? null,
+          admin_score: resultData.admin_score ?? null,
+          total_score: resultData.total_score ?? ((resultData.test_score || 0) + (resultData.exam_score || 0) + (resultData.admin_score || 0)),
           grade: resultData.grade,
           remarks: resultData.remarks,
           submitted_at: resultData.submitted_at || new Date().toISOString(),

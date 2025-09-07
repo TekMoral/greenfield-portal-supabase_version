@@ -24,7 +24,10 @@ const StudentReportModal = ({
   onEditingRemarksChange,
   onSaveRemarks,
   onSubmitReport,
-  submittingReport
+  submittingReport,
+  reportStatus,
+  adminNotes,
+  reviewedAt,
 }) => {
   if (!showReportModal || !selectedStudent) {
     return null;
@@ -73,6 +76,51 @@ const StudentReportModal = ({
             </div>
           ) : (
             <div className="space-y-4 sm:space-y-6">
+              {/* Status and Admin Feedback (if any) */}
+              {(reportStatus || adminNotes || reviewedAt) && (
+                <div className="rounded-lg border p-4 sm:p-5 bg-slate-50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-700 text-sm">Current Status:</span>
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
+                          ({
+                            draft: 'bg-gray-100 text-gray-800',
+                            submitted: 'bg-yellow-100 text-yellow-800',
+                            resubmitted: 'bg-indigo-100 text-indigo-800',
+                            approved: 'bg-green-100 text-green-800',
+                            rejected: 'bg-red-100 text-red-800',
+                          }[reportStatus]) || 'bg-gray-100 text-gray-800'
+                        }`}
+                      >
+                        {({
+                          draft: 'Draft',
+                          submitted: 'Pending Review',
+                          resubmitted: 'Resubmitted',
+                          approved: 'Approved',
+                          rejected: 'Rejected',
+                        }[reportStatus]) || 'Unknown'}
+                      </span>
+                    </div>
+                    {reviewedAt && (
+                      <div className="text-xs text-slate-600">
+                        Reviewed: {new Date(reviewedAt).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                  {adminNotes && (
+                    <div className={`mt-3 rounded border p-3 text-sm ${
+                      reportStatus === 'rejected'
+                        ? 'bg-red-50 border-red-200 text-red-800'
+                        : 'bg-blue-50 border-blue-200 text-blue-800'
+                    }`}>
+                      <div className="font-medium mb-1">Admin Feedback</div>
+                      <div>{adminNotes}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Student Info */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                 <div>
@@ -152,10 +200,18 @@ const StudentReportModal = ({
                   </div>
                   <button
                     onClick={onSubmitReport}
-                    disabled={submittingReport}
-                    className="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={submittingReport || reportStatus === 'approved'}
+                    className={`px-6 py-3 rounded-lg transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                      reportStatus === 'approved' ? 'bg-green-600 text-white hover:bg-green-600' : 'bg-orange-600 text-white hover:bg-orange-700'
+                    }`}
                   >
-                    {submittingReport ? 'Submitting...' : 'Submit to Admin'}
+                    {submittingReport
+                      ? 'Submitting...'
+                      : reportStatus === 'approved'
+                        ? 'Approved'
+                        : (reportStatus === 'rejected' || reportStatus === 'resubmitted')
+                          ? 'Resubmit to Admin'
+                          : 'Submit to Admin'}
                   </button>
                 </div>
               </div>

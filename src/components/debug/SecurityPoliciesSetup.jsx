@@ -125,7 +125,7 @@ CREATE POLICY "Students can view own results" ON exam_results
 CREATE POLICY "Teachers can manage results for their exams" ON exam_results
   FOR ALL USING (
     auth.user_role() = 'teacher' AND 
-    exam_id IN (SELECT id FROM exams WHERE teacher_id = auth.uid())
+    id IN (SELECT id FROM exams WHERE teacher_id = auth.uid())
   );
 
 CREATE POLICY "Admins can view all results" ON exam_results

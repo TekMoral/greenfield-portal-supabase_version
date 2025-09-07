@@ -48,11 +48,12 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
 
   const initializeBulkResults = () => {
     const results = students.map(student => ({
-      studentId: student.id,
+      student_id: student.id,
       studentName: getStudentName(student),
       admissionNumber: student.admissionNumber,
-      examScore: '',
-      testScore: '',
+      exam_score: '',
+      test_score: '',
+      remark: '',
       examType: examType,
       session: session,
       term: term
@@ -72,25 +73,25 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
 
     bulkResults.forEach((result, index) => {
       // Validate exam score
-      if (!result.examScore) {
-        newErrors[`examScore_${index}`] = 'Exam score is required';
+      if (!result.exam_score) {
+        newErrors[`exam_score_${index}`] = 'Exam score is required';
         hasErrors = true;
       } else {
-        const score = parseFloat(result.examScore);
+        const score = parseFloat(result.exam_score);
         if (isNaN(score) || score < 0 || score > 50) {
-          newErrors[`examScore_${index}`] = 'Exam score must be between 0 and 50';
+          newErrors[`exam_score_${index}`] = 'Exam score must be between 0 and 50';
           hasErrors = true;
         }
       }
 
       // Validate test score
-      if (!result.testScore) {
-        newErrors[`testScore_${index}`] = 'Test score is required';
+      if (!result.test_score) {
+        newErrors[`test_score_${index}`] = 'Test score is required';
         hasErrors = true;
       } else {
-        const score = parseFloat(result.testScore);
+        const score = parseFloat(result.test_score);
         if (isNaN(score) || score < 0 || score > 30) {
-          newErrors[`testScore_${index}`] = 'Test score must be between 0 and 30';
+          newErrors[`test_score_${index}`] = 'Test score must be between 0 and 30';
           hasErrors = true;
         }
       }
@@ -106,12 +107,12 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
     }
 
     const validResults = bulkResults
-      .filter(result => result.examScore && result.testScore)
+      .filter(result => result.exam_score && result.test_score)
       .map(result => ({
         ...result,
-        examScore: parseFloat(result.examScore),
-        testScore: parseFloat(result.testScore),
-        totalTeacherScore: parseFloat(result.examScore) + parseFloat(result.testScore),
+        exam_score: parseFloat(result.exam_score),
+        test_score: parseFloat(result.test_score),
+        totalTeacherScore: parseFloat(result.exam_score) + parseFloat(result.test_score),
         maxExamScore: 50,
         maxTestScore: 30,
         maxTeacherScore: 80
@@ -319,74 +320,87 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Student
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Admission No.
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Exam Score (0-50)
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Test Score (0-30)
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Remark
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Total (80)
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Percentage
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {bulkResults.map((result, index) => (
-                    <tr key={result.studentId}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <tr key={result.student_id}>
+                      <td className="px-4 py-4 text-sm font-medium text-gray-900">
                         {result.studentName}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-4 py-4 text-sm text-gray-500">
                         {result.admissionNumber}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 py-4">
                         <input
                           type="number"
                           min="0"
                           max="50"
                           step="0.5"
-                          value={result.examScore}
-                          onChange={(e) => handleScoreChange(index, 'examScore', e.target.value)}
+                          value={result.exam_score}
+                          onChange={(e) => handleScoreChange(index, 'exam_score', e.target.value)}
                           className={`w-20 px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                            errors[`examScore_${index}`] ? 'border-red-500' : 'border-gray-300'
+                            errors[`exam_score_${index}`] ? 'border-red-500' : 'border-gray-300'
                           }`}
                           placeholder="0"
                         />
-                        {errors[`examScore_${index}`] && (
-                          <p className="text-red-500 text-xs mt-1">{errors[`examScore_${index}`]}</p>
+                        {errors[`exam_score_${index}`] && (
+                          <p className="text-red-500 text-xs mt-1">{errors[`exam_score_${index}`]}</p>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 py-4">
                         <input
                           type="number"
                           min="0"
                           max="30"
                           step="0.5"
-                          value={result.testScore}
-                          onChange={(e) => handleScoreChange(index, 'testScore', e.target.value)}
+                          value={result.test_score}
+                          onChange={(e) => handleScoreChange(index, 'test_score', e.target.value)}
                           className={`w-20 px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                            errors[`testScore_${index}`] ? 'border-red-500' : 'border-gray-300'
+                            errors[`test_score_${index}`] ? 'border-red-500' : 'border-gray-300'
                           }`}
                           placeholder="0"
                         />
-                        {errors[`testScore_${index}`] && (
-                          <p className="text-red-500 text-xs mt-1">{errors[`testScore_${index}`]}</p>
+                        {errors[`test_score_${index}`] && (
+                          <p className="text-red-500 text-xs mt-1">{errors[`test_score_${index}`]}</p>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {getTotalScore(result.examScore, result.testScore)}/80
+                      <td className="px-4 py-4">
+                        <input
+                          type="text"
+                          value={result.remark}
+                          onChange={(e) => handleScoreChange(index, 'remark', e.target.value)}
+                          maxLength={100}
+                          className="w-32 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Optional remark..."
+                        />
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {getPercentage(result.examScore, result.testScore)}%
+                      <td className="px-4 py-4 text-sm font-medium text-gray-900">
+                        {getTotalScore(result.exam_score, result.test_score)}/80
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-900">
+                        {getPercentage(result.exam_score, result.test_score)}%
                       </td>
                     </tr>
                   ))}
@@ -406,17 +420,17 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
               <div>
                 <span className="text-blue-700">Results Ready:</span>
                 <span className="font-medium ml-2">
-                  {bulkResults.filter(r => r.examScore && r.testScore).length}
+                  {bulkResults.filter(r => r.exam_score && r.test_score).length}
                 </span>
               </div>
               <div>
                 <span className="text-blue-700">Average Score:</span>
                 <span className="font-medium ml-2">
-                  {bulkResults.filter(r => r.examScore && r.testScore).length > 0 ? 
+                  {bulkResults.filter(r => r.exam_score && r.test_score).length > 0 ? 
                     Math.round(bulkResults
-                      .filter(r => r.examScore && r.testScore)
-                      .reduce((sum, r) => sum + getTotalScore(r.examScore, r.testScore), 0) / 
-                      bulkResults.filter(r => r.examScore && r.testScore).length
+                      .filter(r => r.exam_score && r.test_score)
+                      .reduce((sum, r) => sum + getTotalScore(r.exam_score, r.test_score), 0) / 
+                      bulkResults.filter(r => r.exam_score && r.test_score).length
                     ) : 0}/80
                 </span>
               </div>
@@ -434,10 +448,10 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
           <div className="flex justify-end">
             <button
               onClick={handleBulkSubmit}
-              disabled={submitting || bulkResults.filter(r => r.examScore && r.testScore).length === 0}
+              disabled={submitting || bulkResults.filter(r => r.exam_score && r.test_score).length === 0}
               className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {submitting ? 'Submitting...' : `Submit ${bulkResults.filter(r => r.examScore && r.testScore).length} Results for Review`}
+              {submitting ? 'Submitting...' : `Submit ${bulkResults.filter(r => r.exam_score && r.test_score).length} Results for Review`}
             </button>
           </div>
         </div>

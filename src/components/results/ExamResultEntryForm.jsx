@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
-const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }) => {
+const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, existingResult }) => {
   // Helper function to get student full name (consistent with Assignment component)
   const getStudentName = (student) => {
     if (!student) return 'Unknown Student';
@@ -32,11 +32,12 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
     studentId: student?.id || '',
     studentName: getStudentName(student),
     admissionNumber: student?.admissionNumber || '',
-    examScore: '',
-    testScore: '',
+    exam_score: '',
+    test_score: '',
+    remark: '',
     examType: 'midterm',
     session: new Date().getFullYear().toString(),
-    term: '1st'
+    term: '1st Term'
   });
   const [errors, setErrors] = useState({});
 
@@ -48,6 +49,35 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
   ];
 
   const terms = ['1st Term', '2nd Term', '3rd Term'];
+
+  // Prefill when existingResult is provided
+  useEffect(() => {
+    if (!existingResult) return;
+    
+    console.log('🔄 Prefilling form with existing result:', existingResult);
+    
+    const toTermString = (t) => {
+      const n = parseInt(String(t), 10);
+      if (n === 1) return '1st Term';
+      if (n === 2) return '2nd Term';
+      if (n === 3) return '3rd Term';
+      // Try to normalize common strings to the option labels
+      const s = String(t).toLowerCase();
+      if (s.includes('1')) return '1st Term';
+      if (s.includes('2')) return '2nd Term';
+      if (s.includes('3')) return '3rd Term';
+      return '1st Term';
+    };
+
+    setFormData(prev => ({
+      ...prev,
+      exam_score: existingResult.examScore ?? existingResult.exam_score ?? '',
+      test_score: existingResult.testScore ?? existingResult.test_score ?? '',
+      remark: existingResult.remark ?? existingResult.remarks ?? '',
+      session: String(existingResult.year ?? existingResult.session ?? prev.session),
+      term: toTermString(existingResult.term ?? prev.term)
+    }));
+  }, [existingResult]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -65,21 +95,21 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.examScore) {
-      newErrors.examScore = 'Exam score is required';
+    if (!formData.exam_score) {
+      newErrors.exam_score = 'Exam score is required';
     } else {
-      const score = parseFloat(formData.examScore);
+      const score = parseFloat(formData.exam_score);
       if (isNaN(score) || score < 0 || score > 50) {
-        newErrors.examScore = 'Exam score must be between 0 and 50';
+        newErrors.exam_score = 'Exam score must be between 0 and 50';
       }
     }
 
-    if (!formdata.test_score) {
-      newErrors.testScore = 'Test score is required';
+    if (!formData.test_score) {
+      newErrors.test_score = 'Test score is required';
     } else {
-      const score = parseFloat(formdata.test_score);
+      const score = parseFloat(formData.test_score);
       if (isNaN(score) || score < 0 || score > 30) {
-        newErrors.testScore = 'Test score must be between 0 and 30';
+        newErrors.test_score = 'Test score must be between 0 and 30';
       }
     }
 
@@ -104,9 +134,9 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
 
     const resultData = {
       ...formData,
-      examScore: parseFloat(formData.examScore),
-      testScore: parseFloat(formdata.test_score),
-      totalTeacherScore: parseFloat(formData.examScore) + parseFloat(formdata.test_score),
+      exam_score: parseFloat(formData.exam_score),
+      test_score: parseFloat(formData.test_score),
+      totalTeacherScore: parseFloat(formData.exam_score) + parseFloat(formData.test_score),
       maxExamScore: 50,
       maxTestScore: 30,
       maxTeacherScore: 80
@@ -116,8 +146,8 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
   };
 
   const getTotalScore = () => {
-    const examScore = parseFloat(formData.examScore) || 0;
-    const testScore = parseFloat(formdata.test_score) || 0;
+    const examScore = parseFloat(formData.exam_score) || 0;
+    const testScore = parseFloat(formData.test_score) || 0;
     return examScore + testScore;
   };
 
@@ -126,12 +156,16 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
     return Math.round((total / 80) * 100);
   };
 
+  const isReadOnly = !!existingResult;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-gray-900">Submit Exam Result</h2>
+            <h2 className="text-xl font-bold text-gray-900">
+              {isReadOnly ? 'View Submitted Result' : 'Submit Exam Result'}
+            </h2>
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -150,16 +184,32 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
             <p className="text-sm text-gray-600">Subject: {subject}</p>
           </div>
 
-          {/* Scoring System Info */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <h3 className="font-medium text-blue-900 mb-2">Scoring Breakdown</h3>
-            <div className="text-sm text-blue-800 space-y-1">
-              <p>• Exam Score: 0-50 marks (50%)</p>
-              <p>• Test Score: 0-30 marks (30%)</p>
-              <p>• <strong>Your Total: 80 marks (80%)</strong></p>
-              <p className="text-blue-600 mt-2">Admin will add Assignment (15%) + Attendance (5%) = 20%</p>
+          {/* Already Submitted Notice or Scoring System Info */}
+          {isReadOnly ? (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <h3 className="font-medium text-green-900 mb-1">Result Already Submitted</h3>
+                  <p className="text-sm text-green-800">
+                    This result has been submitted to admin for review. You cannot modify it.
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <h3 className="font-medium text-blue-900 mb-2">Scoring Breakdown</h3>
+              <div className="text-sm text-blue-800 space-y-1">
+                <p>• Exam Score: 0-50 marks (50%)</p>
+                <p>• Test Score: 0-30 marks (30%)</p>
+                <p>• <strong>Your Total: 80 marks (80%)</strong></p>
+                <p className="text-blue-600 mt-2">Admin will add Assignment (15%) + Attendance (5%) = 20%</p>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Session and Term */}
@@ -173,9 +223,10 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
                   name="session"
                   value={formData.session}
                   onChange={handleChange}
+                  disabled={isReadOnly}
                   className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                     errors.session ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                  } ${isReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                   placeholder="e.g., 2023/2024"
                 />
                 {errors.session && <p className="text-red-500 text-sm mt-1">{errors.session}</p>}
@@ -189,9 +240,10 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
                   name="term"
                   value={formData.term}
                   onChange={handleChange}
+                  disabled={isReadOnly}
                   className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                     errors.term ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                  } ${isReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                 >
                   {terms.map(term => (
                     <option key={term} value={term}>{term}</option>
@@ -210,7 +262,10 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
                 name="examType"
                 value={formData.examType}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isReadOnly}
+                className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  isReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''
+                }`}
               >
                 {examTypes.map(type => (
                   <option key={type.value} value={type.value}>
@@ -228,18 +283,19 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
                 </label>
                 <input
                   type="number"
-                  name="examScore"
-                  value={formData.examScore}
+                  name="exam_score"
+                  value={formData.exam_score}
                   onChange={handleChange}
                   min="0"
                   max="50"
                   step="0.5"
+                  disabled={isReadOnly}
                   className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    errors.examScore ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                    errors.exam_score ? 'border-red-500' : 'border-gray-300'
+                  } ${isReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                   placeholder="0-50"
                 />
-                {errors.examScore && <p className="text-red-500 text-sm mt-1">{errors.examScore}</p>}
+                {errors.exam_score && <p className="text-red-500 text-sm mt-1">{errors.exam_score}</p>}
               </div>
 
               <div>
@@ -248,33 +304,56 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
                 </label>
                 <input
                   type="number"
-                  name="testScore"
-                  value={formdata.test_score}
+                  name="test_score"
+                  value={formData.test_score}
                   onChange={handleChange}
                   min="0"
                   max="30"
                   step="0.5"
+                  disabled={isReadOnly}
                   className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    errors.testScore ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                    errors.test_score ? 'border-red-500' : 'border-gray-300'
+                  } ${isReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                   placeholder="0-30"
                 />
-                {errors.testScore && <p className="text-red-500 text-sm mt-1">{errors.testScore}</p>}
+                {errors.test_score && <p className="text-red-500 text-sm mt-1">{errors.test_score}</p>}
+              </div>
+            </div>
+
+            {/* Remark */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Teacher's Remark (Optional)
+              </label>
+              <textarea
+                name="remark"
+                value={formData.remark}
+                onChange={handleChange}
+                rows={3}
+                maxLength={200}
+                disabled={isReadOnly}
+                className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
+                  isReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''
+                }`}
+                placeholder="Add your comments about the student's performance..."
+              />
+              <div className="text-right text-xs text-gray-500 mt-1">
+                {formData.remark.length}/200 characters
               </div>
             </div>
 
             {/* Score Summary */}
-            {(formData.examScore || formdata.test_score) && (
+            {(formData.exam_score || formData.test_score) && (
               <div className="bg-green-50 rounded-lg p-4">
                 <h4 className="font-medium text-green-900 mb-2">Score Summary (Teacher's 80%)</h4>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-green-700">Exam Score:</span>
-                    <span className="font-medium ml-2">{formData.examScore || 0}/50</span>
+                    <span className="font-medium ml-2">{formData.exam_score || 0}/50</span>
                   </div>
                   <div>
                     <span className="text-green-700">Test Score:</span>
-                    <span className="font-medium ml-2">{formdata.test_score || 0}/30</span>
+                    <span className="font-medium ml-2">{formData.test_score || 0}/30</span>
                   </div>
                   <div>
                     <span className="text-green-700">Total Score:</span>
@@ -292,16 +371,18 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
             )}
 
             {/* Notice */}
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <div className="flex items-center">
-                <svg className="w-4 h-4 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p className="text-sm text-yellow-700">
-                  This result will be submitted to admin for final grading and approval before students can see it.
-                </p>
+            {!isReadOnly && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-sm text-yellow-700">
+                    This result will be submitted to admin for final grading and approval before students can see it.
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex justify-end space-x-3 pt-4 border-t">
@@ -310,15 +391,17 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting }
                 onClick={onClose}
                 className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               >
-                Cancel
+                {isReadOnly ? 'Close' : 'Cancel'}
               </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {submitting ? 'Submitting...' : 'Submit for Review'}
-              </button>
+              {!isReadOnly && (
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {submitting ? 'Submitting...' : 'Submit for Review'}
+                </button>
+              )}
             </div>
           </form>
         </div>

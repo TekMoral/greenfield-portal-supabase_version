@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getTeacherClassesAndSubjects, getStudentsByTeacherSubjectAndClasses } from '../../../services/supabase/teacherStudentService';
 
-import { submitResult, insertExamResultsBulk } from '../../../services/supabase/studentResultService';
+import { submitResult, insertExamResultsBulk, getSubmittedResults } from '../../../services/supabase/studentResultService';
 import { useAuth } from '../../../hooks/useAuth';
 import useToast from '../../../hooks/useToast';
 import ExamResultEntryForm from '../../../components/results/ExamResultEntryForm';
@@ -28,6 +28,7 @@ const ExamResults = () => {
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [coreSubjectNames, setCoreSubjectNames] = useState([]);
+  const [existingResultsMap, setExistingResultsMap] = useState({});
 
   // Helper function to get student full name
   const getStudentName = (student) => {
@@ -37,9 +38,12 @@ const ExamResults = () => {
     return student.name || 'Unknown Student';
   };
 
+  const initializedRef = useRef(false);
   useEffect(() => {
+    if (!user?.id || initializedRef.current) return;
+    initializedRef.current = true;
     fetchTeacherData();
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (selectedClass && selectedSubject) {
@@ -47,9 +51,79 @@ const ExamResults = () => {
     }
   }, [selectedClass, selectedSubject]);
 
-
-
-
+  // Preload existing submitted results when both subject and students are available
+  useEffect(() => {
+    const loadExistingSubmitted = async () => {
+      if (!selectedSubjectId || !students.length) {
+        console.log('🔍 Skipping preload - missing subject or students:', { selectedSubjectId, studentsCount: students.length });
+        return;
+      }
+      
+      console.log('🔍 Loading existing submitted results for subject:', selectedSubjectId);
+      console.log('📚 Students to check:', students.map(s => ({ id: s.id, name: s.firstName + ' ' + s.surname })));
+      
+      try {
+        const resSubmitted = await getSubmittedResults({ 
+          subjectId: selectedSubjectId, 
+          status: 'submitted' 
+        });
+        const resGraded = await getSubmittedResults({
+          subjectId: selectedSubjectId,
+          status: 'graded'
+        });
+        
+        console.log('📊 getSubmittedResults API response:', { submitted: resSubmitted, graded: resGraded });
+        
+        const combinedData = (resSubmitted?.success ? (resSubmitted.data || []) : []).concat(resGraded?.success ? (resGraded.data || []) : []);
+        if (combinedData.length > 0) {
+          const map = {};
+          const submittedIds = [];
+          const studentIdsSet = new Set(students.map(s => String(s.id)));
+          
+          combinedData.forEach(r => {
+            const sid = String(r.studentId ?? r.student_id);
+            if (!studentIdsSet.has(sid)) {
+              return;
+            }
+            console.log('✅ Found submitted result for student:', sid, {
+              term: r.term,
+              year: r.year,
+              status: r.status,
+              examScore: r.examScore ?? r.exam_score,
+              testScore: r.testScore ?? r.test_score
+            });
+            if (sid) {
+              map[sid] = r;
+              submittedIds.push(sid);
+            }
+          });
+          
+          console.log('🗺️ Built existingResultsMap:', map);
+          console.log('🎯 Submitted student IDs:', submittedIds);
+          
+          setExistingResultsMap(map);
+          
+          // Merge into submitted set so rows render as submitted
+          if (submittedIds.length) {
+            setSubmittedResults(prev => {
+              const newSet = new Set([...prev, ...submittedIds]);
+              console.log('🔄 Updated submittedResults Set:', Array.from(newSet));
+              return newSet;
+            });
+          }
+        } else {
+          console.log('❌ No submitted/graded results found:', { resSubmitted, resGraded });
+          // Clear existing results if no data
+          setExistingResultsMap({});
+          setSubmittedResults(new Set());
+        }
+      } catch (e) {
+        console.error('💥 Error preloading submitted results:', e);
+      }
+    };
+    
+    loadExistingSubmitted();
+  }, [selectedSubjectId, students]); // Depend on both subject and students
 
   const fetchTeacherData = async () => {
     if (!user?.id) return;
@@ -97,48 +171,65 @@ const ExamResults = () => {
   };
 
   const fetchStudents = async () => {
-    if (!selectedClass || !selectedSubject || !user?.id) return;
+    if (!selectedClass || !selectedSubject || !user?.id) {
+      console.log('Missing required data for fetchStudents:', { selectedClass, selectedSubject, userId: user?.id });
+      return;
+    }
 
     try {
-      const selectedClassData = teacherClasses.find(c => c.id === selectedClass);
+      console.log('Fetching students for:', { selectedClass, selectedSubject, teacherId: user.id });
+      
+      // Get available classes for the selected subject
+      const availableClasses = getClassesForSubject(selectedSubject, selectedSubjectId);
+      console.log('Available classes for subject:', availableClasses);
+      
+      // Find the selected class from available classes (not from teacherClasses directly)
+      const selectedClassData = availableClasses.find(c => String(c.id) === String(selectedClass));
+      console.log('Selected class data:', selectedClassData);
 
       if (selectedClassData) {
         const classIds = expandClassEntryToIds(selectedClassData);
+        console.log('Expanded class IDs:', classIds);
 
         const studentsRes = await getStudentsByTeacherSubjectAndClasses(
           user.id,
           selectedSubject,
           classIds
         );
-        console.log('Students data:', studentsRes); // Debug log
+        console.log('Students response:', studentsRes);
         
         // Normalize response to always be an array
         const studentsArray = studentsRes?.success
           ? (studentsRes.data || [])
           : (Array.isArray(studentsRes) ? studentsRes : []);
         
+        console.log('Final students array:', studentsArray);
+        
         if (Array.isArray(studentsArray)) {
           setStudents(studentsArray);
+          console.log('Students set successfully:', studentsArray.length);
         } else {
           console.error('Failed to fetch students:', studentsRes?.error || 'Invalid response');
           setStudents([]);
           showToast('Failed to load students', 'error');
         }
+      } else {
+        console.error('Selected class not found in available classes');
+        setStudents([]);
+        showToast('Selected class not found', 'error');
       }
     } catch (error) {
       console.error('Error fetching students:', error);
       showToast('Failed to load students', 'error');
+      setStudents([]);
     }
   };
-
-
-
-
 
   const handleClassChange = (classId) => {
     setSelectedClass(classId);
     setStudents([]);
     setSubmittedResults(new Set());
+    setExistingResultsMap({});
   };
 
   const getAvailableSubjects = () => aggregateSubjects(teacherClasses);
@@ -158,29 +249,71 @@ const ExamResults = () => {
 
     try {
       setSubmitting(true);
-      // Use the new submitResult function
-      const res = await submitResult({
-        studentId: resultData.studentId,
+      // Use the same SECURITY DEFINER bulk RPC with a single item so teacher_id is persisted (RLS-compatible)
+      const res = await insertExamResultsBulk({
+        results: [
+          {
+            studentId: resultData.studentId,
+            term: resultData.term,
+            session: resultData.session,
+            examScore: resultData.exam_score,
+            testScore: resultData.test_score,
+            remark: resultData.remark ?? ''
+          }
+        ],
         subjectId: selectedSubjectId,
         term: resultData.term,
         year: resultData.session,
-        testScore: resultData.testScore,
-        examScore: resultData.examScore,
+        teacherId: user.id,
+        status: 'submitted'
       });
       if (!res?.success) {
         throw new Error(res?.error || 'Failed to submit result');
       }
-      setSubmittedResults(prev => new Set([...prev, resultData.studentId]));
+      setSubmittedResults(prev => new Set([...prev, String(resultData.studentId)]));
+      // Cache as existing to allow prefill if reopened
+      setExistingResultsMap(prev => ({
+        ...prev,
+        [String(resultData.studentId)]: {
+          studentId: resultData.studentId,
+          term: resultData.term,
+          year: resultData.session,
+          exam_score: resultData.exam_score,
+          test_score: resultData.test_score,
+          remark: resultData.remark ?? '',
+          status: 'submitted'
+        }
+      }));
       setShowEntryForm(false);
       setSelectedStudent(null);
       showToast('Result submitted to admin for review', 'success');
     } catch (error) {
       console.error('Error submitting result:', error);
-      if (error.message.includes('already submitted')) {
-        showToast(error.message, 'error');
-      } else if (error.message.includes('permission')) {
+      const msg = (error?.message || '').toLowerCase();
+      if (msg.includes('already') || msg.includes('duplicate') || msg.includes('23505')) {
+        // Gracefully handle duplicates: mark as submitted in UI and close form
+        if (resultData?.studentId) {
+          setSubmittedResults(prev => new Set([...prev, String(resultData.studentId)]));
+          // Cache the attempted submission for prefill
+          setExistingResultsMap(prev => ({
+            ...prev,
+            [String(resultData.studentId)]: {
+              studentId: resultData.studentId,
+              term: resultData.term,
+              year: resultData.session,
+              exam_score: resultData.exam_score,
+              test_score: resultData.test_score,
+              remark: resultData.remark ?? '',
+              status: 'submitted'
+            }
+          }));
+        }
+        setShowEntryForm(false);
+        setSelectedStudent(null);
+        showToast('Already submitted to admin for this term/year. Marked as submitted.', 'info');
+      } else if (msg.includes('permission')) {
         showToast('Permission denied. Please contact your administrator.', 'error');
-      } else if (error.message.includes('unavailable')) {
+      } else if (msg.includes('unavailable')) {
         showToast('Service temporarily unavailable. Please try again later.', 'error');
       } else {
         showToast(`Failed to submit result: ${error.message}`, 'error');
@@ -217,19 +350,54 @@ const ExamResults = () => {
         throw new Error(res?.error || 'Failed to submit bulk results');
       }
 
-      // Mark all students as submitted
-      const submittedStudentIds = bulkResults.map(r => r.studentId);
+      // Mark all students as submitted (support both manual and CSV shapes)
+      const submittedStudentIds = bulkResults
+        .map(r => r.studentId ?? r.student_id)
+        .filter(Boolean);
       setSubmittedResults(prev => new Set([...prev, ...submittedStudentIds]));
       showToast(`${submittedStudentIds.length} result(s) submitted to admin.`, 'success');
     } catch (error) {
       console.error('Error submitting bulk results:', error);
-      if (error.message.toLowerCase().includes('row-level security') || error.message.toLowerCase().includes('rls')) {
+      const emsg = (error?.message || '').toLowerCase();
+      if (emsg.includes('row-level security') || emsg.includes('rls')) {
         showToast('Submission blocked by security policy. Please contact your administrator.', 'error');
-      } else if (error.message.includes('already submitted')) {
-        showToast(error.message, 'error');
-      } else if (error.message.includes('permission')) {
+      } else if (emsg.includes('already') || emsg.includes('duplicate') || emsg.includes('23505')) {
+        // Gracefully handle duplicates: fetch submitted results for this subject/term/year and mark them in UI
+        try {
+          const termFilter = (() => {
+            const n = parseInt(term, 10);
+            return Number.isFinite(n) ? n : term;
+          })();
+          const yearFilter = (() => {
+            const m = String(year).match(/\b(20\d{2}|19\d{2})\b/);
+            return m ? parseInt(m[1], 10) : (parseInt(year, 10) || new Date().getFullYear());
+          })();
+
+          const existing = await getSubmittedResults({
+            subjectId: selectedSubjectId,
+            term: termFilter,
+            year: yearFilter,
+            status: 'submitted'
+          });
+
+          if (existing?.success) {
+            const existingSet = new Set((existing.data || []).map(r => r.studentId ?? r.student_id));
+            const attemptedIds = bulkResults.map(r => r.studentId ?? r.student_id).filter(Boolean);
+            const markIds = attemptedIds.filter(id => existingSet.has(id));
+            if (markIds.length > 0) {
+              setSubmittedResults(prev => new Set([...prev, ...markIds]));
+            }
+            showToast(`Already submitted for ${markIds.length} student(s). Marked as submitted.`, 'info');
+          } else {
+            showToast('Some results were already submitted. UI updated where possible.', 'info');
+          }
+        } catch (e) {
+          console.warn('Duplicate handling fetch failed:', e);
+          showToast('Some results were already submitted.', 'info');
+        }
+      } else if (emsg.includes('permission')) {
         showToast('Permission denied. Please contact your administrator.', 'error');
-      } else if (error.message.includes('unavailable')) {
+      } else if (emsg.includes('unavailable')) {
         showToast('Service temporarily unavailable. Please try again later.', 'error');
       } else {
         showToast(`Failed to submit bulk results: ${error.message}`, 'error');
@@ -240,18 +408,23 @@ const ExamResults = () => {
   };
 
   const isStudentSubmitted = (studentId) => {
-    return submittedResults.has(studentId);
+    return submittedResults.has(String(studentId));
   };
 
   const getResultsStats = () => {
     const total = Array.isArray(students) ? students.length : 0;
-    const submitted = submittedResults.size;
-    const pending = total - submitted;
+    const studentIdsSet = new Set(students.map(s => String(s.id)));
 
-    return { total, submitted, pending };
+    let submitted = 0;
+    let graded = 0;
+
+    studentIdsSet.forEach(id => {
+      if (submittedResults.has(String(id))) submitted++;
+      if (existingResultsMap[String(id)]?.status === 'graded') graded++;
+    });
+
+    return { total, submitted, graded };
   };
-
-
 
   if (loading) {
     return (
@@ -291,23 +464,6 @@ const ExamResults = () => {
         </div>
       </div>
 
-      {/* Duplicate Prevention Notice */}
-      {submittedResults.size > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <div className="flex items-center">
-            <svg className="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
-            <div>
-              <h3 className="text-sm font-medium text-yellow-800">Duplicate Prevention</h3>
-              <p className="text-sm text-yellow-700">
-                {submittedResults.size} student(s) already have submitted results for this subject and term.
-                You cannot submit results twice for the same student.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Class and Subject Selection */}
       <div className="bg-white rounded-lg shadow p-6">
@@ -348,6 +504,7 @@ const ExamResults = () => {
                 }
                 setStudents([]);
                 setSubmittedResults(new Set());
+                setExistingResultsMap({});
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
@@ -407,9 +564,9 @@ const ExamResults = () => {
 
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
               <div className="ml-4">
@@ -421,14 +578,14 @@ const ExamResults = () => {
 
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
-              <div className="p-2 bg-yellow-100 rounded-lg">
-                <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <div className="p-2 bg-green-100 rounded-lg">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Pending</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.pending}</p>
+                <p className="text-sm font-medium text-gray-600">Graded</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.graded}</p>
               </div>
             </div>
           </div>
@@ -442,7 +599,7 @@ const ExamResults = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Submissions</p>
-                <p className="text-2xl font-bold text-gray-900">0</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.submitted}</p>
               </div>
             </div>
           </div>
@@ -495,22 +652,19 @@ const ExamResults = () => {
                 {Array.isArray(students) && students.map(student => {
                   const isSubmitted = isStudentSubmitted(student.id);
                   const studentName = getStudentName(student);
+                  const resultStatus = existingResultsMap[String(student.id)]?.status;
+                  const isGraded = resultStatus === 'graded';
+                  const rowBorderBg = isSubmitted ? (isGraded ? 'border-green-200 bg-green-50' : 'border-yellow-200 bg-yellow-50') : 'border-gray-200 hover:bg-gray-50';
+                  const avatarBg = isSubmitted ? (isGraded ? 'bg-green-200' : 'bg-yellow-200') : 'bg-gray-200';
+                  const avatarText = isSubmitted ? (isGraded ? 'text-green-800' : 'text-yellow-800') : 'text-gray-600';
                   return (
                     <div
                       key={student.id}
-                      className={`flex items-center justify-between p-4 border rounded-lg transition-colors ${
-                        isSubmitted
-                          ? 'border-green-200 bg-green-50'
-                          : 'border-gray-200 hover:bg-gray-50'
-                      }`}
+                      className={`flex items-center justify-between p-4 border rounded-lg transition-colors ${rowBorderBg}`}
                     >
                       <div className="flex items-center space-x-4">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          isSubmitted ? 'bg-green-200' : 'bg-gray-200'
-                        }`}>
-                          <span className={`text-sm font-medium ${
-                            isSubmitted ? 'text-green-800' : 'text-gray-600'
-                          }`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${avatarBg}`}>
+                          <span className={`text-sm font-medium ${avatarText}`}>
                             {studentName.charAt(0)?.toUpperCase()}
                           </span>
                         </div>
@@ -523,8 +677,17 @@ const ExamResults = () => {
                       <div className="flex items-center space-x-4">
                         {isSubmitted ? (
                           <div className="text-right">
-                            <p className="font-medium text-green-700">Submitted to Admin</p>
-                            <p className="text-sm text-green-600">Pending Admin Review</p>
+                            {existingResultsMap[String(student.id)]?.status === 'graded' ? (
+                              <>
+                                <p className="font-medium text-green-700">Graded by Admin</p>
+                                <p className="text-sm text-green-600">Reviewed</p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="font-medium text-yellow-700">Submitted to Admin</p>
+                                <p className="text-sm text-yellow-600">Pending Admin Review</p>
+                              </>
+                            )}
                           </div>
                         ) : (
                           <span className="text-sm text-gray-500">No result submitted</span>
@@ -534,14 +697,14 @@ const ExamResults = () => {
                             setSelectedStudent(student);
                             setShowEntryForm(true);
                           }}
-                          disabled={isSubmitted || !selectedSubject}
+                          disabled={!selectedSubject}
                           className={`px-3 py-1 rounded text-sm transition-colors ${
                             isSubmitted
-                              ? 'bg-green-100 text-green-700 cursor-not-allowed'
+                              ? (isGraded ? 'bg-green-100 text-green-700 cursor-default' : 'bg-yellow-100 text-yellow-700 cursor-default')
                               : 'bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed'
                           }`}
                         >
-                          {isSubmitted ? 'Submitted to Admin' : 'Submit to Admin'}
+                          {isSubmitted ? 'View Submitted' : 'Submit to Admin'}
                         </button>
                       </div>
                     </div>
@@ -561,8 +724,6 @@ const ExamResults = () => {
             />
           )}
 
-
-
           {!selectedClass && (
             <div className="text-center py-12">
               <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -580,6 +741,7 @@ const ExamResults = () => {
         <ExamResultEntryForm
           student={selectedStudent}
           subject={selectedSubject}
+          existingResult={existingResultsMap[String(selectedStudent.id)]}
           onSubmit={handleIndividualResultSubmit}
           onClose={() => {
             setShowEntryForm(false);

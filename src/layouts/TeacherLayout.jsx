@@ -15,7 +15,6 @@ const TeacherLayout = () => {
     { label: "Timetable", path: "/teacher/timetable" },
     { label: "Attendance", path: "/teacher/attendance" },
     { label: "Submit Reports", path: "/teacher/reports" },
-    { label: "My Reports", path: "/teacher/my-reports" },
     { label: "Profile", path: "/teacher/profile" },
   ];
 

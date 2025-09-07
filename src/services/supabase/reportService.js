@@ -731,7 +731,7 @@ export const getStudentAssignmentSubmissions = async (teacherId, studentId, subj
  * Get latest teacher remark for a student/subject/class (UI compatibility)
  * Tries subjectName/subject_name filter; returns { id, remarks }
  */
-export const getStudentRemarks = async (studentId, subjectId, classId, teacherId) => {
+export const getStudentRemarks = async (studentId, subjectId, classId, teacherId, term = null, academicYear = null) => {
   try {
     if (subjectId && !isValidUUID(subjectId)) {
       console.warn('getStudentRemarks: invalid subjectId, returning empty remarks');
@@ -739,12 +739,14 @@ export const getStudentRemarks = async (studentId, subjectId, classId, teacherId
     }
     let query = supabase
       .from('student_reports')
-      .select('id, teacher_remark, subject_id, status')
+      .select('id, teacher_remark, subject_id, status, admin_notes, reviewed_at, term, academic_year')
       .eq('student_id', studentId)
       .eq('teacher_id', teacherId);
 
     if (classId && isValidUUID(classId)) query = query.eq('class_id', classId);
     if (subjectId) query = query.eq('subject_id', subjectId);
+    if (term != null) query = query.eq('term', term);
+    if (academicYear != null) query = query.eq('academic_year', academicYear);
 
     const { data, error } = await query.limit(1);
     if (error) {
@@ -753,7 +755,15 @@ export const getStudentRemarks = async (studentId, subjectId, classId, teacherId
     }
     const row = Array.isArray(data) ? data[0] : data;
     if (!row) return { remarks: '', id: null };
-    return { remarks: row.teacher_remark || '', id: row.id };
+    return {
+      remarks: row.teacher_remark || '',
+      id: row.id,
+      status: row.status || '',
+      admin_notes: row.admin_notes || '',
+      reviewed_at: row.reviewed_at || null,
+      term: row.term ?? null,
+      academic_year: row.academic_year ?? null,
+    };
   } catch (error) {
     console.error('Error fetching student remarks:', error);
     return { remarks: '', id: null };

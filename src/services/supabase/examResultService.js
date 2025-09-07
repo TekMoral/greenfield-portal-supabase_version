@@ -8,7 +8,7 @@ export const examResultService = {
       const { data, error } = await supabase
         .from('exam_results')
         .upsert({
-          exam_id: resultData.exam_id,
+          id: resultData.id,
           student_id: resultData.student_id,
           test_score: resultData.test_score ?? null,
           exam_score: resultData.exam_score ?? null,
@@ -115,7 +115,7 @@ export const examResultService = {
             )
           )
         `)
-        .eq('exam_id', examId)
+        .eq('id', examId)
         .order('score', { ascending: false });
 
       if (error) throw error;
@@ -270,7 +270,7 @@ export const examResultService = {
             )
           )
         `)
-        .eq('exam_id', examId)
+        .eq('id', examId)
         .eq('student_id', studentId)
         .single();
 
@@ -353,7 +353,7 @@ export const examResultService = {
       const { data: results, error } = await supabase
         .from('exam_results')
         .select('id, student_id, score')
-        .eq('exam_id', examId)
+        .eq('id', examId)
         .order('score', { ascending: false });
 
       if (error) throw error;

@@ -60,7 +60,6 @@ const TeacherAttendance = lazyWithRetry(() =>
   import("../pages/dashboard/teacher/Attendance")
 );
 const TeacherReports = lazyWithRetry(() => import("../pages/dashboard/teacher/Reports"));
-const MyReports = lazyWithRetry(() => import("../pages/dashboard/teacher/MyReports"));
 const TeacherProfile = lazyWithRetry(() => import("../pages/dashboard/teacher/Profile"));
 const TeacherExamResults = lazyWithRetry(() =>
   import("../pages/dashboard/teacher/ExamResults")
@@ -361,15 +360,7 @@ const AppRouter = () => (
           </Suspense>
         }
       />
-      <Route
-        path="my-reports"
-        element={
-          <Suspense fallback={<LoadingFallback />}>
-            <MyReports />
-          </Suspense>
-        }
-      />
-      <Route
+            <Route
         path="profile"
         element={
           <Suspense fallback={<LoadingFallback />}>

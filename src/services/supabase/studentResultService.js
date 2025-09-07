@@ -1,5 +1,30 @@
 import { supabase } from '../../lib/supabaseClient';
 
+// Normalize term input to integer 1, 2, or 3 for RPC compatibility
+const normalizeTerm = (t) => {
+  if (t == null) return null;
+  const raw = String(t).trim().toLowerCase();
+  const n = parseInt(raw, 10);
+  if (!Number.isNaN(n) && [1, 2, 3].includes(n)) return n;
+  if (/(^|\b)(first|1st|term\s*1|1\s*term)(\b|$)/i.test(raw)) return 1;
+  if (/(^|\b)(second|2nd|term\s*2|2\s*term)(\b|$)/i.test(raw)) return 2;
+  if (/(^|\b)(third|3rd|term\s*3|3\s*term)(\b|$)/i.test(raw)) return 3;
+  const m = raw.match(/(\d)/);
+  const mm = m ? parseInt(m[1], 10) : NaN;
+  return [1, 2, 3].includes(mm) ? mm : null;
+};
+
+// Normalize academic year to a four-digit number (e.g., 2025)
+const normalizeYear = (y) => {
+  if (y == null) return null;
+  if (typeof y === 'number') return y;
+  const s = String(y);
+  const four = s.match(/\b(20\d{2}|19\d{2})\b/);
+  if (four) return parseInt(four[1], 10);
+  const n = parseInt(s, 10);
+  return Number.isFinite(n) ? n : new Date().getFullYear();
+};
+
 /**
  * Teacher submits result (80% of the workflow)
  */
@@ -8,19 +33,20 @@ export const submitResult = async ({ studentId, subjectId, term, year, testScore
     const test = parseFloat(testScore) || 0;
     const exam = parseFloat(examScore) || 0;
     const totalScore = test + exam; // Teacher subtotal out of 80
+    const termInt = normalizeTerm(term);
+    const yearInt = normalizeYear(year);
+    const termText = (termInt ?? term) != null ? String(termInt ?? term) : null;
 
     // Try RPC first. If it fails due to outdated implementation (e.g., referencing removed `score` column),
     // fall back to direct insert with the new schema.
     const rpcRes = await supabase.rpc('submit_result', {
       p_student_id: studentId,
       p_subject_id: subjectId,
-      p_term: term,
-      p_year: year,
-      // Some RPC versions may accept component scores; include when available
+      p_term: termText,
+      p_year: yearInt ?? year,
       p_test_score: test,
       p_exam_score: exam,
-      // Legacy RPCs may accept a consolidated score and max
-      p_score: totalScore
+      p_admin_score: 0
     });
 
     if (!rpcRes.error) {
@@ -34,8 +60,8 @@ export const submitResult = async ({ studentId, subjectId, term, year, testScore
       .insert({
         student_id: studentId,
         subject_id: subjectId,
-        term,
-        year,
+        term: termText ?? String(term),
+        year: yearInt ?? year,
         test_score: test,
         exam_score: exam,
         total_score: totalScore,
@@ -68,9 +94,15 @@ export const submitResult = async ({ studentId, subjectId, term, year, testScore
  */
 export const gradeResultByAdmin = async ({ studentId, subjectId, term, year, adminScore, teacherScore }) => {
   try {
-    let baseTeacherScore = Number(teacherScore);
-    if (!Number.isFinite(baseTeacherScore)) {
-      // Fetch current teacher subtotal from DB if not provided
+    let baseTestScore = 0;
+    let baseExamScore = 0;
+    
+    if (Number.isFinite(Number(teacherScore))) {
+      // If teacherScore is provided, assume it's the total and split it (this is a fallback)
+      baseTestScore = Number(teacherScore) * 0.375; // Approximate test score (30/80 of total)
+      baseExamScore = Number(teacherScore) * 0.625; // Approximate exam score (50/80 of total)
+    } else {
+      // Fetch current teacher scores from DB
       const { data: existing, error: fetchErr } = await supabase
         .from('exam_results')
         .select('test_score, exam_score')
@@ -79,49 +111,33 @@ export const gradeResultByAdmin = async ({ studentId, subjectId, term, year, adm
         .eq('term', term)
         .eq('year', year)
         .single();
+      
       if (fetchErr) {
-        console.warn('Could not fetch existing teacher score, defaulting to 0:', fetchErr?.message);
+        console.warn('Could not fetch existing teacher scores, defaulting to 0:', fetchErr?.message);
+        baseTestScore = 0;
+        baseExamScore = 0;
+      } else {
+        baseTestScore = Number(existing?.test_score || 0);
+        baseExamScore = Number(existing?.exam_score || 0);
       }
-      baseTeacherScore = Number(((existing?.test_score || 0) + (existing?.exam_score || 0)) ?? 0) || 0;
     }
 
     const admin = parseFloat(adminScore) || 0;
-    const combinedTotal = baseTeacherScore + admin;
     
-    // Try RPC first (RPC-first approach). Some deployments only update admin_score.
+    // Call RPC with the correct parameters matching your function signature
     const { data, error } = await supabase.rpc('grade_result', {
-    p_student_id: studentId,
-    p_subject_id: subjectId,
-    p_term: term,
-    p_year: year,
-    // Prefer explicit params if RPC supports them; otherwise ignore
-    p_admin_score: admin,
-    p_total_score: combinedTotal
+      p_student_id: studentId,
+      p_subject_id: subjectId,
+      p_term: term,
+      p_year: year,
+      p_test_score: baseTestScore,
+      p_exam_score: baseExamScore,
+      p_admin_score: admin
     });
     
     if (error) {
-    console.error('Supabase RPC error grade_result:', error);
-    return { success: false, error: error.message };
-    }
-    
-    // Ensure total_score and status are correct even if RPC only saved admin_score.
-    // This may be skipped by RLS; it's a best-effort consistency pass.
-    const { error: updErr } = await supabase
-    .from('exam_results')
-    .update({
-    admin_score: admin,
-    total_score: combinedTotal,
-    status: 'graded',
-    updated_at: new Date().toISOString()
-    })
-    .eq('student_id', studentId)
-    .eq('subject_id', subjectId)
-    .eq('term', term)
-    .eq('year', year);
-    
-    if (updErr) {
-    // Not fatal if RLS blocks direct updates; RPC may have already applied changes.
-    console.warn('Post-RPC total update skipped (likely RLS):', updErr.message);
+      console.error('Supabase RPC error grade_result:', error);
+      return { success: false, error: error.message };
     }
     
     return { success: true, data };
@@ -174,19 +190,19 @@ export const getPublishedResultsByStudent = async (studentId) => {
     }
 
     const mapped = (data || []).map((r) => ({
-      ...r,
-      id: r.id,
-      studentId: r.student_id ?? r.studentId,
-      subjectId: r.subject_id ?? r.subjectId,
-      term: r.term,
-      year: r.year,
-      published: (r.is_published ?? r.published),
-      createdAt: r.created_at ?? r.createdAt,
-      totalScore: r.total_score ?? r.totalScore ?? ((r.test_score || 0) + (r.exam_score || 0)),
-      maxScore: 100,
-      testScore: r.test_score ?? r.testScore ?? null,
-      examScore: r.exam_score ?? r.examScore ?? null,
-      adminScore: r.admin_score ?? r.adminScore ?? null,
+    ...r,
+    id: r.id,
+    studentId: r.student_id ?? r.studentId,
+    subjectId: r.subject_id ?? r.subjectId,
+    term: r.term,
+    year: r.year,
+    published: (r.is_published ?? r.published),
+    createdAt: r.created_at ?? r.createdAt,
+    totalScore: r.total_score ?? r.totalScore ?? ((r.test_score || 0) + (r.exam_score || 0) + (r.admin_score || r.adminScore || 0)),
+    maxScore: ((r.admin_score ?? r.adminScore) != null) ? 100 : 80,
+    testScore: r.test_score ?? r.testScore ?? null,
+    examScore: r.exam_score ?? r.examScore ?? null,
+    adminScore: r.admin_score ?? r.adminScore ?? null,
     }));
 
     return { success: true, data: mapped };
@@ -297,8 +313,8 @@ export const getStudentExamResults = async (studentId) => {
 
     // Normalize snake_case -> camelCase and enrich with grades
     const mapped = (data || []).map((r) => {
-      const total = r.total_score ?? r.totalScore ?? ((r.test_score || 0) + (r.exam_score || 0));
       const hasAdmin = (r.admin_score ?? r.adminScore) != null;
+      const total = r.total_score ?? r.totalScore ?? ((r.test_score || 0) + (r.exam_score || 0) + (hasAdmin ? (r.admin_score || r.adminScore || 0) : 0));
       const max = hasAdmin ? 100 : 80;
       const gradeInfo = calculateGrade(total, max);
       return {
@@ -579,17 +595,29 @@ export const bulkPublishResults = async (publishData) => {
 export const insertExamResultsBulk = async ({ results, subjectId, term, year, teacherId, status = 'submitted' }) => {
   try {
     const payload = (results || []).map(r => {
+      const tInt = normalizeTerm(r.term ?? term);
+      const yInt = normalizeYear(r.session ?? year);
+      const studentIdVal = r.studentId ?? r.student_id;
+      const examScoreVal = r.examScore ?? r.exam_score;
+      const testScoreVal = r.testScore ?? r.test_score;
+      const adminScoreVal = r.adminScore ?? r.admin_score;
+      const total = r.totalScore != null
+        ? (parseFloat(r.totalScore) || 0)
+        : ((parseFloat(examScoreVal) || 0) + (parseFloat(testScoreVal) || 0));
       const item = {
-        student_id: r.studentId,
+        student_id: studentIdVal,
         subject_id: subjectId,
-        term: r.term ?? term,
-        year: parseInt(r.session ?? year, 10),
+        term: tInt ?? (r.term ?? term),
+        year: yInt,
         teacher_id: teacherId,
-        status: status,
-        total_score: (parseFloat(r.examScore) || 0) + (parseFloat(r.testScore) || 0),
-        test_score: parseFloat(r.testScore) || 0,
-        exam_score: parseFloat(r.examScore) || 0,
-        admin_score: parseFloat(r.adminScore ?? 0) || 0
+        status: status || 'submitted',
+        total_score: total,
+        test_score: parseFloat(testScoreVal) || 0,
+        exam_score: parseFloat(examScoreVal) || 0,
+        admin_score: adminScoreVal != null ? (parseFloat(adminScoreVal) || 0) : 0,
+        grade: r.grade ?? null,
+        remarks: (r.remark ?? r.remarks) ?? null,
+        submitted_at: r.submitted_at ?? new Date().toISOString()
       };
       return item;
     });

@@ -25,6 +25,10 @@ export const useReportsData = (user) => {
   const [remarks, setRemarks] = useState('');
   const [editingRemarks, setEditingRemarks] = useState(false);
   const [savingRemarks, setSavingRemarks] = useState(false);
+  // Existing report review feedback
+  const [reportStatus, setReportStatus] = useState('');
+  const [adminNotes, setAdminNotes] = useState('');
+  const [reviewedAt, setReviewedAt] = useState(null);
 
   // Report submission states
   const [selectedTerm, setSelectedTerm] = useState(1);
@@ -204,11 +208,18 @@ export const useReportsData = (user) => {
   };
 
   // Fetch remarks for selected student with improved error handling
-  const fetchRemarks = async (studentId, subjectName, classId) => {
+  const fetchRemarks = async (studentId, subjectName, classId, term = undefined, academicYear = undefined) => {
     try {
       // Resolve subject_id (UUID) from the provided subjectName
       const subjId = (availableSubjects || []).find(s => s.subjectName === subjectName)?.subjectId || '';
-      const remarksData = await reportService.getStudentRemarks(studentId, subjId, classId, user?.uid || user?.id);
+      const remarksData = await reportService.getStudentRemarks(
+        studentId,
+        subjId,
+        classId,
+        user?.uid || user?.id,
+        term,
+        academicYear
+      );
       return remarksData || { remarks: '', id: null };
     } catch (error) {
       console.error('Error fetching remarks:', error);
@@ -252,12 +263,15 @@ export const useReportsData = (user) => {
       const [attendance, submissions, studentRemarks] = await Promise.all([
         fetchAttendanceData(student.id, selectedSubject),
         fetchAssignmentSubmissions(student.id, selectedSubject),
-        fetchRemarks(student.id, selectedSubject, selectedClass)
+        fetchRemarks(student.id, selectedSubject, selectedClass, selectedTerm, selectedAcademicYear)
       ]);
       
       setAttendanceData(attendance);
       setAssignmentSubmissions(submissions);
       setRemarks(studentRemarks.remarks || '');
+      setReportStatus(studentRemarks.status || '');
+      setAdminNotes(studentRemarks.admin_notes || '');
+      setReviewedAt(studentRemarks.reviewed_at || null);
     } catch (error) {
       console.error('Error fetching student data:', error);
       setAttendanceData([]);
@@ -275,6 +289,9 @@ export const useReportsData = (user) => {
     setAssignmentSubmissions([]);
     setRemarks('');
     setEditingRemarks(false);
+    setReportStatus('');
+    setAdminNotes('');
+    setReviewedAt(null);
   };
 
   return {
@@ -296,6 +313,9 @@ export const useReportsData = (user) => {
     loading,
     loadingStudents,
     loadingReport,
+    reportStatus,
+    adminNotes,
+    reviewedAt,
 
     // Setters
     setSelectedClass,

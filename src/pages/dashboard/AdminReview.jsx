@@ -11,6 +11,7 @@ import { getAllClasses } from '../../services/supabase/classService';
 import { getSubjects } from '../../services/supabase/subjectService';
 import { getAllStudents } from '../../services/supabase/studentService';
 import AdminReviewModal from '../../components/examResults/AdminReviewModal';
+import { publishStudentTermReport } from '../../services/reportCardPublisher';
 
 const AdminReview = () => {
   const { user } = useAuth();
@@ -151,7 +152,8 @@ const AdminReview = () => {
         subjectId: selectedResult.subjectId,
         term: selectedResult.term,
         year: selectedResult.year,
-        adminScore: reviewdata.admin_score
+        adminScore: reviewData.adminScore,
+        teacherScore: reviewData.teacherScore
       });
       if (!res?.success) throw new Error(res?.error || 'Failed to submit review');
       setShowReviewModal(false);
@@ -539,6 +541,31 @@ const AdminReview = () => {
                           className="text-gray-600 hover:text-gray-900"
                         >
                           View
+                        </button>
+                      )}
+                      {activeTab !== 'pending' && result.status === 'graded' && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              const res = await publishStudentTermReport({
+                                studentId: result.studentId,
+                                term: result.term,
+                                academicYear: result.year,
+                              });
+                              if (res?.success && res.url) {
+                                window.open(res.url, '_blank');
+                              } else {
+                                alert(res?.error || 'Failed to generate report');
+                              }
+                            } catch (e) {
+                              console.error('Publish report card error:', e);
+                              alert('Failed to generate report');
+                            }
+                          }}
+                          className="text-purple-600 hover:text-purple-900"
+                          title="Generate & open report card PDF for this student"
+                        >
+                          Generate Report Card
                         </button>
                       )}
                     </td>

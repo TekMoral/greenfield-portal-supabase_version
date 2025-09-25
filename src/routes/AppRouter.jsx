@@ -16,6 +16,9 @@ import StudentLayout from "../layouts/StudentLayout";
 import TeacherLayout from "../layouts/TeacherLayout";
 import lazyWithRetry from "../utils/lazyWithRetry";
 
+// Debug feature flag: enable debug routes only in development or when explicitly allowed
+const DEBUG_ENABLED = (import.meta.env?.VITE_ENABLE_DEBUG === 'true') || (import.meta.env?.DEV === true) || ((import.meta.env?.MODE || '') === 'development');
+
 // Lazy loaded components with retry handling
 const Login = lazyWithRetry(() => import("../pages/Login"));
 const ResetPassword = lazyWithRetry(() => import("../pages/ResetPassword"));
@@ -529,30 +532,34 @@ const AppRouter = () => (
     />
 
     {/* Debug/Test Routes (temporary) */}
-    <Route
-      path="/debug/auth"
-      element={
-        <Suspense fallback={<LoadingFallback />}>
-          <AuthSessionDebug />
-        </Suspense>
-      }
-    />
-    <Route
-      path="/debug/teachers"
-      element={
-        <Suspense fallback={<LoadingFallback />}>
-          <TeacherTestComponent />
-        </Suspense>
-      }
-    />
-    <Route
-      path="/debug/news-schema"
-      element={
-        <Suspense fallback={<LoadingFallback />}>
-          <NewsSchemaTest />
-        </Suspense>
-      }
-    />
+    {DEBUG_ENABLED && (
+      <>
+        <Route
+          path="/debug/auth"
+          element={
+            <Suspense fallback={<LoadingFallback />}>
+              <AuthSessionDebug />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/debug/teachers"
+          element={
+            <Suspense fallback={<LoadingFallback />}>
+              <TeacherTestComponent />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/debug/news-schema"
+          element={
+            <Suspense fallback={<LoadingFallback />}>
+              <NewsSchemaTest />
+            </Suspense>
+          }
+        />
+      </>
+    )}
   </Routes>
 );
 

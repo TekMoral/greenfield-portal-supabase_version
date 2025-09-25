@@ -65,27 +65,41 @@ const DEVELOPMENT_CORS: CorsConfig = {
 
 // Get environment-specific CORS configuration
 function getCorsConfig(): CorsConfig {
-  const environment = Deno.env.get('ENVIRONMENT') || 'development'
-  
-  switch (environment.toLowerCase()) {
-    case 'production':
-    case 'prod':
-      return PRODUCTION_CORS
-    case 'staging':
-    case 'stage':
-      // Use production config but with staging domains
-      return {
-        ...PRODUCTION_CORS,
-        allowedOrigins: [
-          'https://staging.your-domain.com',
-          'https://your-app-staging.vercel.app',
-          // Add staging-specific domains
-        ]
-      }
-    case 'development':
-    case 'dev':
-    default:
-      return DEVELOPMENT_CORS
+  const environment = (Deno.env.get('ENVIRONMENT') || 'development').toLowerCase()
+
+  // Allow overriding allowed origins via env var (comma-separated)
+  const envOriginsRaw = Deno.env.get('ALLOWED_ORIGINS') || Deno.env.get('CORS_ALLOWED_ORIGINS') || ''
+  const envAllowedOrigins = envOriginsRaw
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean)
+
+  const base: CorsConfig = (() => {
+    switch (environment) {
+      case 'production':
+      case 'prod':
+        return PRODUCTION_CORS
+      case 'staging':
+      case 'stage':
+        return {
+          ...PRODUCTION_CORS,
+          allowedOrigins: [
+            'https://staging.your-domain.com',
+            'https://greenfield-school.netlify.app',
+            // Add staging-specific domains
+          ]
+        }
+      case 'development':
+      case 'dev':
+      default:
+        return DEVELOPMENT_CORS
+    }
+  })()
+
+  return {
+    ...base,
+    // If env var is provided, it takes precedence
+    allowedOrigins: envAllowedOrigins.length ? envAllowedOrigins : base.allowedOrigins,
   }
 }
 

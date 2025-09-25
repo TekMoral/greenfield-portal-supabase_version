@@ -235,8 +235,9 @@ export const supabaseConfig = {
   environment: import.meta.env.MODE || 'development'
 }
 
-// Expose Supabase client globally in the browser for debugging/tests
-if (typeof window !== 'undefined') {
+// Expose Supabase client globally only in development/debug
+const DEBUG_ENABLED = (import.meta?.env?.VITE_ENABLE_DEBUG === 'true') || (import.meta?.env?.DEV === true) || ((import.meta?.env?.MODE || '') === 'development')
+if (DEBUG_ENABLED && typeof window !== 'undefined') {
   try {
     if (!window.supabase) {
       window.supabase = supabase;

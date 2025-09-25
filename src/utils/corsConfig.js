@@ -134,21 +134,24 @@ export const debugCors = () => {
   const config = getCorsConfig()
   const environment = getEnvironment()
   const currentOrigin = window.location.origin
+  const isDev = typeof import !== 'undefined' && import.meta && import.meta.env && import.meta.env.MODE === 'development'
   
-  console.group('🔒 CORS Configuration Debug')
-  console.log('Environment:', environment)
-  console.log('Current Origin:', currentOrigin)
-  console.log('Allowed Origins:', config.allowedOrigins)
-  console.log('Origin Allowed:', config.allowedOrigins.includes(currentOrigin))
-  console.log('Strict Mode:', config.strictMode)
-  console.log('Allow Credentials:', config.allowCredentials)
-  
-  if (!config.allowedOrigins.includes(currentOrigin)) {
-    console.warn('⚠️ Current origin is not in the allowed list!')
-    console.log('Add this origin to your CORS configuration:', currentOrigin)
+  if (isDev) {
+    console.group('🔒 CORS Configuration Debug')
+    console.log('Environment:', environment)
+    console.log('Current Origin:', currentOrigin)
+    console.log('Allowed Origins:', config.allowedOrigins)
+    console.log('Origin Allowed:', config.allowedOrigins.includes(currentOrigin))
+    console.log('Strict Mode:', config.strictMode)
+    console.log('Allow Credentials:', config.allowCredentials)
+    
+    if (!config.allowedOrigins.includes(currentOrigin)) {
+      console.warn('⚠️ Current origin is not in the allowed list!')
+      console.log('Add this origin to your CORS configuration:', currentOrigin)
+    }
+    
+    console.groupEnd()
   }
-  
-  console.groupEnd()
   
   return {
     environment,

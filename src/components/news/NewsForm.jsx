@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createNews, updateNews } from '../../services/supabase/newsService';
+import { sanitizeText, isValidURL } from '../../utils/sanitize';
 
 const NewsForm = ({ initialData, onSubmit, onCancel }) => {
   const [formData, setFormData] = useState({
@@ -82,10 +83,11 @@ const NewsForm = ({ initialData, onSubmit, onCancel }) => {
 
   const handleAddTag = (e) => {
     e.preventDefault();
-    if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
+    const cleanTag = sanitizeText(tagInput, { maxLength: 30 });
+    if (cleanTag && !formData.tags.includes(cleanTag)) {
       setFormData(prev => ({
         ...prev,
-        tags: [...prev.tags, tagInput.trim()]
+        tags: [...prev.tags, cleanTag]
       }));
       setTagInput('');
     }
@@ -122,11 +124,8 @@ const NewsForm = ({ initialData, onSubmit, onCancel }) => {
     }
 
     if (formData.image.trim() && !imageFile) {
-      // Basic URL validation
-      try {
-        new URL(formData.image);
-      } catch {
-        newErrors.image = 'Please enter a valid image URL';
+      if (!isValidURL(formData.image, { protocols: ['https'] })) {
+        newErrors.image = 'Please enter a valid https image URL';
       }
     }
 
@@ -149,8 +148,20 @@ const NewsForm = ({ initialData, onSubmit, onCancel }) => {
     setUploadProgress(0);
     
     try {
-      // Pass both form data and image file to the parent component
-      await onSubmit(formData, imageFile);
+      // Sanitize text fields and pass along
+      const sanitizedData = {
+        ...formData,
+        title: sanitizeText(formData.title, { maxLength: 150 }),
+        summary: sanitizeText(formData.summary, { maxLength: 300 }),
+        content: sanitizeText(formData.content, { maxLength: 10000 }),
+        author: sanitizeText(formData.author, { maxLength: 100 }),
+        image: formData.image.trim(),
+        tags: Array.isArray(formData.tags)
+          ? formData.tags.map((t) => sanitizeText(t, { maxLength: 30 })).filter(Boolean)
+          : [],
+        category: sanitizeText(formData.category, { maxLength: 50 }),
+      };
+      await onSubmit(sanitizedData, imageFile);
     } catch (error) {
       console.error('Error submitting form:', error);
     } finally {

@@ -120,11 +120,16 @@ export const generateStudentEmail = (studentData, schoolName = null) => {
       };
     }
 
-    console.log('✅ Email generated successfully:', {
-      input: { firstName, surname, admissionNumber },
-      sanitized: { cleanFirstName, cleanSurname, surnameInitial, lastThreeDigits },
-      result: emailAddress
-    });
+    const isDev = typeof import !== 'undefined' && import.meta && import.meta.env && import.meta.env.MODE === 'development'
+    if (isDev) {
+      const mask = (s) => (typeof s === 'string' ? (s.length <= 2 ? s[0] + '*' : s[0] + '***') : s)
+      const maskedAdmission = String(admissionNumber || '').replace(/.(?=.{2}$)/g, '*')
+      console.log('✅ Email generated successfully:', {
+        input: { firstName: mask(firstName), surname: mask(surname), admissionNumber: maskedAdmission },
+        sanitized: { cleanFirstName, cleanSurname: cleanSurname ? cleanSurname[0] + '***' : '', surnameInitial, lastThreeDigits },
+        result: emailAddress
+      })
+    }
 
     return {
       success: true,

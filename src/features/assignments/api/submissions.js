@@ -2,6 +2,7 @@
 // Submissions and grading operations
 
 import { supabase } from '@lib/supabaseClient'
+import { sanitizeText, clampNumber, isValidURL } from '../../../utils/sanitize'
 
 export async function submitAssignment(submissionData) {
   try {
@@ -18,14 +19,19 @@ export async function submitAssignment(submissionData) {
       return { success: false, error: 'You have already submitted this assignment.' }
     }
 
-    // Create new submission
+    // Create new submission (sanitized)
+    const cleanText = sanitizeText(submissionData.submission_text, { maxLength: 10000 });
+    const cleanAttachment = submissionData.attachment_url && isValidURL(submissionData.attachment_url, { protocols: ['https'] })
+      ? submissionData.attachment_url.trim()
+      : null;
+
     const { data, error } = await supabase
       .from('assignment_submissions')
       .insert({
         assignment_id: submissionData.assignment_id,
         student_id: submissionData.student_id,
-        submission_text: submissionData.submission_text,
-        attachment_url: submissionData.attachment_url,
+        submission_text: cleanText,
+        attachment_url: cleanAttachment,
         status: 'submitted',
         submitted_at: new Date().toISOString(),
       })
@@ -41,13 +47,18 @@ export async function submitAssignment(submissionData) {
     // If the error indicates no rows found from .single() (PGRST116), continue with insert path already done
     if (String(error?.code) === 'PGRST116') {
       try {
+        const cleanText = sanitizeText(submissionData.submission_text, { maxLength: 10000 });
+        const cleanAttachment = submissionData.attachment_url && isValidURL(submissionData.attachment_url, { protocols: ['https'] })
+          ? submissionData.attachment_url.trim()
+          : null;
+
         const { data, error: insErr } = await supabase
           .from('assignment_submissions')
           .insert({
             assignment_id: submissionData.assignment_id,
             student_id: submissionData.student_id,
-            submission_text: submissionData.submission_text,
-            attachment_url: submissionData.attachment_url,
+            submission_text: cleanText,
+            attachment_url: cleanAttachment,
             status: 'submitted',
             submitted_at: new Date().toISOString(),
           })
@@ -70,11 +81,14 @@ export async function submitAssignment(submissionData) {
 
 export async function gradeAssignment(submissionId, score, feedback) {
   try {
+    const safeScore = clampNumber(score, { min: 0, max: 1000 });
+    const safeFeedback = sanitizeText(feedback, { maxLength: 1000 });
+
     const { data, error } = await supabase
       .from('assignment_submissions')
       .update({
-        score,
-        feedback,
+        score: safeScore,
+        feedback: safeFeedback,
         graded_at: new Date().toISOString(),
         status: 'graded'
       })
@@ -103,12 +117,15 @@ export async function gradeStudentSubmission(assignmentId, studentId, score, fee
       .single()
     if (findErr) throw findErr
 
+    const safeScore = clampNumber(score, { min: 0, max: 1000 });
+    const safeFeedback = sanitizeText(feedback, { maxLength: 1000 });
+
     const { data, error } = await supabase
       .from('assignment_submissions')
       .update({
-        score,
-        total_score: score,
-        feedback,
+        score: safeScore,
+        total_score: safeScore,
+        feedback: safeFeedback,
         graded_at: new Date().toISOString(),
         status: 'graded',
       })

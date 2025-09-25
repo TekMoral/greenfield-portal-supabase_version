@@ -2,20 +2,26 @@
 // CRUD operations for assignments (create, read, update, delete)
 
 import { supabase } from '@lib/supabaseClient'
+import { sanitizeText, clampNumber } from '../../../utils/sanitize'
 
 export async function createAssignment(assignmentData) {
   try {
+    const safeTitle = sanitizeText(assignmentData.title, { maxLength: 150 });
+    const safeDesc = sanitizeText(assignmentData.description, { maxLength: 2000 });
+    const safeType = sanitizeText(assignmentData.type || 'theory', { maxLength: 50 }) || 'theory';
+    const safeMarks = clampNumber(assignmentData.total_marks ?? 100, { min: 1, max: 1000 }) ?? 100;
+
     const { data, error } = await supabase
       .from('assignments')
       .insert({
-        title: assignmentData.title,
-        description: assignmentData.description,
+        title: safeTitle,
+        description: safeDesc,
         subject_id: assignmentData.subject_id,
         class_id: assignmentData.class_id,
         teacher_id: assignmentData.teacher_id,
-        type: assignmentData.type || 'theory',
+        type: safeType,
         due_date: assignmentData.due_date,
-        total_marks: assignmentData.total_marks || 100,
+        total_marks: safeMarks,
         instructions: assignmentData.instructions,
         attachment_url: assignmentData.attachment_url,
         status: 'draft'
@@ -208,12 +214,18 @@ export async function getAssignmentsForStudent(studentId) {
 
 export async function updateAssignment(assignmentId, updateData) {
   try {
+    const sanitized = {
+      ...updateData,
+      ...(updateData.title != null ? { title: sanitizeText(updateData.title, { maxLength: 150 }) } : {}),
+      ...(updateData.description != null ? { description: sanitizeText(updateData.description, { maxLength: 2000 }) } : {}),
+      ...(updateData.type != null ? { type: sanitizeText(updateData.type, { maxLength: 50 }) || 'theory' } : {}),
+      ...(updateData.total_marks != null ? { total_marks: clampNumber(updateData.total_marks, { min: 1, max: 1000 }) } : {}),
+      updated_at: new Date().toISOString()
+    };
+
     const { data, error } = await supabase
       .from('assignments')
-      .update({
-        ...updateData,
-        updated_at: new Date().toISOString()
-      })
+      .update(sanitized)
       .eq('id', assignmentId)
       .select(`
         *,
@@ -259,18 +271,23 @@ export async function createAssignmentWithTargets(assignmentData, classIds = [])
       : null;
 
     // 1) Insert assignment row (no per-class scope here; targets define visibility)
+    const safeTitle = sanitizeText(assignmentData.title, { maxLength: 150 });
+    const safeDesc = sanitizeText(assignmentData.description, { maxLength: 2000 });
+    const safeType = sanitizeText(assignmentData.type || 'theory', { maxLength: 50 }) || 'theory';
+    const safeMarks = clampNumber(assignmentData.total_marks ?? 100, { min: 1, max: 1000 }) ?? 100;
+
     const { data: assignment, error: aErr } = await supabase
       .from('assignments')
       .insert({
-        title: assignmentData.title,
-        description: assignmentData.description,
+        title: safeTitle,
+        description: safeDesc,
         subject_id: assignmentData.subject_id,
         // class_id optional/legacy; prefer targeting via assignment_targets
         class_id: normalizedClassId,
         teacher_id: assignmentData.teacher_id,
-        type: assignmentData.type || 'theory',
+        type: safeType,
         due_date: assignmentData.due_date,
-        total_marks: assignmentData.total_marks || 100,
+        total_marks: safeMarks,
         instructions: assignmentData.instructions ?? null,
         attachment_url: assignmentData.attachment_url ?? null,
         status: 'draft',

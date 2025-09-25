@@ -13,12 +13,8 @@ export default {
     },
   },
   build: {
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true
-      }
+    esbuild: {
+      drop: ['console', 'debugger']
     },
     rollupOptions: {
       output: {

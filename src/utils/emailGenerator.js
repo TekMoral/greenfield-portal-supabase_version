@@ -120,7 +120,7 @@ export const generateStudentEmail = (studentData, schoolName = null) => {
       };
     }
 
-    const isDev = typeof import !== 'undefined' && import.meta && import.meta.env && import.meta.env.MODE === 'development'
+    const isDev = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.MODE === 'development'
     if (isDev) {
       const mask = (s) => (typeof s === 'string' ? (s.length <= 2 ? s[0] + '*' : s[0] + '***') : s)
       const maskedAdmission = String(admissionNumber || '').replace(/.(?=.{2}$)/g, '*')

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { COMPONENT_COLORS, getButtonClasses } from "../../constants/colors";
 
 const Subjects = () => {
   const [isVisible, setIsVisible] = useState(false);
@@ -12,7 +13,7 @@ const Subjects = () => {
     core: {
       title: "Core Subjects",
       description: "Essential subjects required for all students",
-      color: "from-blue-500 to-indigo-600",
+      color: "from-slate-800 to-emerald-700",
       subjects: [
         {
           name: "Mathematics",
@@ -40,7 +41,7 @@ const Subjects = () => {
     sciences: {
       title: "Science Subjects",
       description: "STEM-focused subjects for future scientists and engineers",
-      color: "from-green-500 to-emerald-600",
+      color: "from-emerald-700 to-teal-600",
       subjects: [
         {
           name: "Physics",
@@ -82,7 +83,7 @@ const Subjects = () => {
     arts: {
       title: "Arts & Humanities",
       description: "Subjects focusing on human culture, society, and expression",
-      color: "from-purple-500 to-pink-600",
+      color: "from-slate-800 to-teal-700",
       subjects: [
         {
           name: "Literature in English",
@@ -124,7 +125,7 @@ const Subjects = () => {
     commercial: {
       title: "Commercial Subjects",
       description: "Business and commerce-oriented subjects",
-      color: "from-orange-500 to-red-600",
+      color: "from-slate-800 to-emerald-700",
       subjects: [
         {
           name: "Economics",
@@ -161,9 +162,9 @@ const Subjects = () => {
   const categories = Object.keys(subjectCategories);
 
   return (
-    <div className="bg-gradient-to-br from-slate-50 via-gray-50 to-purple-50 min-h-screen -mt-[var(--header-height,90px)]">
+    <div className={`${COMPONENT_COLORS.backgrounds.gradient} min-h-screen`}>
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-600 text-white py-20" style={{ paddingTop: "var(--header-height, 100px)"}}>
+      <section className={`${COMPONENT_COLORS.backgrounds.hero} text-white py-20`} style={{ paddingTop: "var(--header-height, 100px)"}}>
         <div className="max-w-7xl mx-auto px-6">
           <div
             className={`text-center transform transition-all duration-1000 ${
@@ -177,9 +178,9 @@ const Subjects = () => {
               </span>
             </div>
             <h1 className="text-5xl md:text-7xl font-black mb-6 leading-tight">
-              Our <span className="text-yellow-300">Subjects</span>
+              Our <span className="text-emerald-200">Subjects</span>
             </h1>
-            <p className="text-xl md:text-2xl text-purple-100 max-w-4xl mx-auto leading-relaxed">
+            <p className="text-xl md:text-2xl text-emerald-100 max-w-4xl mx-auto leading-relaxed">
               Comprehensive subject offerings designed to provide students with diverse
               learning opportunities and pathways to success.
             </p>
@@ -197,7 +198,7 @@ const Subjects = () => {
                 onClick={() => setActiveCategory(category)}
                 className={`px-6 py-3 rounded-full font-semibold transition-all duration-300 ${
                   activeCategory === category
-                    ? "bg-purple-600 text-white shadow-lg"
+                    ? "bg-slate-800 text-white shadow-lg"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
               >
@@ -241,7 +242,7 @@ const Subjects = () => {
                       {subject.levels.map((level, levelIndex) => (
                         <span
                           key={levelIndex}
-                          className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium"
+                          className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-sm font-medium"
                         >
                           {level}
                         </span>
@@ -256,7 +257,7 @@ const Subjects = () => {
                     <div className="space-y-1">
                       {subject.skills.map((skill, skillIndex) => (
                         <div key={skillIndex} className="flex items-center space-x-2">
-                          <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                          <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
                           <span className="text-gray-700 text-sm">{skill}</span>
                         </div>
                       ))}
@@ -291,10 +292,10 @@ const Subjects = () => {
                 <p className="text-gray-600">For future doctors, engineers, and scientists</p>
               </div>
               <div className="space-y-2">
-                <div className="p-3 bg-green-50 rounded-lg text-green-800 font-medium">
+                <div className="p-3 bg-emerald-50 rounded-lg text-emerald-800 font-medium">
                   Mathematics + Physics + Chemistry + Biology
                 </div>
-                <div className="p-3 bg-blue-50 rounded-lg text-blue-800 font-medium">
+                <div className="p-3 bg-teal-50 rounded-lg text-teal-800 font-medium">
                   Mathematics + Physics + Chemistry + Further Math
                 </div>
               </div>
@@ -307,10 +308,10 @@ const Subjects = () => {
                 <p className="text-gray-600">For future business leaders and entrepreneurs</p>
               </div>
               <div className="space-y-2">
-                <div className="p-3 bg-orange-50 rounded-lg text-orange-800 font-medium">
+                <div className="p-3 bg-emerald-50 rounded-lg text-emerald-800 font-medium">
                   Mathematics + Economics + Accounting + Commerce
                 </div>
-                <div className="p-3 bg-red-50 rounded-lg text-red-800 font-medium">
+                <div className="p-3 bg-sky-50 rounded-lg text-sky-800 font-medium">
                   Mathematics + Economics + Geography + Government
                 </div>
               </div>
@@ -323,10 +324,10 @@ const Subjects = () => {
                 <p className="text-gray-600">For future lawyers, writers, and social scientists</p>
               </div>
               <div className="space-y-2">
-                <div className="p-3 bg-purple-50 rounded-lg text-purple-800 font-medium">
+                <div className="p-3 bg-emerald-50 rounded-lg text-emerald-800 font-medium">
                   Literature + Government + History + Economics
                 </div>
-                <div className="p-3 bg-pink-50 rounded-lg text-pink-800 font-medium">
+                <div className="p-3 bg-teal-50 rounded-lg text-teal-800 font-medium">
                   Literature + Government + Geography + Economics
                 </div>
               </div>
@@ -336,25 +337,25 @@ const Subjects = () => {
       </section>
 
       {/* Call to Action */}
-      <section className="py-20 bg-gradient-to-br from-purple-600 to-indigo-700 text-white">
+      <section className="py-20 bg-gradient-to-br from-slate-900 to-slate-800 text-white">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <h2 className="text-4xl md:text-5xl font-black mb-6">
             Explore Your Academic Journey
           </h2>
-          <p className="text-xl text-purple-100 mb-8 leading-relaxed">
+          <p className="text-xl text-gray-300 mb-8 leading-relaxed">
             Discover the subjects that will shape your future and unlock your potential
             in your chosen field of study.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
               href="/academics/curriculum"
-              className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-8 py-4 rounded-lg font-semibold transition-colors duration-200 shadow-lg hover:shadow-xl"
+              className={getButtonClasses('accent')}
             >
               View Curriculum
             </a>
             <a
               href="/admissions"
-              className="bg-white/10 hover:bg-white/20 text-white px-8 py-4 rounded-lg font-semibold transition-colors duration-200 border border-white/20"
+              className={getButtonClasses('ghost')}
             >
               Apply Now
             </a>

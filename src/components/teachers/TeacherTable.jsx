@@ -1,307 +1,729 @@
-import React from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
+import { useAuth } from "../../hooks/useAuth";
+import ProfileImage from "../common/ProfileImage";
+import ImageModal from "../common/ImageModal";
+import { EditButton, DeleteButton, SuspendButton, ReactivateButton } from "../ui/ActionButtons";
 
-const TeacherTable = ({ teachers, onDelete, onEdit, onSuspend }) => {
-  return (
-    <>
-      {/* Desktop Table View */}
-      <div className="hidden lg:block bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-        <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-800 flex items-center">
-            <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
-            </svg>
-            All Teachers
-          </h3>
-          <p className="text-sm text-gray-600 mt-1">{teachers.length} teachers total</p>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead className="bg-gradient-to-r from-slate-50 to-gray-50">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Teacher
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Contact
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Subject
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Qualification
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Date Hired
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {teachers.length === 0 ? (
-                <tr>
-                  <td colSpan="7" className="px-6 py-16 text-center">
-                    <div className="flex flex-col items-center">
-                      <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center mb-4">
-                        <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
-                        </svg>
-                      </div>
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No teachers yet</h3>
-                      <p className="text-gray-500">Teachers will appear here once they are added</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                teachers.map((teacher, index) => (
-                  <tr key={teacher.id || `teacher-${index}`} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-200">
-                    <td className="px-6 py-5">
-                      <div className="flex items-center">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mr-4 shadow-lg">
-                          {teacher.profileImageUrl ? (
-                            <img
-                              src={teacher.profileImageUrl}
-                              alt={teacher.name}
-                              className="w-12 h-12 rounded-full object-cover border-2 border-white"
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.nextSibling.style.display = 'flex';
-                              }}
-                            />
-                          ) : null}
-                          <span className={`text-sm font-bold text-white ${teacher.profileImageUrl ? 'hidden' : 'flex'}`}>
-                            {teacher.name?.charAt(0)?.toUpperCase()}
-                          </span>
-                        </div>
-                        <div>
-                          <div className="text-sm font-semibold text-gray-900">{teacher.name}</div>
-                          <div className="text-xs text-gray-500">Teacher ID: {teacher.id?.slice(-6)}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-5">
-                      <div className="space-y-1">
-                        <div className="text-sm text-gray-900 flex items-center">
-                          <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-                          </svg>
-                          {teacher.email}
-                        </div>
-                        <div className="text-sm text-gray-500 flex items-center">
-                          <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                          </svg>
-                          {teacher.phoneNumber || 'Not provided'}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-5">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                        </svg>
-                        {teacher.subject}
-                      </span>
-                    </td>
-                    <td className="px-6 py-5">
-                      <div className="text-sm text-gray-900 flex items-center">
-                        <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                        </svg>
-                        {teacher.qualification || 'Not specified'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-5">
-                      <div className="text-sm text-gray-900 flex items-center">
-                        <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a4 4 0 118 0v4m-4 6v6m-4-6h8m-8 0H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2v-6a2 2 0 00-2-2h-4" />
-                        </svg>
-                        {teacher.dateHired ? new Date(teacher.dateHired).toLocaleDateString() : 'Not specified'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-5">
-                      <span
-                        className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                          teacher.isActive
-                            ? "bg-gradient-to-r from-green-100 to-emerald-100 text-green-800"
-                            : "bg-gradient-to-r from-red-100 to-pink-100 text-red-800"
-                        }`}
-                      >
-                        <div className={`w-2 h-2 rounded-full mr-2 ${teacher.isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                        {teacher.isActive ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-5">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => onEdit && onEdit(teacher)}
-                          className="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                          title="Edit teacher"
-                        >
-                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5h2m-1-1v2m-7 7l6 6m0 0l7-7a2.828 2.828 0 10-4-4l-7 7zm0 0H5v-3" />
-                          </svg>
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => onSuspend && onSuspend(teacher)}
-                          className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 focus:ring-2 focus:ring-offset-2 ${
-                            teacher.isActive
-                              ? 'text-orange-700 bg-orange-50 hover:bg-orange-100 focus:ring-orange-500'
-                              : 'text-green-700 bg-green-50 hover:bg-green-100 focus:ring-green-500'
-                          }`}
-                          title={teacher.isActive ? 'Suspend teacher' : 'Reactivate teacher'}
-                        >
-                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-12.728 12.728M6 6l12 12" />
-                          </svg>
-                          {teacher.isActive ? 'Suspend' : 'Reactivate'}
-                        </button>
-                        <button
-                          onClick={() => onDelete(teacher.id)}
-                          className="inline-flex items-center px-3 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-all duration-200 focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                          title="Delete teacher"
-                        >
-                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+const TeacherTable = ({
+  teachers = [],
+  allTeachers = [],
+  onEdit,
+  onDelete,
+  onSuspend,
+  onReactivate,
+  searchTerm = "",
+  setSearchTerm,
+  sortBy = "name",
+  sortOrder = "asc",
+  onSort,
+  currentPage = 1,
+  totalPages = 1,
+  itemsPerPage = 10,
+  setItemsPerPage,
+  onPageChange,
+  operationLoading = { create: false, update: false, delete: false, suspend: false, reactivate: false },
+  startItem = 0,
+  endItem = 0,
+  totalItems = 0,
+  // Bulk selection props
+  showSelection = false,
+  selectedIds = [],
+  onToggleRow = () => {},
+  onToggleAll = () => {},
+}) => {
+  const { userRole, isSuperAdmin } = useAuth();
+  const [selectedTeacher, setSelectedTeacher] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState("auto");
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Selection helpers
+  const selectedSet = useMemo(() => new Set(selectedIds || []), [selectedIds]);
+  const allSelectedOnPage = useMemo(
+    () => showSelection && teachers.length > 0 && teachers.every((t) => selectedSet.has(t.id)),
+    [showSelection, teachers, selectedSet]
+  );
+
+  // Check if mobile on mount and resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Handle image click - only for admins/super admins
+  const handleImageClick = useCallback(
+    (teacher) => {
+      if ((userRole === "admin" || isSuperAdmin) && teacher?.profileImageUrl) {
+        setSelectedTeacher(teacher);
+        setIsModalOpen(true);
+      }
+    },
+    [userRole, isSuperAdmin]
+  );
+
+  const closeModal = useCallback(() => {
+    setIsModalOpen(false);
+    setSelectedTeacher(null);
+  }, []);
+
+  // Clear search with animation
+  const clearSearch = useCallback(() => {
+    setSearchTerm("");
+  }, [setSearchTerm]);
+
+  // Generate page numbers for pagination
+  const pageNumbers = useMemo(() => {
+    const pages = [];
+    const maxVisiblePages = isMobile ? 3 : 5;
+
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= Math.floor(maxVisiblePages / 2) + 1) {
+        for (let i = 1; i <= maxVisiblePages - 1; i++) {
+          pages.push(i);
+        }
+        if (totalPages > maxVisiblePages - 1) {
+          pages.push("...");
+          pages.push(totalPages);
+        }
+      } else if (currentPage >= totalPages - Math.floor(maxVisiblePages / 2)) {
+        pages.push(1);
+        pages.push("...");
+        for (let i = totalPages - maxVisiblePages + 2; i <= totalPages; i++) {
+          pages.push(i);
+        }
+      } else {
+        pages.push(1);
+        pages.push("...");
+        for (let i = currentPage - 1; i <= currentPage + 1; i++) {
+          pages.push(i);
+        }
+        pages.push("...");
+        pages.push(totalPages);
+      }
+    }
+
+    return pages;
+  }, [currentPage, totalPages, isMobile]);
+
+  // Determine actual view mode based on screen size and user preference
+  const actualViewMode = useMemo(() => {
+    if (viewMode === "auto") {
+      return "cards"; // Use cards for all screen sizes
+    }
+    return viewMode;
+  }, [viewMode, isMobile]);
+
+  const SortButton = ({ field, children, className = "" }) => (
+    <button
+      onClick={() => onSort(field)}
+      className={`flex items-center space-x-1 text-left font-semibold text-gray-900 hover:text-blue-600 transition-colors group ${className}`}
+    >
+      <span>{children}</span>
+      <div className="flex flex-col">
+        <svg
+          className={`w-3 h-3 transition-all ${
+            sortBy === field && sortOrder === "asc"
+              ? "text-blue-600"
+              : "text-gray-400 group-hover:text-gray-600"
+          }`}
+          fill="currentColor"
+          viewBox="0 0 20 20"
+        >
+          <path
+            fillRule="evenodd"
+            d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
+            clipRule="evenodd"
+          />
+        </svg>
+        <svg
+          className={`w-3 h-3 -mt-1 transition-all ${
+            sortBy === field && sortOrder === "desc"
+              ? "text-blue-600"
+              : "text-gray-400 group-hover:text-gray-600"
+          }`}
+          fill="currentColor"
+          viewBox="0 0 20 20"
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+            clipRule="evenodd"
+          />
+        </svg>
       </div>
+    </button>
+  );
 
-      {/* Mobile Card View */}
-      <div className="lg:hidden space-y-4">
-        {teachers.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 text-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No teachers yet</h3>
-            <p className="text-gray-500">Teachers will appear here once they are added</p>
-          </div>
-        ) : (
-          teachers.map((teacher, index) => (
-            <div key={teacher.id || `teacher-${index}`} className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all duration-200">
-              <div className="flex items-start space-x-4">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-lg">
-                  {teacher.profileImageUrl ? (
-                    <img
-                      src={teacher.profileImageUrl}
-                      alt={teacher.name}
-                      className="w-16 h-16 rounded-full object-cover border-2 border-white"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.nextSibling.style.display = 'flex';
-                      }}
-                    />
-                  ) : null}
-                  <span className={`text-lg font-bold text-white ${teacher.profileImageUrl ? 'hidden' : 'flex'}`}>
-                    {teacher.name?.charAt(0)?.toUpperCase()}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-lg font-semibold text-gray-900 truncate">
-                      {teacher.name}
-                    </h3>
-                    <span
-                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
-                        teacher.isActive
-                          ? "bg-gradient-to-r from-green-100 to-emerald-100 text-green-800"
-                          : "bg-gradient-to-r from-red-100 to-pink-100 text-red-800"
-                      }`}
-                    >
-                      <div className={`w-1.5 h-1.5 rounded-full mr-1 ${teacher.isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                      {teacher.isActive ? "Active" : "Inactive"}
-                    </span>
-                  </div>
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center text-sm text-gray-600">
-                      <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-                      </svg>
-                      {teacher.email}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                      </svg>
-                      {teacher.phoneNumber || 'Not provided'}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                      </svg>
-                      {teacher.subject}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                      </svg>
-                      {teacher.qualification || 'Not specified'}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a4 4 0 118 0v4m-4 6v6m-4-6h8m-8 0H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2v-6a2 2 0 00-2-2h-4" />
-                      </svg>
-                      Hired: {teacher.dateHired ? new Date(teacher.dateHired).toLocaleDateString() : 'Not specified'}
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => onEdit && onEdit(teacher)}
-                      className="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition-all duration-200"
-                    >
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5h2m-1-1v2m-7 7l6 6m0 0l7-7a2.828 2.828 0 10-4-4l-7 7zm0 0H5v-3" />
-                      </svg>
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => onSuspend && onSuspend(teacher)}
-                      className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-                        teacher.isActive
-                          ? 'text-orange-700 bg-orange-50 hover:bg-orange-100'
-                          : 'text-green-700 bg-green-50 hover:bg-green-100'
-                      }`}
-                    >
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-12.728 12.728M6 6l12 12" />
-                      </svg>
-                      {teacher.isActive ? 'Suspend' : 'Reactivate'}
-                    </button>
-                    <button
-                      onClick={() => onDelete(teacher.id)}
-                      className="inline-flex items-center px-3 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 hover:text-red-700 transition-all duration-200"
-                    >
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))
+  const ActionsCell = ({
+    teacher,
+    onEdit,
+    onDelete,
+    onSuspend,
+    onReactivate,
+    isMobile = false,
+    isDesktopCard = false,
+    operationLoading = { create: false, update: false, delete: false, suspend: false, reactivate: false },
+  }) => {
+    const { userRole, isSuperAdmin } = useAuth();
+
+    // Check permissions
+    const canEdit = userRole === "super_admin" || isSuperAdmin;
+    const canDelete = userRole === "super_admin" || isSuperAdmin;
+    const canSuspend = ["super_admin", "admin"].includes(userRole) || isSuperAdmin;
+
+    if (!canEdit && !canDelete && !canSuspend) {
+      return (
+        <div className="text-center">
+          <span className="text-gray-400 text-sm">No Permission</span>
+        </div>
+      );
+    }
+
+    const teacherStatus = teacher?.isActive ? 'active' : 'inactive';
+
+    if (isMobile || isDesktopCard) {
+      return (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {canEdit && (
+            <EditButton
+              onClick={() => onEdit(teacher)}
+              loading={operationLoading?.update}
+              disabled={operationLoading?.update}
+              className="w-full"
+              size="xs"
+            />
+          )}
+                    
+          {canSuspend && teacherStatus === 'active' && onSuspend && (
+            <SuspendButton
+              onClick={() => onSuspend(teacher)}
+              loading={operationLoading?.suspend}
+              disabled={operationLoading?.suspend}
+              className="w-full"
+              size="xs"
+            />
+          )}
+          
+          {canSuspend && teacherStatus === 'inactive' && onReactivate && (
+            <ReactivateButton
+              onClick={() => onReactivate(teacher)}
+              loading={operationLoading?.reactivate}
+              disabled={operationLoading?.reactivate}
+              className="w-full"
+              size="xs"
+            />
+          )}
+          
+          {canDelete && (
+            <DeleteButton
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onDelete(teacher);
+              }}
+              loading={operationLoading?.delete}
+              disabled={operationLoading?.delete}
+              className="w-full"
+              size="xs"
+            />
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center space-x-1">
+        {canEdit && (
+          <EditButton
+            onClick={() => onEdit(teacher)}
+            loading={operationLoading?.update}
+            disabled={operationLoading?.update}
+          />
+        )}
+                
+        {canSuspend && teacherStatus === 'active' && onSuspend && (
+          <SuspendButton
+            onClick={() => onSuspend(teacher)}
+            loading={operationLoading?.suspend}
+            disabled={operationLoading?.suspend}
+          />
+        )}
+        
+        {canSuspend && teacherStatus === 'inactive' && onReactivate && (
+          <ReactivateButton
+            onClick={() => onReactivate(teacher)}
+            loading={operationLoading?.reactivate}
+            disabled={operationLoading?.reactivate}
+          />
+        )}
+        
+        {canDelete && (
+          <DeleteButton
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onDelete(teacher);
+            }}
+            loading={operationLoading?.delete}
+            disabled={operationLoading?.delete}
+          />
         )}
       </div>
-    </>
+    );
+  };
+
+  const StatusBadge = ({ isActive }) => {
+    return (
+      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+        isActive 
+          ? 'bg-green-100 text-green-800' 
+          : 'bg-red-100 text-red-800'
+      }`}>
+        {isActive ? 'Active' : 'Inactive'}
+      </span>
+    );
+  };
+
+  const TeacherCard = ({ teacher, index }) => (
+    <div className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
+      {/* Card Header */}
+      <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-100">
+        <div className="flex items-center space-x-3">
+          <div
+            className={`flex-shrink-0 ${
+              (userRole === "admin" || isSuperAdmin) && teacher?.profileImageUrl
+                ? "cursor-pointer hover:opacity-80 transition-opacity"
+                : ""
+            }`}
+            onClick={() => handleImageClick(teacher)}
+          >
+            <ProfileImage
+              src={teacher?.profileImageUrl}
+              alt={teacher?.name || "Teacher"}
+              size="md"
+              fallbackName={teacher?.name || ""}
+            />
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <h3 className="text-lg font-semibold text-gray-900 truncate">
+              {teacher?.name || "N/A"}
+            </h3>
+                        <div className="flex items-center space-x-2 mt-1">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                {teacher?.subject || "N/A"}
+              </span>
+              <StatusBadge isActive={teacher?.isActive} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Card Body */}
+      <div className="p-4">
+        <div className="space-y-3">
+          {teacher?.email && (
+            <div className="flex items-start space-x-2">
+              <svg
+                className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                />
+              </svg>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-500 uppercase tracking-wide">
+                  Email
+                </p>
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {teacher.email}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {teacher?.phoneNumber && (
+            <div className="flex items-start space-x-2">
+              <svg
+                className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                />
+              </svg>
+              <div className="flex-1">
+                <p className="text-xs text-gray-500 uppercase tracking-wide">
+                  Phone
+                </p>
+                <p className="text-sm font-medium text-gray-900">
+                  {teacher.phoneNumber}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {teacher?.qualification && (
+            <div className="flex items-start space-x-2">
+              <svg
+                className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"
+                />
+              </svg>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-500 uppercase tracking-wide">
+                  Qualification
+                </p>
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {teacher.qualification}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {teacher?.dateHired && (
+            <div className="flex items-start space-x-2">
+              <svg
+                className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z"
+                />
+              </svg>
+              <div className="flex-1">
+                <p className="text-xs text-gray-500 uppercase tracking-wide">
+                  Date Hired
+                </p>
+                <p className="text-sm font-medium text-gray-900">
+                  {new Date(teacher.dateHired).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Card Footer */}
+      <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
+        <ActionsCell
+          teacher={teacher}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onSuspend={onSuspend}
+          onReactivate={onReactivate}
+          isMobile={true}
+          operationLoading={operationLoading}
+        />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      {/* Enhanced Header with Search */}
+      <div className="p-4 sm:p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+        {/* Search Section */}
+        <div className="mb-4">
+          <div
+            className={`relative transition-all duration-200 ${
+              searchFocused ? "transform scale-[1.02]" : ""
+            }`}
+          >
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg
+                className={`h-5 w-5 transition-colors ${
+                  searchFocused ? "text-blue-500" : "text-gray-400"
+                }`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </div>
+            <input
+              type="text"
+              placeholder={
+                isMobile
+                  ? "Search teachers..."
+                  : "Search by name, email, subject, or qualification..."
+              }
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              className={`w-full pl-10 pr-12 py-3 border rounded-lg transition-all duration-200 text-sm ${
+                searchFocused
+                  ? "border-blue-500 ring-2 ring-blue-200 shadow-md"
+                  : "border-gray-300 hover:border-gray-400"
+              } focus:outline-none`}
+            />
+            {searchTerm && (
+              <button
+                onClick={clearSearch}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center group"
+              >
+                <div className="p-1 rounded-full hover:bg-gray-100 transition-colors">
+                  <svg
+                    className="h-4 w-4 text-gray-400 group-hover:text-gray-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </div>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Controls Row */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          {/* Results info */}
+          <div className="text-sm text-gray-600">
+            {totalItems > 0 ? (
+              <>
+                <span className="font-semibold text-gray-900">
+                  {totalItems}
+                </span>{" "}
+                teacher{totalItems !== 1 ? "s" : ""}
+                {searchTerm && (
+                  <span className="ml-2 text-blue-600 font-medium">
+                    (filtered from {allTeachers.length} total)
+                  </span>
+                )}
+              </>
+            ) : (
+              <span>No teachers found</span>
+            )}
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center gap-3">
+            {/* Items per page */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600 whitespace-nowrap hidden sm:block">
+                Show:
+              </label>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={15}>15</option>
+                <option value={20}>20</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      {teachers.length === 0 ? (
+        <div className="p-8 sm:p-12 text-center">
+          <div className="flex flex-col items-center justify-center">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+              <svg
+                className="w-8 h-8 sm:w-10 sm:h-10 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"
+                />
+              </svg>
+            </div>
+            <h3 className="text-lg sm:text-xl font-medium text-gray-900 mb-2">
+              {searchTerm ? "No matching teachers" : "No teachers found"}
+            </h3>
+            <p className="text-gray-500 max-w-sm text-sm sm:text-base mb-4 text-center">
+              {searchTerm
+                ? "Try adjusting your search criteria or clear the search to see all teachers."
+                : "No teachers have been added yet. Click 'Add Teacher' to get started."}
+            </p>
+            {searchTerm && (
+              <button
+                onClick={clearSearch}
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+              >
+                <svg
+                  className="w-4 h-4 mr-2"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+                Clear Search
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Card Views */}
+          {actualViewMode === "cards" && (
+            <div className="p-4">
+              <div className={`${isMobile ? 'space-y-4' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'}`}>
+                {teachers.map((teacher, index) => (
+                  <TeacherCard
+                    key={teacher?.id || index}
+                    teacher={teacher}
+                    index={index}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Enhanced Pagination */}
+      {totalPages > 1 && (
+        <div className="px-4 sm:px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="text-sm text-gray-700 text-center sm:text-left">
+              Page <span className="font-medium">{currentPage}</span> of{" "}
+              <span className="font-medium">{totalPages}</span>
+            </div>
+
+            <div className="flex items-center justify-center space-x-1">
+              {/* Previous button */}
+              <button
+                onClick={() => onPageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-l-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <span className="hidden sm:inline">Previous</span>
+                <svg
+                  className="w-4 h-4 sm:hidden"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+              </button>
+
+              {/* Page numbers */}
+              <div className="flex">
+                {pageNumbers.map((page, index) => (
+                  <button
+                    key={index}
+                    onClick={() =>
+                      typeof page === "number" && onPageChange(page)
+                    }
+                    disabled={page === "..."}
+                    className={`px-3 py-2 text-sm font-medium border-t border-b border-r border-gray-300 transition-colors ${
+                      page === currentPage
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : page === "..."
+                        ? "bg-white text-gray-400 cursor-default"
+                        : "bg-white text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+
+              {/* Next button */}
+              <button
+                onClick={() => onPageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-r-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <span className="hidden sm:inline">Next</span>
+                <svg
+                  className="w-4 h-4 sm:hidden"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Modal */}
+      <ImageModal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        student={selectedTeacher}
+      />
+    </div>
   );
 };
 

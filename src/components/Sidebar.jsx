@@ -1,9 +1,12 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useEffect, useState } from "react";
+import { ShieldCheck, AlertTriangle, LayoutDashboard, GraduationCap, Users, UserCog, Layers, BookOpen, BarChart3, FileText, CalendarCheck, Image, Newspaper, Settings, ClipboardList, Trash2, Calendar } from 'lucide-react';
 
 const Sidebar = ({ onMenuItemClick }) => {
   const { role } = useAuth();
-
+  const location = useLocation();
+  
   // STRICT: Only technical consultants and system admins (NOT super_admin)
   const isTechnicalConsultant =
     role === "technical_consultant" || role === "system_admin";
@@ -12,25 +15,29 @@ const Sidebar = ({ onMenuItemClick }) => {
   const isSuperAdmin = role === "super_admin";
 
   const navItems = [
-    { path: "/dashboard", label: "Overview" },
-    { path: "/dashboard/students", label: "Students" },
-    { path: "/dashboard/teachers", label: "Teachers" },
-    { path: "/dashboard/admins", label: "Admins" },
-    { path: "/dashboard/classes", label: "Classes" },
-    { path: "/dashboard/subjects", label: "Subjects" },
-    { path: "/dashboard/reports", label: "Exam Results" },
-    { path: "/dashboard/student-reports", label: "Student Reports" },
-    { path: "/dashboard/attendance", label: "Attendance" },
-    { path: "/dashboard/carousel", label: "Carousel Management" },
-    { path: "/dashboard/news", label: "News & Events" },
-    { path: "/dashboard/admin-review", label: "Admin Review" },
+    { path: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
+    { path: "/dashboard/students", label: "Students", Icon: GraduationCap },
+    { path: "/dashboard/teachers", label: "Teachers", Icon: Users },
+        { path: "/dashboard/classes", label: "Classes", Icon: Layers },
+    { path: "/dashboard/subjects", label: "Subjects", Icon: BookOpen },
+    { path: "/dashboard/reports", label: "Results", Icon: BarChart3 },
+    { path: "/dashboard/timetable", label: "Timetable", Icon: Calendar },
+    { path: "/dashboard/admin-review", label: "Grading Review", Icon: ClipboardList },
+    { path: "/dashboard/report-cards", label: "Report Cards", Icon: FileText },
+        { path: "/dashboard/attendance", label: "Attendance", Icon: CalendarCheck },
+    { path: "/dashboard/carousel", label: "Carousel", Icon: Image },
+    { path: "/dashboard/news", label: "News & Events", Icon: Newspaper },
+    // Admin Review parent handled as custom dropdown below
     // Only show Activity Logs for super admins
     ...(isSuperAdmin
       ? [
-          {
+          { path: "/dashboard/admins", label: "Admins", Icon: UserCog },
+                    { path: "/dashboard/settings", label: "Settings", Icon: Settings },
+                    {
             path: "/dashboard/activity-logs",
-            label: "Activity Logs",
+            label: "Audit Logs",
             restricted: true,
+            Icon: ClipboardList,
           },
         ]
       : []),
@@ -39,13 +46,13 @@ const Sidebar = ({ onMenuItemClick }) => {
       ? [
           {
             path: "/dashboard/log-cleanup",
-            label: "Log Cleanup",
+            label: "Logs Maintenance",
             restricted: true,
+            Icon: Trash2,
           },
         ]
       : []),
-    { path: "/dashboard/settings", label: "Settings" },
-  ];
+      ];
 
   return (
     <div className="h-full">
@@ -77,34 +84,26 @@ const Sidebar = ({ onMenuItemClick }) => {
             }
           >
             <div className="flex items-center justify-between">
-              <span>{item.label}</span>
+              <div className="flex items-center gap-2">
+                {item.Icon && <item.Icon className="w-4 h-4" aria-hidden="true" />}
+                <span>{item.label}</span>
+              </div>
               {item.restricted && (
                 <span className="text-xs bg-orange-500 text-white px-2 py-1 rounded">
-                  {item.label === "Activity Logs" ? "SUPER" : "TECH"}
+                  {item.label === "Audit Logs" ? "SUPER" : "TECH"}
                 </span>
               )}
             </div>
           </NavLink>
         ))}
-      </nav>
+
+              </nav>
 
       {/* Technical Consultant Badge */}
       {isTechnicalConsultant && (
         <div className="mt-6 p-3 bg-blue-900 rounded-lg border border-blue-700">
           <div className="flex items-center text-blue-100">
-            <svg
-              className="w-4 h-4 mr-2"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-              />
-            </svg>
+            <ShieldCheck className="w-4 h-4 mr-2" />
             <span className="text-xs font-medium">Technical Access</span>
           </div>
           <p className="text-xs text-blue-200 mt-1">
@@ -117,19 +116,7 @@ const Sidebar = ({ onMenuItemClick }) => {
       {role === "super_admin" && (
         <div className="mt-6 p-3 bg-yellow-900 rounded-lg border border-yellow-700">
           <div className="flex items-center text-yellow-100">
-            <svg
-              className="w-4 h-4 mr-2"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z"
-              />
-            </svg>
+            <AlertTriangle className="w-4 h-4 mr-2" />
             <span className="text-xs font-medium">Security Notice</span>
           </div>
           <p className="text-xs text-yellow-200 mt-1">

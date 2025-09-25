@@ -23,6 +23,7 @@ const AdminReview = () => {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [selectedResult, setSelectedResult] = useState(null);
 
+  
   // Reference data
   const [exams, setExams] = useState([]);
   const [classes, setClasses] = useState([]);
@@ -258,6 +259,7 @@ const AdminReview = () => {
 
   const isEligibleForPublish = (r) => r?.status === 'graded' && r?.adminScore !== null && r?.adminScore !== undefined;
 
+  
   const currentResults = activeTab === 'pending' ? pendingResults : reviewedResults;
 
   if (loading) {

@@ -26,10 +26,9 @@ const CarouselManagement = () => {
               </h3>
               <ul className="text-sm text-blue-700 space-y-1">
                 <li>• Recommended size: 2000x1200 pixels (16:9 aspect ratio)</li>
-                <li>• Maximum file size: 10MB</li>
+                <li>• Maximum file size: 2MB</li>
                 <li>• Supported formats: JPEG, PNG, WebP, GIF</li>
                 <li>• Use high-quality images that represent your school well</li>
-                <li>• Include descriptive titles and captions for better accessibility</li>
               </ul>
             </div>
           </div>

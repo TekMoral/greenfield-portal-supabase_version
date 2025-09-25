@@ -376,7 +376,6 @@ export const getStudentAttendanceSummary = async (studentId, startDate = null, e
       totalDays: attendanceRecords.length,
       presentDays: attendanceRecords.filter(record => record.status === 'present').length,
       absentDays: attendanceRecords.filter(record => record.status === 'absent').length,
-      lateDays: attendanceRecords.filter(record => record.status === 'late').length,
       attendancePercentage: 0,
       recentAttendance: attendanceRecords.slice(0, 10)
     };

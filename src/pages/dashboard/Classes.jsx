@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { getAllClasses } from "../../services/supabase/classService";
@@ -74,6 +74,9 @@ export default function Classes() {
   // Subject management state
   const [subjectManagerOpen, setSubjectManagerOpen] = useState(false);
   const [selectedClass, setSelectedClass] = useState(null);
+  const [search, setSearch] = useState("");
+  const [levelFilter, setLevelFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
 
   const queryClient = useQueryClient();
 
@@ -112,6 +115,26 @@ export default function Classes() {
   const fetchClassesRQ = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ['classes', 'withCounts'] });
   }, [queryClient]);
+
+  const filteredClasses = useMemo(() => {
+    let arr = Array.isArray(classes) ? [...classes] : [];
+    const term = search.trim().toLowerCase();
+    if (term) {
+      arr = arr.filter((c) =>
+        c.name?.toLowerCase().includes(term) ||
+        c.slug?.toLowerCase().includes(term) ||
+        c.level?.toLowerCase().includes(term) ||
+        c.category?.toLowerCase().includes(term)
+      );
+    }
+    if (levelFilter !== 'all') {
+      arr = arr.filter((c) => c.level === levelFilter);
+    }
+    if (categoryFilter !== 'all') {
+      arr = arr.filter((c) => (c.category || '') === categoryFilter);
+    }
+    return arr;
+  }, [classes, search, levelFilter, categoryFilter]);
 
   // Legacy fetch function retained only for reference; React Query handles actual loads
 
@@ -479,6 +502,68 @@ export default function Classes() {
           )}
         </div>
 
+        {/* Controls */}
+        <div className="bg-white/70 backdrop-blur-sm rounded-2xl border border-gray-100 p-4 sm:p-5 mb-6 shadow-sm">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+              <div className="relative">
+                <div className="pointer-events-none absolute inset-y-0 left-0 pl-3 flex items-center">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M10 18a8 8 0 100-16 8 8 0 000 16z" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by name, slug, level, or category..."
+                  className="w-full pl-10 pr-3 py-2.5 rounded-xl border-2 border-gray-200 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-400 transition-all placeholder:text-gray-400"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
+              <select
+                value={levelFilter}
+                onChange={(e) => setLevelFilter(e.target.value)}
+                className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-400"
+              >
+                <option value="all">All</option>
+                {LEVELS.map((lvl) => (
+                  <option key={lvl} value={lvl}>{lvl}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-400"
+              >
+                <option value="all">All</option>
+                {CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="mt-3 flex items-center justify-between text-sm text-gray-600">
+            <div>
+              <span className="font-semibold text-gray-800">{filteredClasses.length}</span> class{filteredClasses.length !== 1 ? 'es' : ''} shown
+            </div>
+            {(levelFilter !== 'all' || categoryFilter !== 'all' || search.trim()) && (
+              <button
+                onClick={() => { setSearch(''); setLevelFilter('all'); setCategoryFilter('all'); }}
+                className="text-blue-700 hover:text-blue-900 font-medium"
+              >
+                Reset filters
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Loading State */}
         {classesLoading ? (
           <div className="flex justify-center items-center py-8">
@@ -488,13 +573,13 @@ export default function Classes() {
         ) : (
           <>
             {/* Desktop Table View */}
-            <div className="hidden lg:block bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+            <div className="hidden md:block bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
               <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
                 <h3 className="text-lg font-semibold text-gray-800">
                   All Classes
                 </h3>
                 <p className="text-sm text-gray-600 mt-1">
-                  {classes.length} classes total
+                  {filteredClasses.length} classes total
                 </p>
               </div>
               <div className="overflow-x-auto">
@@ -519,7 +604,7 @@ export default function Classes() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {classes.length === 0 ? (
+                    {filteredClasses.length === 0 ? (
                       <tr>
                         <td colSpan="5" className="px-6 py-16 text-center">
                           <div className="flex flex-col items-center">
@@ -554,7 +639,7 @@ export default function Classes() {
                         </td>
                       </tr>
                     ) : (
-                      classes.map((cls, index) => (
+                      filteredClasses.map((cls, index) => (
                         <tr
                           key={cls.id || `class-${index}`}
                           className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-200 border-b border-gray-100"
@@ -568,7 +653,7 @@ export default function Classes() {
                                 <div className="text-sm font-semibold text-gray-900">
                                   {formatClassName(cls.name)}
                                 </div>
-                                <div className="text-xs text-gray-500 font-mono">
+                                <div className="text-xs text-gray-500 font-mono break-all">
                                   {cls.slug ||
                                     generateSlug(
                                       cls.name,
@@ -680,8 +765,8 @@ export default function Classes() {
             </div>
 
             {/* Mobile Card View */}
-            <div className="lg:hidden space-y-4">
-              {classes.length === 0 ? (
+            <div className="md:hidden space-y-4">
+              {filteredClasses.length === 0 ? (
                 <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 text-center">
                   <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <svg
@@ -706,24 +791,24 @@ export default function Classes() {
                   </p>
                   <button
                     onClick={openAddForm}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200"
+                    className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200"
                   >
                     Create Class
                   </button>
                 </div>
               ) : (
-                classes.map((cls, index) => (
+                filteredClasses.map((cls, index) => (
                   <div
                     key={cls.id || `class-${index}`}
-                    className="bg-white rounded-2xl shadow-lg border border-gray-100 p-5 hover:shadow-xl transition-all duration-200"
+                    className="bg-white rounded-2xl shadow-lg border border-gray-100 p-5 hover:shadow-xl transition-all duration-200 overflow-hidden"
                   >
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex items-center">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start mb-4">
+                      <div className="flex items-center min-w-0">
                         <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold mr-3">
                           {cls.name.charAt(0)}
                         </div>
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900">
+                        <div className="overflow-hidden">
+                          <h3 className="text-lg font-semibold text-gray-900 truncate">
                             {formatClassName(cls.name)}
                           </h3>
                           <div className="flex items-center gap-2 mt-1">
@@ -745,7 +830,7 @@ export default function Classes() {
                         </div>
                       </div>
                       {isSuperAdmin && (
-                        <div className="flex space-x-2">
+                        <div className="w-full sm:w-auto flex flex-wrap gap-2 justify-end sm:justify-start">
                           <button
                             onClick={() => openSubjectManager(cls)}
                             className="p-2 text-green-600 hover:bg-green-100 rounded-xl transition-colors duration-200"
@@ -775,7 +860,7 @@ export default function Classes() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-3">
                         <div className="text-gray-600 text-xs font-medium mb-1">
                           Students

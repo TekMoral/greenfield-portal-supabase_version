@@ -1,10 +1,28 @@
 import ImageCarousel from "../components/common/ImageCarousel";
 import { carouselService } from "../services/supabase";
-import VICollege24 from "../assets/images/VICollege24.jpg";
-import { COMPONENT_COLORS, getButtonClasses, getHeadingClasses, getBadgeClasses } from "../constants/colors";
+import { COMPONENT_COLORS, getBadgeClasses, ICON_COLORS } from "../constants/colors";
 
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import {
+  BookOpen,
+  GraduationCap,
+  Building2,
+  Leaf,
+  Camera,
+  Sprout,
+  Users,
+  Calendar,
+  Award,
+  MapPin,
+  Mail,
+  Phone,
+  Heart,
+  Lightbulb,
+} from "lucide-react";
+
+// Public URL to homepage hero image in Supabase Storage
+const HERO_IMAGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/homepage/home.webp`;
 
 const Home = () => {
   const [isVisible, setIsVisible] = useState(false);
@@ -39,20 +57,21 @@ const Home = () => {
               src: "https://images.unsplash.com/photo-1580582932707-520aed937b7b?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80",
               alt: "Modern School Building",
               title: "Our Beautiful Campus",
-              caption: "State-of-the-art facilities designed for optimal learning"
+              caption: "State-of-the-art facilities designed for optimal learning",
             },
             {
               src: "https://images.unsplash.com/photo-1509062522246-3755977927d7?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80",
               alt: "Students in Classroom",
               title: "Interactive Learning",
-              caption: "Engaging classroom environments that foster creativity and critical thinking"
+              caption:
+                "Engaging classroom environments that foster creativity and critical thinking",
             },
             {
               src: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80",
               alt: "Science Laboratory",
               title: "Advanced Laboratories",
-              caption: "Fully equipped science labs for hands-on experimentation and discovery"
-            }
+              caption: "Fully equipped science labs for hands-on experimentation and discovery",
+            },
           ]);
         } else {
           setCarouselImages(images);
@@ -65,8 +84,8 @@ const Home = () => {
             src: "https://images.unsplash.com/photo-1580582932707-520aed937b7b?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80",
             alt: "Modern School Building",
             title: "Our Beautiful Campus",
-            caption: "State-of-the-art facilities designed for optimal learning"
-          }
+            caption: "State-of-the-art facilities designed for optimal learning",
+          },
         ]);
       } finally {
         setCarouselLoading(false);
@@ -78,28 +97,28 @@ const Home = () => {
 
   const features = [
     {
-      icon: "📚",
+      icon: BookOpen,
       title: "Academic Excellence",
       description:
         "A commitment to high academic standards across all grade levels.",
       accentColor: "from-emerald-400 to-emerald-500",
     },
     {
-      icon: "🎓",
+      icon: GraduationCap,
       title: "Experienced Staff",
       description:
         "Dedicated teachers and staff fostering growth and curiosity.",
       accentColor: "from-emerald-400 to-teal-500",
     },
     {
-      icon: "🏫",
+      icon: Building2,
       title: "Modern Facilities",
       description:
         "State-of-the-art classrooms, labs, and learning environments.",
       accentColor: "from-teal-400 to-emerald-500",
     },
     {
-      icon: "🌿",
+      icon: Leaf,
       title: "Green Campus",
       description: "Eco-friendly and safe campus promoting sustainable habits.",
       accentColor: "from-emerald-400 to-emerald-500",
@@ -122,7 +141,7 @@ const Home = () => {
         <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
           style={{
-            backgroundImage: `url(${VICollege24})`,
+            backgroundImage: `url(${HERO_IMAGE_URL})`,
             backgroundAttachment: window.innerWidth > 768 ? "fixed" : "scroll",
           }}
         >
@@ -141,7 +160,7 @@ const Home = () => {
             <span
               className={`inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 bg-white/90 border border-emerald-200 rounded-full text-gray-700 text-xs sm:text-sm font-semibold backdrop-blur-sm shadow-lg`}
             >
-              <span className="animate-pulse">💡</span>
+              <Lightbulb className="h-4 w-4 animate-pulse" />
               Nurturing Growth Since 2002
             </span>
           </div>
@@ -189,7 +208,10 @@ const Home = () => {
           <div className="text-center mb-12 sm:mb-16">
             <div className="mb-6">
               <span className={getBadgeClasses("emerald")}>
-                📸 Campus Gallery
+                <span className="inline-flex items-center gap-2 align-middle">
+                  <Camera className="h-4 w-4" />
+                  Campus Gallery
+                </span>
               </span>
             </div>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-black mb-6">
@@ -229,8 +251,8 @@ const Home = () => {
             ) : (
               <div className="w-full h-64 sm:h-96 lg:h-[500px] xl:h-[600px] bg-gray-100 rounded-2xl flex items-center justify-center">
                 <div className="text-center px-4">
-                  <div className="text-gray-400 text-4xl sm:text-6xl mb-4">
-                    📸
+                  <div className="text-gray-400 mb-4">
+                    <Camera className="h-12 w-12 sm:h-16 sm:w-16" />
                   </div>
                   <h3 className="text-lg sm:text-xl font-semibold text-gray-700 mb-2">
                     No Images Available
@@ -273,33 +295,36 @@ const Home = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
-            {features.map((feature, index) => (
-              <div
-                key={index}
-                className="group relative bg-white/90 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-gray-200 hover:border-emerald-300 transition-all duration-500 transform hover:scale-105 hover:-translate-y-3 shadow-lg hover:shadow-2xl hover:shadow-emerald-200/50"
-                style={{
-                  animationDelay: `${index * 200}ms`,
-                }}
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 to-emerald-50/50 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-
-                <div className="relative z-10">
-                  <div className="text-4xl sm:text-6xl mb-4 sm:mb-6 transform group-hover:scale-110 group-hover:rotate-12 transition-all duration-300">
-                    {feature.icon}
-                  </div>
-                  <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-3 sm:mb-4 group-hover:text-emerald-700 transition-colors duration-300">
-                    {feature.title}
-                  </h3>
-                  <p className="text-gray-600 leading-relaxed group-hover:text-gray-700 transition-colors duration-300 text-sm sm:text-base">
-                    {feature.description}
-                  </p>
-                </div>
-
+            {features.map((feature, index) => {
+              const Icon = feature.icon;
+              return (
                 <div
-                  className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${feature.accentColor} rounded-b-3xl transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500`}
-                ></div>
-              </div>
-            ))}
+                  key={index}
+                  className="group relative bg-white/90 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-gray-200 hover:border-emerald-300 transition-all duration-500 transform hover:scale-105 hover:-translate-y-3 shadow-lg hover:shadow-2xl hover:shadow-emerald-200/50"
+                  style={{
+                    animationDelay: `${index * 200}ms`,
+                  }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 to-emerald-50/50 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+
+                  <div className="relative z-10">
+                    <div className="mb-4 sm:mb-6 transform group-hover:scale-110 group-hover:rotate-12 transition-all duration-300">
+                      <Icon className={`h-10 w-10 sm:h-14 sm:w-14 ${ICON_COLORS.primary}`} aria-hidden="true" />
+                    </div>
+                    <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-3 sm:mb-4 group-hover:text-emerald-700 transition-colors duration-300">
+                      {feature.title}
+                    </h3>
+                    <p className="text-gray-600 leading-relaxed group-hover:text-gray-700 transition-colors duration-300 text-sm sm:text-base">
+                      {feature.description}
+                    </p>
+                  </div>
+
+                  <div
+                    className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${feature.accentColor} rounded-b-3xl transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500`}
+                  ></div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -324,26 +349,29 @@ const Home = () => {
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8 text-center">
             {[
-              { number: "300+", label: "Flourishing Students", icon: "🌱" },
-              { number: "20+", label: "Expert Educators", icon: "👩‍🏫" },
-              { number: "15+", label: "Years of Growth", icon: "🌳" },
-              { number: "98%", label: "Exam Success Rate", icon: "🏆" },
-            ].map((stat, index) => (
-              <div
-                key={index}
-                className="group bg-white/90 backdrop-blur-lg shadow-lg rounded-xl p-4 sm:p-6 hover:bg-white transition-all duration-300 border border-gray-100"
-              >
-                <div className="text-2xl sm:text-4xl mb-2 group-hover:scale-110 transition-transform duration-300">
-                  {stat.icon}
+              { number: "300+", label: "Flourishing Students", icon: Sprout },
+              { number: "20+", label: "Expert Educators", icon: Users },
+              { number: "15+", label: "Years of Growth", icon: Calendar },
+              { number: "98%", label: "Exam Success Rate", icon: Award },
+            ].map((stat, index) => {
+              const Icon = stat.icon;
+              return (
+                <div
+                  key={index}
+                  className="group bg-white/90 backdrop-blur-lg shadow-lg rounded-xl p-4 sm:p-6 hover:bg-white transition-all duration-300 border border-gray-100"
+                >
+                  <div className="mb-2 group-hover:scale-110 transition-transform duration-300 flex items-center justify-center">
+                    <Icon className={`h-6 w-6 sm:h-8 sm:w-8 ${ICON_COLORS.primary}`} aria-hidden="true" />
+                  </div>
+                  <div className="text-xl sm:text-2xl lg:text-3xl xl:text-4xl font-black text-gray-800 mb-1">
+                    {stat.number}
+                  </div>
+                  <div className="text-gray-600 font-medium group-hover:text-gray-700 transition-colors duration-300 text-xs sm:text-sm lg:text-base">
+                    {stat.label}
+                  </div>
                 </div>
-                <div className="text-xl sm:text-2xl lg:text-3xl xl:text-4xl font-black text-gray-800 mb-1">
-                  {stat.number}
-                </div>
-                <div className="text-gray-600 font-medium group-hover:text-gray-700 transition-colors duration-300 text-xs sm:text-sm lg:text-base">
-                  {stat.label}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
@@ -355,22 +383,24 @@ const Home = () => {
           <div className="text-center">
             <div className="space-y-3 text-gray-300 text-sm sm:text-base lg:text-lg">
               <p className="flex items-center justify-center gap-2 flex-wrap">
-                <span>🏫</span>Plot 17, Adewale Fajuyi Street, Off Awolowo Road,
-                Ikoyi, Lagos Island, Nigeria 100225
+                <MapPin className="h-4 w-4" />
+                Plot 17, Adewale Fajuyi Street, Off Awolowo Road, Ikoyi, Lagos Island, Nigeria 100225
               </p>
               <p className="flex items-center justify-center gap-2 sm:gap-4 flex-wrap">
                 <a
                   href="mailto:info@greenfield.edu"
                   className="hover:text-white transition duration-200 flex items-center gap-1"
                 >
-                  <span>📧</span> info@greenfield.edu.ng
+                  <Mail className="h-4 w-4" />
+                  info@greenfield.edu.ng
                 </a>
                 <span className="hidden sm:inline">|</span>
                 <a
                   href="tel:+11234567890"
                   className="hover:text-white transition duration-200 flex items-center gap-1"
                 >
-                  <span>📞</span> +234 08034543622
+                  <Phone className="h-4 w-4" />
+                  +234 08034543622
                 </a>
               </p>
             </div>
@@ -378,7 +408,8 @@ const Home = () => {
             <div className="mt-5 pt-2 border-t border-gray-700">
               <p className="text-gray-500 text-xs sm:text-sm flex items-center justify-center gap-1 flex-wrap">
                 © 2025 Greenfield School. All rights reserved. | Cultivated with
-                💚 for education
+                <Heart className="h-4 w-4 text-emerald-400 inline-block align-[-2px]" aria-hidden="true" />
+                for education
               </p>
             </div>
           </div>

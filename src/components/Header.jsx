@@ -2,7 +2,8 @@ import React, { useState, useEffect, forwardRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { COMPONENT_COLORS } from '../constants/colors';
-import schoolLogo from '../assets/images/Logo.png';
+import schoolLogo from '../assets/images/greenfield-logo.png';
+import { Menu, X, ChevronDown, GraduationCap, BookOpen, FileText, Calendar } from 'lucide-react';
 
 const Header = forwardRef((props, ref) => {
   const { user, role, signOut } = useAuth();
@@ -16,11 +17,11 @@ const Header = forwardRef((props, ref) => {
     switch (role) {
       case "admin":
       case "super_admin":
-        return { path: "/dashboard", label: "Admin Dashboard" };
+        return { path: "/dashboard", label: "Dashboard" };
       case "teacher":
-        return { path: "/teacher", label: "Your Dashboard" };
+        return { path: "/teacher", label: "Dashboard" };
       case "student":
-        return { path: "/student", label: "Your Portal" };
+        return { path: "/student", label: "Dashboard" };
       default:
         return null;
     }
@@ -87,10 +88,10 @@ const Header = forwardRef((props, ref) => {
   }, []);
 
   const academicsMenuItems = [
-    { path: "/academics/curriculum", label: "Curriculum", icon: "📚" },
-    { path: "/academics/subjects", label: "Subjects", icon: "📖" },
-    { path: "/academics/examinations", label: "Examinations", icon: "📝" },
-    { path: "/academics/calendar", label: "Academic Calendar", icon: "📅" }
+    { path: "/academics/curriculum", label: "Curriculum", Icon: GraduationCap },
+    { path: "/academics/subjects", label: "Subjects", Icon: BookOpen },
+    { path: "/academics/examinations", label: "Exams", Icon: FileText },
+    { path: "/academics/calendar", label: "Academic Calendar", Icon: Calendar }
   ];
 
   return (
@@ -147,14 +148,9 @@ const Header = forwardRef((props, ref) => {
                 aria-expanded={isAcademicsMenuOpen}
               >
                 <span>Academics</span>
-                <svg
+                <ChevronDown
                   className={`w-4 h-4 transition-transform duration-200 ${isAcademicsMenuOpen ? 'rotate-180' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
+                />
               </button>
 
               {/* Academics Dropdown Menu */}
@@ -167,7 +163,7 @@ const Header = forwardRef((props, ref) => {
                       className="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors duration-200"
                       onClick={() => setIsAcademicsMenuOpen(false)}
                     >
-                      <span className="text-lg">{item.icon}</span>
+                      <item.Icon className="w-4 h-4" />
                       <span className="font-medium">{item.label}</span>
                     </Link>
                   ))}
@@ -179,7 +175,7 @@ const Header = forwardRef((props, ref) => {
               to="/admission"
               className="hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded px-2 py-1"
             >
-              Admission
+              Admissions
             </Link>
             <Link
               to="/news"
@@ -191,7 +187,7 @@ const Header = forwardRef((props, ref) => {
               to="/contact"
               className="hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded px-2 py-1"
             >
-              Contact
+              Contact Us
             </Link>
           </nav>
 
@@ -222,14 +218,9 @@ const Header = forwardRef((props, ref) => {
                   <span className="hidden sm:block font-medium">
                     {user.name || 'User'}
                   </span>
-                  <svg
+                  <ChevronDown
                     className={`w-4 h-4 transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
+                  />
                 </button>
 
                 {/* User Dropdown Menu */}
@@ -278,20 +269,11 @@ const Header = forwardRef((props, ref) => {
               aria-expanded={isMenuOpen}
               className="lg:hidden p-2 rounded-lg hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-white"
             >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-                focusable="false"
-              >
-                {isMenuOpen ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                )}
-              </svg>
+              {isMenuOpen ? (
+                <X className="w-6 h-6" aria-hidden="true" />
+              ) : (
+                <Menu className="w-6 h-6" aria-hidden="true" />
+              )}
             </button>
           </div>
         </div>
@@ -323,7 +305,7 @@ const Header = forwardRef((props, ref) => {
                       className="flex items-center space-x-2 py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
                       onClick={() => setIsMenuOpen(false)}
                     >
-                      <span>{item.icon}</span>
+                      <item.Icon className="w-4 h-4" />
                       <span>{item.label}</span>
                     </Link>
                   ))}

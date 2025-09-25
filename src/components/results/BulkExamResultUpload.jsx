@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSettings } from '../../contexts/SettingsContext';
 
 const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
   const [uploadMethod, setUploadMethod] = useState('manual');
@@ -7,14 +8,27 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
   const [errors, setErrors] = useState({});
   const [examType, setExamType] = useState('midterm');
   const [session, setSession] = useState(new Date().getFullYear().toString());
-  const [term, setTerm] = useState('1st');
+  const [term, setTerm] = useState('1st Term');
+
+  const { academicYear, currentTerm } = useSettings();
+  const normalizeTermLabel = (t) => {
+    if (t === 1 || t === '1' || String(t).toLowerCase().includes('1')) return '1st Term';
+    if (t === 2 || t === '2' || String(t).toLowerCase().includes('2')) return '2nd Term';
+    if (t === 3 || t === '3' || String(t).toLowerCase().includes('3')) return '3rd Term';
+    const s = String(t || '').toLowerCase();
+    if (s.includes('first')) return '1st Term';
+    if (s.includes('second')) return '2nd Term';
+    if (s.includes('third')) return '3rd Term';
+    return '1st Term';
+  };
+  useEffect(() => {
+    setSession(String(academicYear || new Date().getFullYear()));
+    setTerm(normalizeTermLabel(currentTerm || term));
+  }, [academicYear, currentTerm]);
 
   const examTypes = [
     { value: 'midterm', label: 'Mid-term Exam' },
     { value: 'final', label: 'Final Exam' },
-    { value: 'quiz', label: 'Quiz' },
-    { value: 'test', label: 'Class Test' },
-    { value: 'monthly', label: 'Monthly Test' }
   ];
 
   const terms = ['1st Term', '2nd Term', '3rd Term'];
@@ -230,25 +244,15 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Session</label>
-            <input
-              type="text"
-              value={session}
-              onChange={(e) => setSession(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., 2023/2024"
-            />
+            <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700">
+              {session}
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Term</label>
-            <select
-              value={term}
-              onChange={(e) => setTerm(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {terms.map(termOption => (
-                <option key={termOption} value={termOption}>{termOption}</option>
-              ))}
-            </select>
+            <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700">
+              {term}
+            </div>
           </div>
         </div>
       </div>

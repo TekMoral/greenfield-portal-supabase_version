@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { createDefaultAdmin } from "../utils/createAdmin";
 
+// Removed: This page is disabled to prevent creating a super admin from the frontend.
+// Keeping an empty component export to avoid import errors if referenced elsewhere.
 const CreateAdmin = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -9,7 +10,9 @@ const CreateAdmin = () => {
     setLoading(true);
     setMessage("");
 
-    const result = await createDefaultAdmin();
+    // Disabled: super admin creation is not allowed from the frontend.
+    // Intentionally no-op to prevent misuse.
+    const result = { success: false, error: 'Not permitted' };
     
     if (result.success) {
       setMessage("✅ Admin user created successfully! You can now login with admin@greenfield.edu.ng");

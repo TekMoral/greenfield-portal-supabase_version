@@ -1,31 +1,6 @@
 // src/lib/supabaseClient.js
 import { createClient } from '@supabase/supabase-js'
-
-// Custom localStorage wrapper with error handling (silent mode)
-const customStorage = {
-  getItem: (key) => {
-    try {
-      return localStorage.getItem(key)
-    } catch (error) {
-      console.error('❌ Storage GET error:', error)
-      return null
-    }
-  },
-  setItem: (key, value) => {
-    try {
-      localStorage.setItem(key, value)
-    } catch (error) {
-      console.error('❌ Storage SET error:', error)
-    }
-  },
-  removeItem: (key) => {
-    try {
-      localStorage.removeItem(key)
-    } catch (error) {
-      console.error('❌ Storage REMOVE error:', error)
-    }
-  }
-}
+import { cookieAuth, getAccessToken, subscribeTokenChange } from './cookieAuthClient'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -47,15 +22,55 @@ if (!supabaseAnonKey.startsWith('eyJ')) {
   console.warn('VITE_SUPABASE_ANON_KEY does not appear to be a valid JWT token.')
 }
 
-// Create Supabase client with configuration optimized for Edge Functions
+// Custom fetch that ensures Authorization header is present for PostgREST/RPC calls
+// and performs a one-time refresh/retry on 401 responses.
+const baseFetch = typeof fetch === 'function' ? fetch.bind(globalThis) : null
+async function authFetch(input, init) {
+  const req = input instanceof Request ? input : new Request(input, init)
+  const url = req.url || (typeof input === 'string' ? input : '')
+  // Only guard database endpoints; do not interfere with Edge Functions here
+  const isPostgrest = url.includes('/rest/v1') || url.includes('/rpc/')
+
+  let headers = new Headers(req.headers)
+  let token = getAccessToken && getAccessToken()
+
+  // Attach Authorization if missing and we have a token available
+  if (isPostgrest && !headers.has('Authorization') && token) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+
+  const makeRequest = (hdrs) => {
+    const newReq = new Request(req, { headers: hdrs })
+    return baseFetch ? baseFetch(newReq) : fetch(newReq)
+  }
+
+  let response = await makeRequest(headers)
+
+  // If unauthorized, try a one-time cookie-based refresh and retry
+  if (isPostgrest && response.status === 401) {
+    try {
+      const refreshed = await cookieAuth.refresh()
+      if (refreshed?.success) {
+        token = getAccessToken && getAccessToken()
+        const retryHeaders = new Headers(req.headers)
+        if (token) retryHeaders.set('Authorization', `Bearer ${token}`)
+        response = await makeRequest(retryHeaders)
+      }
+    } catch (_) {
+      // ignore refresh errors
+    }
+  }
+
+  return response
+}
+
+// Create Supabase client WITHOUT persisting session to storage. We rely on cookie-based refresh + in-memory access token.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    autoRefreshToken: true, // Enable auto-refresh for Edge Function calls
-    persistSession: true,
-    detectSessionInUrl: false, // Disable URL detection
+    autoRefreshToken: false, // we will refresh explicitly via Edge Function
+    persistSession: false,   // do not touch localStorage/sessionStorage
+    detectSessionInUrl: false,
     flowType: 'pkce',
-    storage: customStorage,
-    storageKey: 'sb-auth-token',
     debug: false
   },
   db: {
@@ -64,14 +79,24 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: {
     headers: {
       'X-Client-Info': 'school-portal@1.0.0'
-    }
+    },
+    fetch: authFetch
   }
 })
 
-// Remove the global auth state listener to prevent conflicts with AuthContext
-// The AuthContext will handle all auth state changes
+// Bind current in-memory access token to Supabase client so queries include Authorization
+const initialToken = getAccessToken && getAccessToken()
+if (initialToken) {
+  try { supabase.auth.setAuth(initialToken) } catch (_) {}
+}
+// Keep binding updated when token changes
+try {
+  subscribeTokenChange((token) => {
+    try { supabase.auth.setAuth(token || '') } catch (_) {}
+  })
+} catch (_) { /* ignore subscribe errors */ }
 
-// Helper function to get current user
+// Helper function to get current user (based on the in-memory token)
 export const getCurrentUser = async () => {
   try {
     const { data: { user }, error } = await supabase.auth.getUser()
@@ -104,6 +129,19 @@ export const getUserProfile = async (userId, signal) => {
     }, 5000) // Reduced timeout to 5 seconds
 
     try {
+      // Prefer SECURITY DEFINER RPC to bypass RLS safely
+      try {
+        const { data: rpcData, error: rpcErr } = await supabase
+          .rpc('rpc_get_current_profile')
+          .abortSignal(abortSignal)
+
+        if (!rpcErr && rpcData) {
+          clearTimeout(timeoutId)
+          return rpcData
+        }
+      } catch (_) { /* ignore and fallback */ }
+
+      // Fallback to direct select if RPC unavailable
       const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
@@ -115,10 +153,10 @@ export const getUserProfile = async (userId, signal) => {
 
       if (error) {
         if (error.code === 'PGRST116') {
-          // Don't log this as it's expected when no profile exists
+          // No row is expected when no profile exists
           return null
         } else if (error.name !== 'AbortError' && error.message !== 'signal is aborted without reason' && !error.message?.includes('aborted')) {
-          console.error('❌ getUserProfile error:', error.message)
+          console.warn('getUserProfile fallback error:', error.message)
         }
         return null
       }
@@ -126,12 +164,12 @@ export const getUserProfile = async (userId, signal) => {
       return data
     } catch (error) {
       clearTimeout(timeoutId)
-      
+
       // Don't log timeout errors after abort
       if (error.name === 'AbortError' || abortSignal?.aborted) {
         return null
       }
-      
+
       throw error
     }
   } catch (error) {
@@ -154,7 +192,7 @@ export const checkUserRole = async (userId, requiredRole) => {
   }
 }
 
-// Helper function to get current session
+// Helper function to get current session (will generally be null due to no persistence)
 export const getCurrentSession = async () => {
   try {
     const { data: { session }, error } = await supabase.auth.getSession()
@@ -198,13 +236,11 @@ export const supabaseConfig = {
 }
 
 // Expose Supabase client globally in the browser for debugging/tests
-// This lets you use `window.supabase` in the devtools console
 if (typeof window !== 'undefined') {
   try {
     if (!window.supabase) {
       window.supabase = supabase;
     }
-    // Useful non-sensitive config for console usage
     if (!window.supabaseConfig) {
       window.supabaseConfig = { url: supabaseUrl, environment: import.meta.env.MODE || 'development' };
     }

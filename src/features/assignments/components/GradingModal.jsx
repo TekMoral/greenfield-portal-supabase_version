@@ -17,29 +17,47 @@ const GradingModal = ({ assignment, onClose, onSubmitGrade }) => {
 
   React.useEffect(() => {
     let isMounted = true;
-    const fetchDetails = async () => {
-      const details = {};
-      for (const submission of submittedStudents) {
-        if (!isMounted) break;
-        try {
-          const resp = await getStudent(submission.studentId);
-          if (resp?.success && resp.data) {
-            const s = resp.data;
-            details[submission.studentId] = {
-              ...s,
-              // Provide camelCase convenience without breaking existing snake_case
-              admissionNumber: s.admission_number ?? s.admissionNumber ?? undefined,
-            };
-          } else {
-            details[submission.studentId] = null;
-          }
-        } catch (e) {
-          details[submission.studentId] = null;
-        }
+
+    const fetchStudentDetails = async () => {
+      if (submittedStudents.length === 0) {
+        if (isMounted) setStudentDetails({});
+        return;
       }
-      if (isMounted) setStudentDetails(details);
+
+      const details = {};
+      try {
+        for (const submission of submittedStudents) {
+          if (!isMounted) break;
+          try {
+            const resp = await getStudent(submission.studentId);
+            if (isMounted && resp?.success && resp.data) {
+              const s = resp.data;
+              const first = s.first_name ?? (s.full_name ? s.full_name.split(' ')[0] : undefined) ?? '';
+              const last = s.surname ?? (s.full_name ? s.full_name.split(' ').slice(1).join(' ') : undefined) ?? '';
+              details[submission.studentId] = {
+                ...s,
+                firstName: first,
+                surname: last,
+                admissionNumber: s.admission_number ?? s.admissionNumber ?? ''
+              };
+            }
+          } catch (error) {
+            // Fallback to safe placeholder to avoid Unknown display
+            details[submission.studentId] = {
+              firstName: 'Unknown',
+              surname: 'Student',
+              admissionNumber: ''
+            };
+          }
+        }
+
+        if (isMounted) setStudentDetails(details);
+      } catch (error) {
+        if (isMounted) setStudentDetails(details);
+      }
     };
-    fetchDetails();
+
+    fetchStudentDetails();
     return () => {
       isMounted = false;
     };
@@ -108,7 +126,7 @@ const GradingModal = ({ assignment, onClose, onSubmitGrade }) => {
                             {student ? (getFullName(student) || student.full_name || 'Unknown') : 'Loading...'}
                           </p>
                           {student && (
-                            <p className="text-xs sm:text-sm text-slate-500">ID: {student.admissionNumber || student.admission_number || submission.studentId}</p>
+                            <p className="text-xs sm:text-sm text-slate-500">Admission No: {student.admissionNumber || student.admission_number || '—'}</p>
                           )}
                           <p className="text-xs sm:text-sm text-slate-600">Submitted: {new Date(submission.submittedAt).toLocaleDateString()}</p>
                           <p className="text-xs sm:text-sm text-slate-600">Type: {submission.submissionType}</p>
@@ -134,13 +152,25 @@ const GradingModal = ({ assignment, onClose, onSubmitGrade }) => {
                 <div className="mb-6">
                   <h3 className="text-base sm:text-lg font-semibold text-slate-800 mb-2">Student Submission</h3>
                   <div className="bg-slate-50 p-4 rounded-lg">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-xs sm:text-sm text-slate-600 mb-4">
-                      <div>Submitted: {new Date(selectedStudent.submittedAt).toLocaleDateString()}</div>
-                                            <div>Status: {selectedStudent.status}</div>
-                      <div>Student ID: {selectedStudent.studentId}</div>
-                    </div>
-
-                    {selectedStudent.content && (
+                  <div className="mb-4">
+                  {studentDetails[selectedStudent.studentId] && (
+                  <div className="mb-3">
+                  <h4 className="font-medium text-slate-800 text-sm sm:text-base">
+                  {getFullName(studentDetails[selectedStudent.studentId])}
+                  </h4>
+                  <p className="text-xs sm:text-sm text-slate-600">
+                  Admission Number: {studentDetails[selectedStudent.studentId].admissionNumber || selectedStudent.studentId}
+                  </p>
+                  </div>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-xs sm:text-sm text-slate-600">
+                  <div>Submitted: {new Date(selectedStudent.submittedAt).toLocaleDateString()}</div>
+                  <div>Type: {selectedStudent.submissionType}</div>
+                  <div>Status: {selectedStudent.status}</div>
+                  </div>
+                  </div>
+                  
+                  {selectedStudent.content && (
                       <div>
                         <h4 className="font-medium text-slate-700 mb-2 text-sm sm:text-base">Submission Content:</h4>
                         <div className="text-slate-800 whitespace-pre-wrap text-sm sm:text-base">

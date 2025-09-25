@@ -52,22 +52,29 @@ const generateEmployeeId = async () => {
 const uploadProfileImage = async (file, teacherId) => {
   if (!file) return null;
 
-  const fileExt = file.name.split(".").pop();
+  const fileExt = (file.name || 'jpg').split(".").pop();
   const fileName = `${teacherId}-${Date.now()}.${fileExt}`;
   const filePath = `teacher-profiles/${fileName}`;
 
   try {
-    const [
-      { error: uploadError },
-      {
-        data: { publicUrl },
-      },
-    ] = await Promise.all([
-      supabase.storage.from("profile-images").upload(filePath, file),
-      supabase.storage.from("profile-images").getPublicUrl(filePath),
-    ]);
+    // Upload first with explicit content type; only fetch URL after successful upload
+    const { error: uploadError } = await supabase.storage
+      .from("profile-images")
+      .upload(filePath, file, { contentType: file.type || 'image/jpeg' });
 
-    if (uploadError) throw uploadError;
+    if (uploadError) {
+      console.error('❌ Storage upload failed:', uploadError);
+      throw uploadError;
+    }
+
+    const { data: pub } = supabase.storage
+      .from("profile-images")
+      .getPublicUrl(filePath);
+
+    const publicUrl = pub?.publicUrl || null;
+    if (!publicUrl) {
+      console.warn('⚠️ Public URL not available. Is the bucket public?');
+    }
     return publicUrl;
   } catch (error) {
     console.error("Error uploading profile image:", error);

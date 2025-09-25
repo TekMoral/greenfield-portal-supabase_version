@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 export default function ConfirmDialog({ 
   isOpen, 
@@ -34,6 +34,22 @@ export default function ConfirmDialog({
 
   const styles = getTypeStyles();
 
+  const [loading, setLoading] = useState(false);
+  const isMounted = useRef(true);
+  useEffect(() => {
+    return () => { isMounted.current = false; };
+  }, []);
+
+  const handleConfirmClick = async () => {
+    if (loading) return;
+    try {
+      setLoading(true);
+      await Promise.resolve(onConfirm && onConfirm());
+    } finally {
+      if (isMounted.current) setLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
@@ -56,10 +72,20 @@ export default function ConfirmDialog({
             {cancelText}
           </button>
           <button
-            onClick={onConfirm}
-            className={`px-4 py-2 text-white rounded focus:outline-none focus:ring-2 ${styles.confirmBtn}`}
+            onClick={handleConfirmClick}
+            disabled={loading}
+            className={`px-4 py-2 text-white rounded focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${styles.confirmBtn}`}
           >
-            {confirmText}
+            {loading ? (
+              <span className="inline-flex items-center gap-2">
+                <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {type === 'danger' ? 'Deleting...' : 'Processing...'}
+              </span>
+            ) : (
+              confirmText
+            )}
           </button>
         </div>
       </div>

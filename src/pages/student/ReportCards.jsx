@@ -1,11 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabaseClient';
+import { getTermName } from '../../utils/reportUtils';
+import { callFunction } from '../../services/supabase/edgeFunctions';
 
 const ReportCards = () => {
   const { user } = useAuth();
   const [reportCards, setReportCards] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Moved up to satisfy Hooks rules: hooks must not run after conditional returns
+  const [signedMap, setSignedMap] = useState({}); // { [docId]: url }
+
+  const getSignedUrl = async (card) => {
+    try {
+      const res = await callFunction('get-report-url', { document_id: card.id, expires_in: 300 });
+      if (res?.success && res?.url) return res.url;
+    } catch (e) {
+      console.error('Failed to get signed URL:', e);
+    }
+    return null;
+  };
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const ids = (reportCards || []).map(c => c.id);
+      const next = {};
+      for (const id of ids) {
+        const card = (reportCards || []).find(c => c.id === id);
+        if (!card) continue;
+        const url = await getSignedUrl(card);
+        if (!alive) return;
+        if (url) next[id] = url;
+      }
+      if (alive) setSignedMap(next);
+    })();
+    return () => { alive = false };
+  }, [JSON.stringify(reportCards.map(c => c.id))]);
 
   useEffect(() => {
     if (user?.id) {
@@ -21,7 +53,8 @@ const ReportCards = () => {
         .select('*')
         .eq('student_id', user.id)
         .eq('document_type', 'report_card')
-        .order('created_at', { ascending: false });
+        .eq('status', 'published')
+        .order('uploaded_at', { ascending: false });
 
       if (error) throw error;
       setReportCards(data || []);
@@ -32,12 +65,7 @@ const ReportCards = () => {
     }
   };
 
-  const getTermName = (term) => {
-    if (term === 1) return '1st Term';
-    if (term === 2) return '2nd Term';
-    if (term === 3) return '3rd Term';
-    return `Term ${term}`;
-  };
+  // getTermName centralized in utils/reportUtils
 
   if (loading) {
     return (
@@ -47,6 +75,9 @@ const ReportCards = () => {
     );
   }
 
+  
+  
+  
   return (
     <div className="space-y-6">
       <div>
@@ -67,7 +98,7 @@ const ReportCards = () => {
               <div className="flex items-center justify-between mb-4">
                 <div className="text-2xl">📄</div>
                 <span className="text-xs text-slate-500">
-                  {new Date(card.created_at).toLocaleDateString()}
+                  {new Date(card.uploaded_at || card.updated_at || Date.now()).toLocaleDateString()}
                 </span>
               </div>
               
@@ -79,14 +110,29 @@ const ReportCards = () => {
                 Academic Year: {card.academic_year}
               </p>
               
-              <a
-                href={card.file_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-center block"
-              >
-                Download PDF
-              </a>
+              {(() => {
+                const href = signedMap[card.id] || null;
+                return href ? (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-center block"
+                  >
+                    Download PDF
+                  </a>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      const url = await getSignedUrl(card);
+                      if (url) setSignedMap(m => ({ ...m, [card.id]: url }));
+                    }}
+                    className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-center block"
+                  >
+                    Get Link
+                  </button>
+                );
+              })()}
             </div>
           ))}
         </div>

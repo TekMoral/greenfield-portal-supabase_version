@@ -28,6 +28,8 @@ interface UpdateUserRequest {
     status?: string
     notes?: string
     profile_image?: string
+    // Admin operation flags
+    reset_to_admission_password?: boolean
   }
 }
 
@@ -152,6 +154,26 @@ serve(async (req) => {
       .eq('id', body.userId)
       .select()
       .single()
+
+    // Optional admin-triggered password reset to admission number for students
+    if (body.userType === 'student' && body.updateData.reset_to_admission_password === true) {
+      try {
+        const admission = (currentUser as any).admission_number
+        if (!admission) {
+          throw new Error('Student has no admission_number on record')
+        }
+        const { error: pwErr } = await serviceClient.auth.admin.updateUserById(body.userId, { password: admission })
+        if (pwErr) throw pwErr
+        // Mark require_password_change
+        await serviceClient
+          .from('user_profiles')
+          .update({ require_password_change: true, updated_at: new Date().toISOString() })
+          .eq('id', body.userId)
+      } catch (e) {
+        console.error('Admin reset password failed:', e)
+        throw new Error('Failed to reset password to admission number')
+      }
+    }
 
     if (updateError) {
       console.error('🔍 Database update error:', updateError)

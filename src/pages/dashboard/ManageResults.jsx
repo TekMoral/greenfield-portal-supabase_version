@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getExamById } from '../../services/examService';
-import { getResultsByExam, createOrUpdateResult, calculateClassPositions } from '../../services/resultService';
-import { getStudentsByClassId } from '../../services/classService';
+import { getExamById } from '../../services/supabase/examService';
+import { getResultsByExam, createOrUpdateResult, calculateClassPositions } from '../../services/supabase/resultService';
+import { getStudentsInClass } from '../../services/supabase/classService';
 import useToast from '../../hooks/useToast';
 import ResultEntryForm from '../../components/results/ResultEntryForm';
 import ResultsTable from '../../components/results/ResultsTable';
@@ -30,10 +30,12 @@ const ManageResults = () => {
       const examData = await getExamById(examId);
       setExam(examData);
 
-      const [studentsData, resultsData] = await Promise.all([
-        getStudentsByClassId(examData.classId),
+      const [studentsRes, resultsData] = await Promise.all([
+        getStudentsInClass(examData.classId),
         getResultsByExam(examId)
       ]);
+
+      const studentsData = studentsRes?.data || [];
 
       setStudents(studentsData);
       setResults(resultsData);

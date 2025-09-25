@@ -263,7 +263,7 @@ export const StudentsMobileCards = ({ students = [], onOpenStudent }) => {
 };
 
 // Student details modal
-export const StudentDetailsModal = ({ student, onClose, onViewAssignments, onViewGrades, onSendMessage }) => {
+export const StudentDetailsModal = ({ student, onClose, onViewAssignments, onViewGrades }) => {
   if (!student) return null;
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -366,11 +366,10 @@ export const StudentDetailsModal = ({ student, onClose, onViewAssignments, onVie
 
           <div className="mt-6 pt-6 border-t border-slate-200">
             <h3 className="text-base sm:text-lg font-semibold text-slate-800 mb-3">Quick Actions</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button onClick={() => onViewAssignments?.(student)} className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm font-medium">View Assignments</button>
               <button onClick={() => onViewGrades?.(student)} className="bg-slate-600 text-white px-4 py-2 rounded-lg hover:bg-slate-700 transition-colors text-sm font-medium">View Grades</button>
-              <button onClick={() => onSendMessage?.(student)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">Send Message</button>
-            </div>
+                          </div>
           </div>
         </div>
 

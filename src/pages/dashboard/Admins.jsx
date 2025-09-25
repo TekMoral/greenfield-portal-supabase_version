@@ -67,7 +67,8 @@ const Admins = () => {
     setLoadingStates(prev => ({ ...prev, creating: true }));
     
     try {
-      const result = await edgeFunctionsService.createAdmin(formData);
+      const payload = { ...formData, role: 'admin' };
+      const result = await edgeFunctionsService.createAdmin(payload);
       if (result.success) {
         setFormData({ 
           name: '', 
@@ -460,9 +461,68 @@ const Admins = () => {
         </form>
       )}
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full">
-          <thead className="bg-gray-50">
+      {/* Mobile Cards (below md) */}
+      <div className="md:hidden grid grid-cols-1 gap-3 mb-6">
+        {admins.map((admin) => {
+          const canManage = isSuperAdmin && admin.role !== 'super_admin' && admin.id !== user?.id;
+          const roleBadge = admin.role === 'super_admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800';
+          const statusBadge = admin.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+          return (
+            <div key={admin.id} className="bg-white rounded-2xl border border-gray-200 ring-1 ring-gray-100 p-4 shadow-sm flex flex-col h-full">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="text-base font-semibold text-gray-900 truncate">{admin.name || `${admin.firstName || ''} ${admin.surname || ''}`.trim() || 'No Name'}</h3>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <span className={`px-2 py-0.5 text-xs rounded-full ${roleBadge}`}>{admin.role === 'super_admin' ? 'Super Admin' : 'Admin'}</span>
+                    <span className={`px-2 py-0.5 text-xs rounded-full ${statusBadge}`}>{admin.isActive ? 'Active' : 'Inactive'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 space-y-2 text-sm text-gray-800">
+                <div className="flex items-start gap-2">
+                  <svg className="w-4 h-4 text-gray-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                  <span className="break-all">{admin.email}</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <svg className="w-4 h-4 text-gray-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493A1 1 0 0011.72 9H19a2 2 0 012 2v7a2 2 0 01-2 2h-5"/></svg>
+                  <span>{admin.phone_number || '-'}</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <svg className="w-4 h-4 text-gray-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414V19a2 2 0 01-2 2z"/></svg>
+                  <span>{admin.department || '-'}</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <svg className="w-4 h-4 text-gray-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                  <span>{admin.position || '-'}</span>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-gray-100">
+                {canManage ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <EditButton onClick={() => handleEditAdmin(admin)} className="w-full" size="xs" />
+                    {admin.status === 'suspended' ? (
+                      <ReactivateButton onClick={() => handleReactivateAdmin(admin)} className="w-full" size="xs" />
+                    ) : (
+                      <SuspendButton onClick={() => handleSuspendAdmin(admin)} className="w-full" size="xs" />
+                    )}
+                    <DeleteButton onClick={() => handleDeleteAdmin(admin)} className="w-full col-span-2" size="xs" />
+                  </div>
+                ) : (
+                  <span className="text-gray-400 text-sm">No permissions</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop Table (md and up) */}
+      <div className="hidden md:block bg-white rounded-2xl shadow-xl border border-gray-100">
+        <div className="overflow-x-auto">
+          <table className="min-w-[1000px] w-full table-auto">
+            <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
@@ -474,9 +534,9 @@ const Admins = () => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-gray-100">
             {admins.map((admin) => (
-              <tr key={admin.id}>
+              <tr key={admin.id} className="hover:bg-gray-50/60 transition-colors">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900">
                     {admin.name || `${admin.firstName || ''} ${admin.surname || ''}`.trim() || 'No Name'}
@@ -537,6 +597,7 @@ const Admins = () => {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Suspend Confirmation Modal */}

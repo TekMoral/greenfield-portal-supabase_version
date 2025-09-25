@@ -93,7 +93,7 @@ serve(async (req) => {
     // Create auth user using admin API
     const { data: authData, error: authError } = await serviceClient.auth.admin.createUser({
       email: body.email,
-      password: body.password || body.admission_number || 'defaultPassword123',
+      password: body.admission_number || body.password || 'defaultPassword123',
       user_metadata: {
         full_name: `${body.first_name} ${body.surname}`,
         role: 'student',
@@ -125,6 +125,7 @@ serve(async (req) => {
       status: 'active',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      require_password_change: true,
     }
 
     // Upsert to make operation idempotent and avoid duplicate key issues on retries

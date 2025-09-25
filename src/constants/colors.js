@@ -80,26 +80,26 @@ export const COLORS = {
 export const COMPONENT_COLORS = {
   // Navigation
   nav: {
-    background: 'bg-slate-800',
-    backgroundScrolled: 'bg-slate-800/95',
-    links: 'text-slate-100 hover:text-emerald-200',
-    logo: 'text-slate-100 hover:text-emerald-200'
+    background: 'bg-[#333333]',
+    backgroundScrolled: 'bg-[#333333]/95',
+    links: 'text-[#F8F8F8] hover:text-[#EAEAEA]',
+    logo: 'text-[#F8F8F8] hover:text-[#EAEAEA]'
   },
 
   // Section Headings
   headings: {
-    primary: 'text-slate-800',
-    accent: 'text-emerald-600',
-    gradient: 'bg-gradient-to-r from-slate-800 to-slate-700 bg-clip-text text-transparent',
-    accentGradient: 'bg-gradient-to-r from-emerald-600 to-emerald-700 bg-clip-text text-transparent',
-    goldGradient: 'bg-gradient-to-r from-amber-600 to-amber-700 bg-clip-text text-transparent'
+    primary: 'text-[#333333]',
+    accent: 'text-[#4682B4]',
+    gradient: 'bg-gradient-to-r from-[#333333] to-[#708090] bg-clip-text text-transparent',
+    accentGradient: 'bg-gradient-to-r from-[#4682B4] to-[#007BFF] bg-clip-text text-transparent',
+    goldGradient: 'bg-gradient-to-r from-[#4682B4] to-[#007BFF] bg-clip-text text-transparent'
   },
 
   // CTA Buttons
   buttons: {
-    primary: 'bg-emerald-600 hover:bg-emerald-700 text-white',
-    secondary: 'bg-white border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50',
-    accent: 'bg-amber-500 hover:bg-amber-600 text-slate-900',
+    primary: 'bg-[#007BFF] hover:bg-[#0069d9] text-white',
+    secondary: 'bg-white border-2 border-[#4682B4] text-[#4682B4] hover:bg-[#EAF0F7]',
+    accent: 'bg-[#C70039] hover:bg-[#A00030] text-white',
     ghost: 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
   },
 
@@ -113,11 +113,11 @@ export const COMPONENT_COLORS = {
 
   // Backgrounds
   backgrounds: {
-    primary: 'bg-white',
-    secondary: 'bg-gray-50',
-    accent: 'bg-emerald-50',
-    gradient: 'bg-gradient-to-br from-slate-50 via-gray-50 to-emerald-50',
-    hero: 'bg-gradient-to-br from-slate-600 via-slate-500 to-emerald-600'
+    primary: 'bg-[#F8F8F8]',
+    secondary: 'bg-[#EAEAEA]',
+    accent: 'bg-[#F0F6FB]',
+    gradient: 'bg-gradient-to-br from-[#F8F8F8] via-[#EAEAEA] to-[#F8F8F8]',
+    hero: 'bg-gradient-to-br from-[#333333] via-[#2b2b2b] to-[#333333]'
   },
 
   // Status Colors
@@ -130,10 +130,15 @@ export const COMPONENT_COLORS = {
 
   // Section Tags/Badges
   badges: {
-    emerald: 'bg-emerald-100 border-emerald-200 text-emerald-700',
-    amber: 'bg-amber-100 border-amber-200 text-amber-700',
-    slate: 'bg-slate-100 border-slate-200 text-slate-700',
-    teal: 'bg-teal-100 border-teal-200 text-teal-700'
+    brand: 'bg-[#EAF0F7] border-[#C9D9E7] text-[#4682B4]',
+    secondary: 'bg-[#E0F2F2] border-[#9FD3D3] text-[#008080]',
+    accent: 'bg-[#FFEAF0] border-[#FFC9D5] text-[#C70039]',
+    neutral: 'bg-[#F0F0F0] border-[#DCDCDC] text-[#333333]',
+    // Legacy keys mapped to new palette for backward compatibility
+    emerald: 'bg-[#EAF0F7] border-[#C9D9E7] text-[#4682B4]',
+    amber: 'bg-[#E0F2F2] border-[#9FD3D3] text-[#008080]',
+    slate: 'bg-[#F0F0F0] border-[#DCDCDC] text-[#333333]',
+    teal: 'bg-[#E0F2F2] border-[#9FD3D3] text-[#008080]'
   }
 };
 
@@ -157,4 +162,12 @@ export const getCardClasses = (hover = true) => {
   const baseClasses = 'bg-white rounded-2xl p-6 shadow-lg border border-gray-200';
   const hoverClasses = hover ? 'hover:shadow-2xl transition-all duration-500 transform hover:scale-105' : '';
   return `${baseClasses} ${hoverClasses}`;
+};
+
+// Centralized icon colors to ensure consistent, professional look across public pages
+export const ICON_COLORS = {
+  primary: 'text-[#4682B4]', // Steel Blue - brand accent
+  accent: 'text-[#007BFF]',  // Bright Blue - secondary accent
+  onDark: 'text-white',      // Icons on dark backgrounds
+  muted: 'text-slate-500'    // Muted/secondary icons
 };

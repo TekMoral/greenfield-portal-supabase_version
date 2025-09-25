@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { BrowserRouter } from "react-router-dom";
 import AppRouter from "./routes/AppRouter";
 import Header from "./components/Header";
+import { SettingsProvider } from "./contexts/SettingsContext";
 import { AuthProvider } from "./contexts/SupabaseAuthContext";
 import { Toaster } from "react-hot-toast"; // ✅ Toast system
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -48,11 +49,12 @@ function App() {
 
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Header ref={headerRef} />
-        <div style={{ paddingTop: "var(--header-height, 90px)" }}>
-          <ErrorBoundary>
-            <Suspense
+      <SettingsProvider>
+        <BrowserRouter>
+          <Header ref={headerRef} />
+          <div className="app-content">
+            <ErrorBoundary>
+              <Suspense
               fallback={
                 <div className="flex justify-center items-center h-screen">
                   Loading...
@@ -64,7 +66,8 @@ function App() {
           </ErrorBoundary>
         </div>
         <Toaster position="top-right" reverseOrder={false} />
-      </BrowserRouter>
+        </BrowserRouter>
+      </SettingsProvider>
     </AuthProvider>
   );
 }

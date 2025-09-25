@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import PasswordInput from "../components/ui/PasswordInput";
-import schoolLogo from "../assets/images/Logo.png";
+import PasswordResetModal from "../components/auth/PasswordResetModal";
+import schoolLogo from "../assets/images/greenfield-logo.png";
 import toast from "react-hot-toast";
 
 const Login = () => {
@@ -10,6 +11,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
 
   const navigate = useNavigate();
   const { user, role, signIn, isAuthenticated } = useAuth();
@@ -44,14 +46,16 @@ const Login = () => {
       }
 
       if (result.user) {
-        toast.success("Login successful!");
-        // The AuthContext will handle role fetching and navigation
-        // No need to manually redirect here as useEffect will handle it
+        // Don't show toast here - let the auth context handle navigation
+        // The useEffect will redirect based on role
+        console.log("Login successful, waiting for role-based redirect...");
       }
     } catch (err) {
       console.error("Login error:", err);
-      setError(err.message || "Invalid credentials or network issue.");
-      toast.error(err.message || "Login failed");
+      const errorMessage = err.message || "Invalid credentials or network issue.";
+      setError(errorMessage);
+      // Only show error toast, not success toast to avoid duplicates
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -62,7 +66,7 @@ const Login = () => {
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-full mb-4 shadow-lg p-2">
+          <div className="inline-flex items-center justify-center w-28 h-28 bg-white rounded-full mb-4 shadow-lg p-3">
             <img 
               src={schoolLogo} 
               alt="Greenfield College Logo" 
@@ -206,12 +210,13 @@ const Login = () => {
 
           {/* Additional Links */}
           <div className="mt-6 text-center">
-            <a
-              href="#"
+            <button
+              type="button"
+              onClick={() => setShowPasswordReset(true)}
               className="text-green-600 hover:text-green-800 text-sm font-medium transition-colors duration-200"
             >
               Forgot your password?
-            </a>
+            </button>
           </div>
         </div>
 
@@ -228,6 +233,13 @@ const Login = () => {
           </p>
         </div>
       </div>
+
+      {/* Password Reset Modal */}
+      <PasswordResetModal
+        isOpen={showPasswordReset}
+        onClose={() => setShowPasswordReset(false)}
+        userType="general"
+      />
     </div>
   );
 };

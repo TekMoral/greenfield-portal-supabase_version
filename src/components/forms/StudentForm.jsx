@@ -4,11 +4,11 @@ import { useForm } from "react-hook-form";
 import { studentService, classService } from "../../services/supabase";
 import { generateStudentEmail } from "../../utils/emailGenerator";
 
-const StudentForm = ({ onSubmit, defaultValues = {}, mode = "add" }) => {
+const StudentForm = ({ onSubmit, onCancel, defaultValues = {}, mode = "add", classes: classesProp = [], imagePreview: imagePreviewProp = null, onImageSelect }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
-  const [classes, setClasses] = useState([]);
+  const [classes, setClasses] = useState(Array.isArray(classesProp) ? classesProp : []);
   const [imagePreview, setImagePreview] = useState(
     defaultValues?.Image || null
   );
@@ -45,7 +45,7 @@ const StudentForm = ({ onSubmit, defaultValues = {}, mode = "add" }) => {
       console.log("🔄 Generating admission number for initial:", initial);
       const nextNumber = await studentService.getNextAdmissionNumber(initial);
       const padded = String(nextNumber).padStart(3, "0");
-      const admissionNumber = `${initial}${padded}${year}`;
+      const admissionNumber = `${year}${initial}${padded}`;
 
       console.log("✅ Generated admission number:", admissionNumber);
       setValue("admission_number", admissionNumber);
@@ -110,28 +110,25 @@ const StudentForm = ({ onSubmit, defaultValues = {}, mode = "add" }) => {
     }
   }, [first_name, surname, admission_number, mode, generateEmail]);
 
-  // Fetch classes once
+  // Fetch classes once or use provided classes
   useEffect(() => {
     const fetchClasses = async () => {
+      if (Array.isArray(classesProp) && classesProp.length > 0) {
+        setClasses(classesProp);
+        return;
+      }
       try {
         console.log("🔄 Fetching classes for student form...");
         const result = await classService.getAllClasses();
 
         if (result && result.success) {
-          console.log(
-            "✅ Classes fetched successfully:",
-            result.data?.length || 0
-          );
+          console.log("✅ Classes fetched successfully:", result.data?.length || 0);
           setClasses(Array.isArray(result.data) ? result.data : []);
         } else if (Array.isArray(result)) {
-          // Handle legacy format (direct array)
           console.log("✅ Classes fetched (legacy format):", result.length);
           setClasses(result);
         } else {
-          console.error(
-            "❌ Failed to fetch classes:",
-            result?.error || "Unknown error"
-          );
+          console.error("❌ Failed to fetch classes:", result?.error || "Unknown error");
           setClasses([]);
         }
       } catch (error) {
@@ -140,14 +137,20 @@ const StudentForm = ({ onSubmit, defaultValues = {}, mode = "add" }) => {
       }
     };
     fetchClasses();
-  }, []);
+  }, [classesProp]);
 
   // Reset form on defaultValues change
   useEffect(() => {
     reset(defaultValues);
     setImagePreview(defaultValues?.profileImageUrl || null);
     setSelectedImage(null);
-  }, [defaultValues, reset]);
+    // Normalize date_of_birth for date input
+    const dob = defaultValues?.date_of_birth;
+    if (dob) {
+      const normalizedDob = typeof dob === 'string' ? dob.split('T')[0] : new Date(dob).toISOString().split('T')[0];
+      setValue('date_of_birth', normalizedDob);
+    }
+  }, [defaultValues, reset, setValue]);
 
   // Handle edit mode initialization
   useEffect(() => {
@@ -362,9 +365,9 @@ const StudentForm = ({ onSubmit, defaultValues = {}, mode = "add" }) => {
               </label>
               <div className="relative inline-block">
                 <div className="w-32 h-32 mx-auto border-4 border-white rounded-full flex items-center justify-center overflow-hidden bg-white shadow-lg">
-                  {imagePreview ? (
+                  {(imagePreviewProp ?? imagePreview) ? (
                     <img
-                      src={imagePreview}
+                      src={imagePreviewProp ?? imagePreview}
                       alt="Profile preview"
                       className="w-full h-full object-cover"
                     />
@@ -396,7 +399,7 @@ const StudentForm = ({ onSubmit, defaultValues = {}, mode = "add" }) => {
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={handleImageSelect}
+                  onChange={onImageSelect || handleImageSelect}
                   className="hidden"
                   id="profile-image"
                 />
@@ -835,43 +838,21 @@ const StudentForm = ({ onSubmit, defaultValues = {}, mode = "add" }) => {
               </div>
             </div>
 
-            {/* Submit Button */}
+            {/* Submit Buttons */}
             <div className="mt-8 pt-8 border-t border-gray-200">
-              <button
-                type="submit"
-                disabled={isSubmitting || !isValid}
-                className={`w-full py-4 px-6 rounded-lg font-semibold text-lg transition-all duration-200 flex items-center justify-center ${
-                  isSubmitting || !isValid
-                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                    : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
-                }`}
-              >
-                {isSubmitting ? (
-                  <>
-                    <svg
-                      className="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-500"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    Processing...
-                  </>
-                ) : (
-                  <>
+              <div className="flex flex-col sm:flex-row gap-4">
+                {/* Cancel Button */}
+                {onCancel && (
+                  <button
+                    type="button"
+                    onClick={onCancel}
+                    disabled={isSubmitting}
+                    className={`flex-1 py-4 px-6 rounded-lg font-semibold text-lg transition-all duration-200 flex items-center justify-center ${
+                      isSubmitting
+                        ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200 border-2 border-gray-300 hover:border-gray-400"
+                    }`}
+                  >
                     <svg
                       className="w-5 h-5 mr-2"
                       fill="none"
@@ -882,13 +863,67 @@ const StudentForm = ({ onSubmit, defaultValues = {}, mode = "add" }) => {
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         strokeWidth={2}
-                        d="M5 13l4 4L19 7"
+                        d="M6 18L18 6M6 6l12 12"
                       />
                     </svg>
-                    {mode === "edit" ? "Update Student" : "Add Student"}
-                  </>
+                    Cancel
+                  </button>
                 )}
-              </button>
+                
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !isValid}
+                  className={`${onCancel ? 'flex-1' : 'w-full'} py-4 px-6 rounded-lg font-semibold text-lg transition-all duration-200 flex items-center justify-center ${
+                    isSubmitting || !isValid
+                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+                  }`}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <svg
+                        className="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-500"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        className="w-5 h-5 mr-2"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                      {mode === "edit" ? "Update Student" : "Add Student"}
+                    </>
+                  )}
+                </button>
+              </div>
 
               {/* Form validation status */}
               {!isValid && Object.keys(errors).length > 0 && (

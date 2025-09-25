@@ -211,6 +211,7 @@ export default function AdminAttendance() {
       .channel('admin-attendance-dashboard')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, () => {
         queryClient.invalidateQueries({ queryKey: ['admin','attendance'] })
+        queryClient.invalidateQueries({ queryKey: ['dashboard','overview'] })
       })
       .subscribe()
 
@@ -282,6 +283,7 @@ export default function AdminAttendance() {
       const res = await adminAttendanceService.upsertBulk(payload, { finalize })
       if (!res.success) { setSaving(false); throw new Error(res.error) }
       await queryClient.invalidateQueries({ queryKey: ['admin','attendance'] })
+      await queryClient.invalidateQueries({ queryKey: ['dashboard','overview'] })
       setSaving(false)
       alert(`Saved ${payload.length} record(s).`)
       // Optionally retain selections for another save; comment out next line to keep
@@ -297,19 +299,15 @@ export default function AdminAttendance() {
   const statusStyles = {
     present: 'bg-green-100 text-green-700',
     absent: 'bg-red-100 text-red-700',
-    late: 'bg-yellow-100 text-yellow-800',
-    excused: 'bg-blue-100 text-blue-700',
   }
 
   // Student attendance summary calculation
   const studentSummary = useMemo(() => {
-    const s = { total: studentRecords.length, present: 0, absent: 0, late: 0, excused: 0, attended: 0, rate: 0 }
+    const s = { total: studentRecords.length, present: 0, absent: 0, attended: 0, rate: 0 }
     for (const r of studentRecords) {
       const st = String(r.status || '').toLowerCase()
       if (st === 'present') s.present++
       else if (st === 'absent') s.absent++
-      else if (st === 'late') s.late++
-      else if (st === 'excused') s.excused++
     }
     s.attended = s.present + s.late
     s.rate = s.total > 0 ? Math.round((s.attended / s.total) * 100) : 0
@@ -322,8 +320,6 @@ export default function AdminAttendance() {
     switch (st) {
       case 'present': return '✓'
       case 'absent': return '✗'
-      case 'late': return '⏰'
-      case 'excused': return 'ℹ️'
       default: return '—'
     }
   }
@@ -524,8 +520,6 @@ export default function AdminAttendance() {
       totalDays: records.length,
       present: 0,
       absent: 0,
-      late: 0,
-      excused: 0,
       attendanceRate: 0
     }
 
@@ -533,8 +527,6 @@ export default function AdminAttendance() {
       const status = String(record.status || '').toLowerCase()
       if (status === 'present') stats.present++
       else if (status === 'absent') stats.absent++
-      else if (status === 'late') stats.late++
-      else if (status === 'excused') stats.excused++
     })
 
     const attended = stats.present + stats.late
@@ -555,8 +547,6 @@ export default function AdminAttendance() {
     message += `📈 ATTENDANCE SUMMARY:\n`
     message += `• Total School Days: ${stats.totalDays}\n`
     message += `• Present: ${stats.present} days\n`
-    message += `• Late: ${stats.late} days\n`
-    message += `• Excused: ${stats.excused} days\n`
     message += `• Absent: ${stats.absent} days\n`
     message += `• Attendance Rate: ${stats.attendanceRate}%\n\n`
     
@@ -1056,8 +1046,6 @@ export default function AdminAttendance() {
           <div className="flex flex-wrap items-center gap-2">
             <button disabled={!mark.classId} onClick={() => markAllFiltered('present')} className="px-3 py-2 rounded bg-green-600 text-white text-sm disabled:opacity-50">Set filtered Present</button>
             <button disabled={!mark.classId} onClick={() => markAllFiltered('absent')} className="px-3 py-2 rounded bg-red-600 text-white text-sm disabled:opacity-50">Set filtered Absent</button>
-            <button disabled={!mark.classId} onClick={() => markAllFiltered('late')} className="px-3 py-2 rounded bg-yellow-500 text-white text-sm disabled:opacity-50">Set filtered Late</button>
-            <button disabled={!mark.classId} onClick={() => markAllFiltered('excused')} className="px-3 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50">Set filtered Excused</button>
             <button disabled={!mark.classId} onClick={clearStatuses} className="px-3 py-2 rounded border text-slate-700 text-sm disabled:opacity-50">Clear selections</button>
             <div className="text-sm text-slate-600 ml-auto">Selected: <span className="font-semibold">{selectedCount}</span></div>
           </div>
@@ -1099,8 +1087,6 @@ export default function AdminAttendance() {
                               <option value="">—</option>
                               <option value="present">present</option>
                               <option value="absent">absent</option>
-                              <option value="late">late</option>
-                              <option value="excused">excused</option>
                             </select>
                             {isFinal && (
                               <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-700">Finalized</span>
@@ -1259,8 +1245,6 @@ export default function AdminAttendance() {
                       <div className="mb-4 flex flex-wrap gap-2 text-xs">
                         <span className="px-2 py-1 rounded bg-slate-100 text-slate-700">Total: {studentSummary.total}</span>
                         <span className="px-2 py-1 rounded bg-green-100 text-green-700">Present: {studentSummary.present}</span>
-                        <span className="px-2 py-1 rounded bg-yellow-100 text-yellow-800">Late: {studentSummary.late}</span>
-                        <span className="px-2 py-1 rounded bg-blue-100 text-blue-700">Excused: {studentSummary.excused}</span>
                         <span className="px-2 py-1 rounded bg-red-100 text-red-700">Absent: {studentSummary.absent}</span>
                         <span className="ml-auto px-2 py-1 rounded bg-slate-200 text-slate-800 font-medium">Rate: {studentSummary.rate}%</span>
                       </div>

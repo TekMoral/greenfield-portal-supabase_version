@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { calculateGrade as serviceCalculateGrade } from '../../services/supabase/studentResultService';
 
 const BulkResultUpload = ({ exam, students, onSubmit, submitting }) => {
   const [uploadMethod, setUploadMethod] = useState('manual');
@@ -6,14 +7,10 @@ const BulkResultUpload = ({ exam, students, onSubmit, submitting }) => {
   const [csvFile, setCsvFile] = useState(null);
   const [errors, setErrors] = useState({});
 
-  const calculateGrade = (score, totalMarks) => {
-    const percentage = (score / totalMarks) * 100;
-    if (percentage >= 90) return 'A+';
-    if (percentage >= 80) return 'A';
-    if (percentage >= 70) return 'B';
-    if (percentage >= 60) return 'C';
-    if (percentage >= 50) return 'D';
-    return 'F';
+  const localCalculateLetter = (score, totalMarks) => {
+    // Use the centralized grade calculator for consistency
+    const { grade } = serviceCalculateGrade(score, totalMarks);
+    return grade;
   };
 
   const initializeBulkResults = () => {
@@ -35,7 +32,7 @@ const BulkResultUpload = ({ exam, students, onSubmit, submitting }) => {
     updatedResults[index].totalScore = score;
     
     if (score && !isNaN(parseFloat(score))) {
-      updatedResults[index].grade = calculateGrade(parseFloat(score), exam.totalMarks);
+      updatedResults[index].grade = localCalculateLetter(parseFloat(score), exam.totalMarks);
     } else {
       updatedResults[index].grade = '';
     }
@@ -118,7 +115,7 @@ const BulkResultUpload = ({ exam, students, onSubmit, submitting }) => {
               studentName: student.name,
               admissionNumber: student.admissionNumber,
               totalScore: score,
-              grade: calculateGrade(parseFloat(score), exam.totalMarks),
+              grade: localCalculateLetter(parseFloat(score), exam.totalMarks),
               remarks: remarks,
               session: exam.session || new Date().getFullYear().toString(),
               term: exam.term || '1st'

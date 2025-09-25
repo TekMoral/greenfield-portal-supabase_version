@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { COMPONENT_COLORS, getButtonClasses } from "../../constants/colors";
 
 const AcademicCalendar = () => {
   const [isVisible, setIsVisible] = useState(false);
@@ -14,7 +15,8 @@ const AcademicCalendar = () => {
     first: {
       name: "1st",
       period: "September - December 2024",
-      color: "from-blue-500 to-indigo-600",
+      // Complement header: slate -> emerald
+      color: "from-slate-800 to-emerald-700",
       weeks: 13,
       events: [
         { date: "Sept 9, 2024", event: "School Resumption", type: "academic", icon: "🏫" },
@@ -22,7 +24,7 @@ const AcademicCalendar = () => {
         { date: "Oct 1, 2024", event: "Independence Day Holiday", type: "holiday", icon: "🇳🇬" },
         { date: "Oct 7-11, 2024", event: "CAT 1 Examinations", type: "exam", icon: "📝" },
         { date: "Oct 28-Nov 1, 2024", event: "Mid-Term Break", type: "break", icon: "🏖️" },
-        { date: "Nov 4-8, 2024", event: "Mid-Term Examinations", type: "exam", icon: "����" },
+        { date: "Nov 4-8, 2024", event: "Mid-Term Examinations", type: "exam", icon: "📝" },
         { date: "Nov 25-29, 2024", event: "Inter-House Sports", type: "sports", icon: "🏃" },
         { date: "Dec 9-13, 2024", event: "End-of-Term Examinations", type: "exam", icon: "🎯" },
         { date: "Dec 20, 2024", event: "Term Ends", type: "academic", icon: "🎉" },
@@ -32,7 +34,8 @@ const AcademicCalendar = () => {
     second: {
       name: "2nd",
       period: "January - April 2025",
-      color: "from-green-500 to-emerald-600",
+      // Complement header: emerald -> teal
+      color: "from-emerald-700 to-teal-600",
       weeks: 13,
       events: [
         { date: "Jan 8, 2025", event: "School Resumption", type: "academic", icon: "🏫" },
@@ -50,7 +53,8 @@ const AcademicCalendar = () => {
     third: {
       name: "Third Term",
       period: "May - July 2025",
-      color: "from-orange-500 to-red-600",
+      // Complement header: slate -> teal
+      color: "from-slate-800 to-teal-700",
       weeks: 11,
       events: [
         { date: "May 5, 2025", event: "School Resumption", type: "academic", icon: "🏫" },
@@ -67,15 +71,16 @@ const AcademicCalendar = () => {
     }
   };
 
+  // Consolidate event type colors to complement header (slate/emerald/teal + amber for holidays)
   const eventTypes = {
-    academic: { color: "bg-blue-100 text-blue-800", border: "border-blue-200" },
-    exam: { color: "bg-red-100 text-red-800", border: "border-red-200" },
-    holiday: { color: "bg-green-100 text-green-800", border: "border-green-200" },
-    break: { color: "bg-yellow-100 text-yellow-800", border: "border-yellow-200" },
-    sports: { color: "bg-purple-100 text-purple-800", border: "border-purple-200" },
-    cultural: { color: "bg-pink-100 text-pink-800", border: "border-pink-200" },
-    orientation: { color: "bg-indigo-100 text-indigo-800", border: "border-indigo-200" },
-    career: { color: "bg-orange-100 text-orange-800", border: "border-orange-200" },
+    academic: { color: "bg-slate-100 text-slate-800", border: "border-slate-200" },
+    exam: { color: "bg-emerald-100 text-emerald-800", border: "border-emerald-200" },
+    holiday: { color: "bg-amber-100 text-amber-800", border: "border-amber-200" },
+    break: { color: "bg-teal-100 text-teal-800", border: "border-teal-200" },
+    sports: { color: "bg-indigo-100 text-indigo-800", border: "border-indigo-200" },
+    cultural: { color: "bg-sky-100 text-sky-800", border: "border-sky-200" },
+    orientation: { color: "bg-cyan-100 text-cyan-800", border: "border-cyan-200" },
+    career: { color: "bg-slate-100 text-slate-800", border: "border-slate-200" },
     graduation: { color: "bg-emerald-100 text-emerald-800", border: "border-emerald-200" }
   };
 
@@ -89,9 +94,9 @@ const AcademicCalendar = () => {
   ];
 
   return (
-    <div className="bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50 min-h-screen -mt-[var(--header-height,90px)]">
+    <div className={`${COMPONENT_COLORS.backgrounds.gradient} min-h-screen`}>
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-white py-20" style={{ paddingTop: "var(--header-height, 100px)" }}>
+      <section className={`${COMPONENT_COLORS.backgrounds.hero} text-white py-20`} style={{ paddingTop: "var(--header-height, 100px)" }}>
         <div className="max-w-7xl mx-auto px-6">
           <div
             className={`text-center transform transition-all duration-1000 ${
@@ -105,9 +110,9 @@ const AcademicCalendar = () => {
               </span>
             </div>
             <h1 className="text-5xl md:text-7xl font-black mb-6 leading-tight">
-              Academic <span className="text-yellow-300">Calendar</span>
+              Academic <span className="text-emerald-200">Calendar</span>
             </h1>
-            <p className="text-xl md:text-2xl text-blue-100 max-w-4xl mx-auto leading-relaxed">
+            <p className="text-xl md:text-2xl text-emerald-100 max-w-4xl mx-auto leading-relaxed">
               Stay informed with our comprehensive academic calendar featuring important dates,
               examinations, holidays, and school events for the {academicYear} session.
             </p>
@@ -132,14 +137,15 @@ const AcademicCalendar = () => {
             {Object.entries(terms).map(([key, term]) => (
               <div
                 key={key}
-                className={`bg-gradient-to-br ${term.color} text-white rounded-3xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300`}
+                className={`bg-white rounded-3xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300 border border-gray-200`}
               >
-                <h3 className="text-2xl font-bold mb-2">{term.name}</h3>
-                <p className="text-lg opacity-90 mb-4">{term.period}</p>
-                <div className="flex items-center justify-between">
+                <h3 className="text-2xl font-bold mb-2 text-gray-800">{term.name}</h3>
+                <p className="text-lg text-gray-600 mb-4">{term.period}</p>
+                <div className="flex items-center justify-between text-gray-800">
                   <span className="text-3xl font-black">{term.weeks}</span>
-                  <span className="text-sm opacity-75">weeks</span>
+                  <span className="text-sm text-gray-500">weeks</span>
                 </div>
+                <div className={`mt-6 h-1 bg-gradient-to-r ${term.color} rounded-full`}></div>
               </div>
             ))}
           </div>
@@ -175,8 +181,8 @@ const AcademicCalendar = () => {
                 onClick={() => setSelectedTerm(key)}
                 className={`px-8 py-3 rounded-full font-semibold transition-all duration-300 ${
                   selectedTerm === key
-                    ? "bg-blue-600 text-white shadow-lg"
-                    : "bg-white text-gray-700 hover:bg-gray-100 shadow-sm"
+                    ? "bg-slate-800 text-white shadow-lg"
+                    : "bg-white text-gray-700 hover:bg-gray-100 shadow-sm border border-gray-200"
                 }`}
               >
                 {term.name}
@@ -229,7 +235,7 @@ const AcademicCalendar = () => {
       </section>
 
       {/* School Hours & Weekly Schedule */}
-      <section className="py-20 bg-blue-50">
+      <section className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-black mb-6 text-gray-800">
@@ -277,11 +283,11 @@ const AcademicCalendar = () => {
               <h3 className="text-2xl font-bold text-gray-800 mb-6">Weekly Activities</h3>
               <div className="space-y-4">
                 {[
-                  { day: "Monday", activity: "General Assembly & Academic Focus", color: "bg-blue-100 text-blue-800" },
-                  { day: "Tuesday", activity: "Science & Mathematics Emphasis", color: "bg-green-100 text-green-800" },
-                  { day: "Wednesday", activity: "Languages & Literature", color: "bg-purple-100 text-purple-800" },
-                  { day: "Thursday", activity: "Social Studies & Arts", color: "bg-orange-100 text-orange-800" },
-                  { day: "Friday", activity: "Sports & Extracurricular Activities", color: "bg-red-100 text-red-800" }
+                  { day: "Monday", activity: "General Assembly & Academic Focus", color: "bg-slate-100 text-slate-800" },
+                  { day: "Tuesday", activity: "Science & Mathematics Emphasis", color: "bg-emerald-50 text-emerald-800" },
+                  { day: "Wednesday", activity: "Languages & Literature", color: "bg-teal-50 text-teal-800" },
+                  { day: "Thursday", activity: "Social Studies & Arts", color: "bg-sky-50 text-sky-800" },
+                  { day: "Friday", activity: "Sports & Extracurricular Activities", color: "bg-indigo-50 text-indigo-800" }
                 ].map((item, index) => (
                   <div key={index} className={`p-4 rounded-lg ${item.color}`}>
                     <div className="font-bold text-lg">{item.day}</div>
@@ -290,9 +296,9 @@ const AcademicCalendar = () => {
                 ))}
               </div>
 
-              <div className="mt-8 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                <h4 className="font-bold text-yellow-800 mb-2">📋 Note:</h4>
-                <p className="text-sm text-yellow-700">
+              <div className="mt-8 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                <h4 className="font-bold text-amber-800 mb-2">📋 Note:</h4>
+                <p className="text-sm text-amber-700">
                   Saturday classes are held for examination classes (JSS 3 & SSS 3)
                   from 8:00 AM - 12:00 PM during examination periods.
                 </p>
@@ -303,25 +309,25 @@ const AcademicCalendar = () => {
       </section>
 
       {/* Call to Action */}
-      <section className="py-20 bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
+      <section className="py-20 bg-gradient-to-br from-slate-900 to-slate-800 text-white">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <h2 className="text-4xl md:text-5xl font-black mb-6">
             Plan Your Academic Journey
           </h2>
-          <p className="text-xl text-blue-100 mb-8 leading-relaxed">
+          <p className="text-xl text-gray-300 mb-8 leading-relaxed">
             Download our complete academic calendar and stay updated with all
             important dates and school events throughout the year.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
               href="/academics/calendar/download"
-              className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-8 py-4 rounded-lg font-semibold transition-colors duration-200 shadow-lg hover:shadow-xl"
+              className={getButtonClasses('accent')}
             >
               Download Calendar
             </a>
             <a
               href="/admission"
-              className="bg-white/10 hover:bg-white/20 text-white px-8 py-4 rounded-lg font-semibold transition-colors duration-200 border border-white/20"
+              className={getButtonClasses('ghost')}
             >
               Apply for Admission
             </a>

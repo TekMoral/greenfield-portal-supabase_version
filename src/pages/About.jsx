@@ -3,8 +3,23 @@ import Propietor from "../assets/images/Proprietor1.jpg";
 import  Principal from "../assets/images/Principal.jpg";
 import VicePrincipal from "../assets/images/VicePrincipal.jpg";
 import VICollege16 from "../assets/images/VICollege16.jpg";
-import { COMPONENT_COLORS, getButtonClasses, getHeadingClasses, getBadgeClasses } from "../constants/colors";
+import { COMPONENT_COLORS, getButtonClasses, getBadgeClasses, ICON_COLORS } from "../constants/colors";
 import { Link } from "react-router-dom";
+import {
+  Building2,
+  Target,
+  Rocket,
+  Telescope,
+  Gem,
+  BookOpen,
+  Users,
+  User,
+  Sprout,
+  Award,
+  Globe,
+  Trophy,
+  GraduationCap,
+} from "lucide-react";
 
 const About = () => {
   const [isVisible, setIsVisible] = useState(false);
@@ -25,25 +40,25 @@ const About = () => {
 
   const values = [
     {
-      icon: "🌱",
+      icon: Sprout,
       title: "Growth Mindset",
       description: "We believe every student has unlimited potential to grow and achieve excellence through dedication and proper guidance.",
       color: "from-emerald-400 to-emerald-500"
     },
     {
-      icon: "🤝",
+      icon: Users,
       title: "Community",
       description: "Building strong relationships between students, teachers, parents, and the wider community for holistic development.",
       color: "from-emerald-400 to-teal-500"
     },
     {
-      icon: "🎯",
+      icon: Award,
       title: "Excellence",
       description: "Striving for the highest standards in academics, character development, and personal achievement.",
       color: "from-teal-400 to-emerald-500"
     },
     {
-      icon: "🌍",
+      icon: Globe,
       title: "Global Perspective",
       description: "Preparing students to be responsible global citizens who can make positive contributions to society.",
       color: "from-emerald-500 to-teal-600"
@@ -78,29 +93,8 @@ const About = () => {
     }
   ];
 
-  const leadership = [
-    {
-      name: "Mr Akindapo Johnson",
-      position: "Proprietor",
-      image: Propietor,
-      bio: "Mr Akindapo has been the backbone of our successes, as the founder. He has positioned our School to be the World Standard School and to stand out."
-    },
-    {
-      name: "Dr Michael Oluwole",
-      position: "Principal",
-      image: Principal,
-      bio: "Dr. Oluwole oversees all programs and curriculum development, ensuring excellence in teaching and learning."
-    },
-    {
-      name: "Mrs. Umoh Naomi",
-      position: "Vice Principal",
-      image: VicePrincipal,
-      bio: "Mrs. Naomi focuses on student welfare, extracurricular activities, and creating a supportive school environment."
-    }
-  ];
-
   return (
-    <div className={`${COMPONENT_COLORS.backgrounds.gradient} overflow-hidden relative -mt-[var(--header-height,90px)]`}>
+    <div className={`${COMPONENT_COLORS.backgrounds.primary} overflow-hidden relative -mt-[var(--header-height,90px)]`}>
       {/* Hero Section */}
       <section
         className={`min-h-screen flex flex-col justify-center items-center text-center px-6 relative ${COMPONENT_COLORS.backgrounds.hero}`}
@@ -109,7 +103,7 @@ const About = () => {
           paddingTop: "var(--header-height, 100px)"
         }}
       >
-        <div className="absolute inset-0 bg-black/20"></div>
+        <div className="absolute inset-0 bg-black/30"></div>
         <div
           className={`relative z-10 transform transition-all duration-1200 ${
             isVisible ? "translate-y-0 opacity-100" : "translate-y-12 opacity-0"
@@ -118,7 +112,7 @@ const About = () => {
         >
           <div className="mb-8">
             <span className={`inline-flex items-center gap-2 px-6 py-3 bg-white/90 border border-emerald-200 rounded-full text-gray-700 text-sm font-semibold backdrop-blur-sm shadow-lg`}>
-              <span className="animate-pulse">🏫</span>
+              <Building2 className={`h-4 w-4 animate-pulse ${ICON_COLORS.primary}`} />
               About Our School
             </span>
           </div>
@@ -145,7 +139,9 @@ const About = () => {
             <div>
               <div className="mb-6">
                 <span className={getBadgeClasses('emerald')}>
-                  🎯 Our Purpose
+                  <span className="inline-flex items-center gap-2 align-middle">
+                    <Target className={`h-4 w-4 ${ICON_COLORS.primary}`} /> Our Purpose
+                  </span>
                 </span>
               </div>
               <h2 className="text-4xl md:text-5xl font-black mb-8">
@@ -157,7 +153,7 @@ const About = () => {
               <div className="space-y-8">
                 <div className="bg-gradient-to-r from-emerald-50 to-emerald-50 p-6 rounded-2xl border border-emerald-100">
                   <h3 className="text-2xl font-bold text-emerald-800 mb-4 flex items-center gap-2">
-                    <span>🚀</span> Our Mission
+                    <Rocket className={`h-5 w-5 ${ICON_COLORS.primary}`} /> Our Mission
                   </h3>
                   <p className="text-gray-700 leading-relaxed">
                     To provide a comprehensive, innovative education that empowers students to become confident,
@@ -165,9 +161,9 @@ const About = () => {
                   </p>
                 </div>
 
-                <div className="bg-gradient-to-r from-amber-50 to-amber-50 p-6 rounded-2xl border border-amber-100">
-                  <h3 className="text-2xl font-bold text-amber-800 mb-4 flex items-center gap-2">
-                    <span>🔭</span> Our Vision
+                <div className="bg-gradient-to-r from-emerald-50 to-emerald-50 p-6 rounded-2xl border border-emerald-100">
+                  <h3 className="text-2xl font-bold text-emerald-800 mb-4 flex items-center gap-2">
+                    <Telescope className={`h-5 w-5 ${ICON_COLORS.primary}`} /> Our Vision
                   </h3>
                   <p className="text-gray-700 leading-relaxed">
                     To be a leading educational institution recognized for excellence in teaching, learning,
@@ -199,8 +195,10 @@ const About = () => {
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
             <div className="mb-6">
-              <span className={getBadgeClasses('amber')}>
-                💎 Our Foundation
+              <span className={getBadgeClasses('emerald')}>
+                <span className="inline-flex items-center gap-2 align-middle">
+                  <Gem className="h-4 w-4" /> Our Foundation
+                </span>
               </span>
             </div>
             <h2 className="text-4xl md:text-6xl font-black mb-6">
@@ -214,35 +212,40 @@ const About = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {values.map((value, index) => (
-              <div
-                key={index}
-                className="group relative bg-white rounded-3xl p-8 border border-gray-200 hover:border-emerald-300 transition-all duration-500 transform hover:scale-105 hover:-translate-y-3 shadow-lg hover:shadow-2xl"
-                style={{ animationDelay: `${index * 200}ms` }}
-              >
-                <div className="text-6xl mb-6 transform group-hover:scale-110 group-hover:rotate-12 transition-all duration-300">
-                  {value.icon}
+            {values.map((value, index) => {
+              const Icon = value.icon;
+              return (
+                <div
+                  key={index}
+                  className="group relative bg-white rounded-3xl p-8 border border-gray-200 hover:border-emerald-300 transition-all duration-500 transform hover:scale-105 hover:-translate-y-3 shadow-lg hover:shadow-2xl"
+                  style={{ animationDelay: `${index * 200}ms` }}
+                >
+                  <div className="mb-6 transform group-hover:scale-110 group-hover:rotate-12 transition-all duration-300">
+                    <Icon className={`h-12 w-12 ${ICON_COLORS.primary}`} aria-hidden="true" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-800 mb-4 group-hover:text-emerald-700 transition-colors duration-300">
+                    {value.title}
+                  </h3>
+                  <p className="text-gray-600 leading-relaxed group-hover:text-gray-700 transition-colors duration-300">
+                    {value.description}
+                  </p>
+                  <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${value.color} rounded-b-3xl transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500`}></div>
                 </div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-4 group-hover:text-emerald-700 transition-colors duration-300">
-                  {value.title}
-                </h3>
-                <p className="text-gray-600 leading-relaxed group-hover:text-gray-700 transition-colors duration-300">
-                  {value.description}
-                </p>
-                <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${value.color} rounded-b-3xl transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500`}></div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
 
       {/* History Timeline Section - Responsive Design */}
-      <section className="py-20 bg-gradient-to-br from-amber-50 to-amber-50">
+      <section className={`py-20 ${COMPONENT_COLORS.backgrounds.secondary}`}>
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-16">
             <div className="mb-6">
-              <span className={getBadgeClasses('amber')}>
-                📚 Our Journey
+              <span className={getBadgeClasses('emerald')}>
+                <span className="inline-flex items-center gap-2 align-middle">
+                  <BookOpen className={`h-4 w-4 ${ICON_COLORS.primary}`} /> Our Journey
+                </span>
               </span>
             </div>
             <h2 className="text-4xl md:text-6xl font-black mb-6">
@@ -259,18 +262,18 @@ const About = () => {
           <div className="block lg:hidden">
             <div className="relative">
               {/* Mobile timeline line */}
-              <div className="absolute left-4 top-0 bottom-0 w-1 bg-gradient-to-b from-amber-400 to-amber-600 rounded-full"></div>
+              <div className="absolute left-4 top-0 bottom-0 w-1 bg-gradient-to-b from-emerald-400 to-emerald-600 rounded-full"></div>
 
               <div className="space-y-8">
                 {milestones.map((milestone, index) => (
                   <div key={index} className="relative flex items-start">
                     {/* Timeline dot */}
-                    <div className="absolute left-2.5 top-6 w-6 h-6 bg-amber-500 rounded-full border-4 border-white shadow-lg z-10"></div>
+                    <div className="absolute left-2.5 top-6 w-6 h-6 bg-emerald-500 rounded-full border-4 border-white shadow-lg z-10"></div>
 
                     {/* Content */}
                     <div className="ml-12 w-full">
                       <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200 hover:shadow-xl transition-shadow duration-300">
-                        <div className="text-2xl sm:text-3xl font-black text-amber-600 mb-2">
+                        <div className="text-2xl sm:text-3xl font-black text-emerald-600 mb-2">
                           {milestone.year}
                         </div>
                         <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-3">
@@ -291,7 +294,7 @@ const About = () => {
           <div className="hidden lg:block">
             <div className="relative">
               {/* Desktop timeline line */}
-              <div className="absolute left-1/2 transform -translate-x-1/2 w-1 h-full bg-gradient-to-b from-amber-400 to-amber-600 rounded-full"></div>
+              <div className="absolute left-1/2 transform -translate-x-1/2 w-1 h-full bg-gradient-to-b from-emerald-400 to-emerald-600 rounded-full"></div>
 
               <div className="space-y-12">
                 {milestones.map((milestone, index) => (
@@ -303,7 +306,7 @@ const About = () => {
                   >
                     <div className={`w-1/2 ${index % 2 === 0 ? "pr-8 text-right" : "pl-8 text-left"}`}>
                       <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200 hover:shadow-xl transition-shadow duration-300">
-                        <div className="text-3xl font-black text-amber-600 mb-2">
+                        <div className="text-3xl font-black text-emerald-600 mb-2">
                           {milestone.year}
                         </div>
                         <h3 className="text-xl font-bold text-gray-800 mb-3">
@@ -316,7 +319,7 @@ const About = () => {
                     </div>
 
                     {/* Timeline dot */}
-                    <div className="relative z-10 w-6 h-6 bg-amber-500 rounded-full border-4 border-white shadow-lg"></div>
+                    <div className="relative z-10 w-6 h-6 bg-emerald-500 rounded-full border-4 border-white shadow-lg"></div>
 
                     <div className="w-1/2"></div>
                   </div>
@@ -333,7 +336,9 @@ const About = () => {
           <div className="text-center mb-16">
             <div className="mb-6">
               <span className={getBadgeClasses('emerald')}>
-                👥 Our Leaders
+                <span className="inline-flex items-center gap-2 align-middle">
+                  <Users className={`h-4 w-4 ${ICON_COLORS.primary}`} /> Our Leaders
+                </span>
               </span>
             </div>
             <h2 className="text-4xl md:text-6xl font-black mb-6">
@@ -347,7 +352,26 @@ const About = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {leadership.map((leader, index) => (
+            {[
+              {
+                name: "Mr Akindapo Johnson",
+                position: "Proprietor",
+                image: Propietor,
+                bio: "Mr Akindapo has been the backbone of our successes, as the founder. He has positioned our School to be the World Standard School and to stand out."
+              },
+              {
+                name: "Dr Michael Oluwole",
+                position: "Principal",
+                image: Principal,
+                bio: "Dr. Oluwole oversees all programs and curriculum development, ensuring excellence in teaching and learning."
+              },
+              {
+                name: "Mrs. Umoh Naomi",
+                position: "Vice Principal",
+                image: VicePrincipal,
+                bio: "Mrs. Naomi focuses on student welfare, extracurricular activities, and creating a supportive school environment."
+              }
+            ].map((leader, index) => (
               <div
                 key={index}
                 className="group bg-gradient-to-br from-gray-50 to-white rounded-3xl p-8 border border-gray-200 hover:border-emerald-300 transition-all duration-500 transform hover:scale-105 hover:-translate-y-2 shadow-lg hover:shadow-2xl"
@@ -378,39 +402,42 @@ const About = () => {
       </section>
 
       {/* Stats Section */}
-      <section className="py-20 bg-gradient-to-r from-emerald-500 via-emerald-500 to-teal-500 text-white">
+      <section className="py-20 bg-gradient-to-r from-[#4682B4] via-[#5a95c6] to-[#007BFF] text-white">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-16">
             <h3 className="text-4xl font-extrabold mb-4">
               Our Impact in Numbers
             </h3>
-            <p className="text-emerald-100 text-lg max-w-xl mx-auto">
+            <p className="text-[#EAF0F7] text-lg max-w-xl mx-auto">
               Celebrating our achievements and the success of our school community
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {[
-              { number: "25+", label: "Years of Excellence", icon: "🏆" },
-              { number: "300+", label: "Current Students", icon: "👨‍🎓" },
-              { number: "50+", label: "Dedicated Staff", icon: "👩‍🏫" },
-              { number: "98%", label: "University Acceptance", icon: "🎯" },
-            ].map((stat, index) => (
-              <div
-                key={index}
-                className="group bg-white/10 backdrop-blur-lg rounded-xl p-6 hover:bg-white/20 transition-all duration-300 border border-white/20"
-              >
-                <div className="text-4xl mb-2 group-hover:scale-110 transition-transform duration-300">
-                  {stat.icon}
+              { number: "25+", label: "Years of Excellence", icon: Trophy },
+              { number: "300+", label: "Current Students", icon: Users },
+              { number: "50+", label: "Dedicated Staff", icon: User },
+              { number: "98%", label: "University Acceptance", icon: GraduationCap },
+            ].map((stat, index) => {
+              const Icon = stat.icon;
+              return (
+                <div
+                  key={index}
+                  className="group bg-white/10 backdrop-blur-lg rounded-xl p-6 hover:bg-white/20 transition-all duration-300 border border-white/20"
+                >
+                  <div className="mb-2 group-hover:scale-110 transition-transform duration-300 flex items-center justify-center">
+                    <Icon className={`h-8 w-8 ${ICON_COLORS.onDark}`} aria-hidden="true" />
+                  </div>
+                  <div className="text-3xl md:text-4xl font-black mb-1">
+                    {stat.number}
+                  </div>
+                  <div className="text-emerald-100 font-medium group-hover:text-white transition-colors duration-300">
+                    {stat.label}
+                  </div>
                 </div>
-                <div className="text-3xl md:text-4xl font-black mb-1">
-                  {stat.number}
-                </div>
-                <div className="text-emerald-100 font-medium group-hover:text-white transition-colors duration-300">
-                  {stat.label}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>

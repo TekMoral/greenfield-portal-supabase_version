@@ -4,9 +4,11 @@ import { getAssignmentsByTeacher, gradeStudentSubmission, getAssignmentSubmissio
 import { getTeacherSubjectsWithStudents } from "../../../services/supabase/teacherStudentService";
 import { getStudent } from "../../../services/supabase/studentService";
 import { getFullName } from "../../../utils/nameUtils";
+import useToast from "../../../hooks/useToast";
 
 const Grades = () => {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [assignments, setAssignments] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [selectedSubject, setSelectedSubject] = useState("all");
@@ -158,10 +160,10 @@ const Grades = () => {
         }));
       }
 
-      alert('Grade submitted successfully!');
+      showToast('Grade submitted successfully!', 'success');
     } catch (error) {
       console.error('Error grading assignment:', error);
-      alert(error?.message || 'Failed to submit grade. Please try again.');
+      showToast(error?.message || 'Failed to submit grade. Please try again.', 'error');
     }
   };
 

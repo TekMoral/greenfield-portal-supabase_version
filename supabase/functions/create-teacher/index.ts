@@ -124,7 +124,7 @@ serve(async (req) => {
 
       const { data: profile, error: insertError } = await serviceClient
         .from('user_profiles')
-        .insert(profileData)
+        .upsert(profileData, { onConflict: 'id' })
         .select()
         .single()
 

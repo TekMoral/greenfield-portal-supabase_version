@@ -4,6 +4,7 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "../../../hooks/useAuth";
 import { getTeacherByUid, updateTeacher } from "../../../services/supabase/teacherService";
 import useAuditLog from "../../../hooks/useAuditLog";
+import ProfileImage from "../../../components/common/ProfileImage";
 
 const Profile = () => {
   const { user } = useAuth();
@@ -160,15 +161,13 @@ const Profile = () => {
         {/* Profile Header */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 p-6 text-white">
           <div className="flex items-center space-x-4">
-            <div className="w-20 h-20 rounded-full overflow-hidden bg-white/20 flex items-center justify-center">
-              {profile?.profileImageUrl ? (
-                <img src={profile.profileImageUrl} alt={profile?.name || 'Teacher'} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-2xl font-bold">
-                  {profile?.name?.split(' ').map(n => n[0]).join('') || 'T'}
-                </span>
-              )}
-            </div>
+            <ProfileImage
+              src={profile?.profileImageUrl}
+              alt={profile?.name || 'Teacher'}
+              size="xl"
+              fallbackName={profile?.name}
+              className="border-4 border-white/20"
+            />
             <div>
               <h2 className="text-2xl font-bold">{profile?.name}</h2>
               <p className="text-slate-200">{profile?.subject} Teacher</p>

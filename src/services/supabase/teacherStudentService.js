@@ -52,6 +52,7 @@ export const getStudentsByTeacherSubject = async (teacherId, subjectName) => {
       .from('user_profiles')
       .select('*')
       .eq('role', 'student')
+      .eq('status', 'active')
       .in('class_id', classIds);
 
     if (studentsError) {
@@ -135,6 +136,7 @@ export const getTeacherSubjectsWithStudents = async (teacherId) => {
           .from('user_profiles')
           .select('*', { count: 'exact', head: true })
           .eq('role', 'student')
+          .eq('status', 'active')
           .eq('class_id', classData.id);
 
         if (countError) {
@@ -369,6 +371,7 @@ export const getTeacherClassesAndSubjects = async (teacherId) => {
           .from('user_profiles')
           .select('class_id')
           .eq('role', 'student')
+          .eq('status', 'active')
           .in('class_id', classIdsForCount);
         (studentRows || []).forEach(r => {
           const cid = r.class_id || r.classId;
@@ -522,6 +525,7 @@ export const getStudentsByTeacherSubjectAndClasses = async (teacherId, subjectNa
       .from('user_profiles')
       .select('*')
       .eq('role', 'student')
+      .eq('status', 'active')
       .in('class_id', relevantClassIds);
 
     if (studentsError) {
@@ -623,6 +627,7 @@ export const getTeacherClassesAndSubjectsSimple = async (teacherId) => {
           .from('user_profiles')
           .select('*', { count: 'exact', head: true })
           .eq('role', 'student')
+          .eq('status', 'active')
           .eq('class_id', classData.id);
 
         if (countError) {
@@ -751,6 +756,7 @@ export const getTeacherStudentList = async (teacherId) => {
       .from('user_profiles')
       .select('*')
       .eq('role', 'student')
+      .eq('status', 'active')
       .in('class_id', classIds);
     if (studentsError) {
       console.error('Supabase error fetching students:', studentsError);

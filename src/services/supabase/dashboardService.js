@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabaseClient';
+import { adminAttendanceService } from './adminAttendanceService';
 
 // Dashboard Service using Supabase with unified user_profiles table
 export const dashboardService = {
@@ -113,6 +114,67 @@ export const dashboardService = {
         console.log('ℹ️ Could not fetch upcoming exams');
       }
 
+      // Pending exam results awaiting admin review
+      let pendingReview = { count: 0, items: [] };
+      try {
+        const { count: prCount } = await supabase
+          .from('exam_results')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'submitted');
+        pendingReview.count = prCount || 0;
+
+        const { data: prItems } = await supabase
+          .from('exam_results')
+          .select('id, student_id, subject_id, term, year, created_at')
+          .eq('status', 'submitted')
+          .order('created_at', { ascending: false })
+          .limit(5);
+        pendingReview.items = prItems || [];
+      } catch (error) {
+        console.log('ℹ️ Could not fetch pending exam reviews');
+      }
+
+      // Compute today's attendance percentage using local date (WAT, UTC+1) with UTC fallback
+      let attendanceTodayPercent = 0;
+      try {
+        const todayLocal = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local TZ
+        const todayUTC = new Date().toISOString().slice(0, 10);    // YYYY-MM-DD in UTC
+
+        const resLocal = await adminAttendanceService.listRange({ from: todayLocal, to: todayLocal });
+        const rowsLocal = resLocal?.success && Array.isArray(resLocal.data) ? resLocal.data : [];
+
+        let rows = rowsLocal;
+        if (rows.length === 0 && todayUTC !== todayLocal) {
+          const resUTC = await adminAttendanceService.listRange({ from: todayUTC, to: todayUTC });
+          const rowsUTC = resUTC?.success && Array.isArray(resUTC.data) ? resUTC.data : [];
+          rows = rowsUTC;
+        }
+
+        // Only consider admin-finalized attendance as source of truth
+        const finalized = rows.filter(r => r.finalized_by_admin === true);
+        if (finalized.length > 0) {
+          // Collapse to one record per student for the day using finalized rows only
+          const byStudent = new Map();
+          for (const r of finalized) {
+            const sid = r.student_id;
+            const st = String(r.status || '').toLowerCase();
+            const prev = byStudent.get(sid);
+            // Prefer 'present' when multiple finalized rows exist for the same student
+            if (!prev || (st === 'present' && prev.status !== 'present')) {
+              byStudent.set(sid, { status: st });
+            }
+          }
+          const present = Array.from(byStudent.values()).filter(v => v.status === 'present').length;
+          const denom = (totalStudents || 0);
+          attendanceTodayPercent = denom > 0 ? Math.round((present / denom) * 100) : 0;
+        } else {
+          // No finalized admin records today
+          attendanceTodayPercent = 0;
+        }
+      } catch (e) {
+        console.log('ℹ️ Could not compute attendance percentage:', e?.message || e);
+      }
+
       console.log('✅ Admin dashboard stats fetched successfully');
 
       return {
@@ -126,10 +188,12 @@ export const dashboardService = {
             totalExams: totalExams,
             newStudentsThisMonth: newStudentsThisMonth || 0,
             newTeachersThisMonth: newTeachersThisMonth || 0,
-            examsEndingThisWeek: examsEndingThisWeek
+            examsEndingThisWeek: examsEndingThisWeek,
+            attendanceTodayPercent: attendanceTodayPercent
           },
           recentActivities: recentActivities,
-          upcomingExams: upcomingExams
+          upcomingExams: upcomingExams,
+          pendingReview: pendingReview
         }
       };
     } catch (error) {

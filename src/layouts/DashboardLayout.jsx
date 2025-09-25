@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
+import { Menu, X } from 'lucide-react';
 
 
 const DashboardLayout = () => {
@@ -61,8 +62,13 @@ const DashboardLayout = () => {
         <button
           onClick={toggleMobileMenu}
           className="fixed top-[var(--mobile-header-height,84px)] left-4 z-[1000] bg-teal-800 text-white px-3 py-2 rounded-md shadow-lg"
+          aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
         >
-          ☰
+          {isMobileMenuOpen ? (
+            <X className="w-6 h-6" />
+          ) : (
+            <Menu className="w-6 h-6" />
+          )}
         </button>
 
         {/* Sidebar Overlay */}

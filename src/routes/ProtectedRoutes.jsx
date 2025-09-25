@@ -3,7 +3,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 
 const ProtectedRoutes = ({ children }) => {
-  const { user, loading } = useAuth();
+  const { user, loading, isActive } = useAuth();
   const location = useLocation();
 
   // Show a loader while checking auth state
@@ -16,7 +16,7 @@ const ProtectedRoutes = ({ children }) => {
   }
 
   // If not logged in, redirect to login page and preserve the route
-  if (!user) {
+  if (!user || isActive === false) {
     return <Navigate to="/login" state={{ from: location }} />;
   }
 

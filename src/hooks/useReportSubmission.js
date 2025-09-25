@@ -151,10 +151,10 @@ export const useReportSubmission = () => {
               attendanceData: {
                 totalDays: attendance.length,
                 presentDays: attendance.filter(record => 
-                  record.status === 'present' || record.status === 'late'
+                  record.status === 'present'
                 ).length,
                 absentDays: attendance.length - attendance.filter(record => 
-                  record.status === 'present' || record.status === 'late'
+                  record.status === 'present'
                 ).length
               },
               assignmentData: {

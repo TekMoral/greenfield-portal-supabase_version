@@ -42,7 +42,6 @@ export default function StudentAttendance() {
       academicYear: '',
       totalDays: 0,
       present: 0,
-      late: 0,
       excused: 0,
       absent: 0,
       attendanceRate: 0,
@@ -62,8 +61,6 @@ export default function StudentAttendance() {
         stats.totalDays = parseInt(line.match(/\d+/)?.[0] || '0')
       } else if (line.includes('Present:') && line.includes('days')) {
         stats.present = parseInt(line.match(/\d+/)?.[0] || '0')
-      } else if (line.includes('Late:') && line.includes('days')) {
-        stats.late = parseInt(line.match(/\d+/)?.[0] || '0')
       } else if (line.includes('Excused:') && line.includes('days')) {
         stats.excused = parseInt(line.match(/\d+/)?.[0] || '0')
       } else if (line.includes('Absent:') && line.includes('days')) {
@@ -179,7 +176,7 @@ export default function StudentAttendance() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                       <div className="text-center">
                         <div className="text-lg font-bold text-slate-800">{stats.totalDays}</div>
                         <div className="text-xs text-slate-600">Total Days</div>
@@ -187,10 +184,6 @@ export default function StudentAttendance() {
                       <div className="text-center">
                         <div className="text-lg font-bold text-green-600">{stats.present}</div>
                         <div className="text-xs text-slate-600">Present</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-yellow-600">{stats.late}</div>
-                        <div className="text-xs text-slate-600">Late</div>
                       </div>
                       <div className="text-center">
                         <div className="text-lg font-bold text-blue-600">{stats.excused}</div>

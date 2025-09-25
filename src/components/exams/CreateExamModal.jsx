@@ -20,11 +20,7 @@ const CreateExamModal = ({ classes, teachers, onClose, onExamCreated }) => {
   const [errors, setErrors] = useState({});
 
   const examTypes = [
-    { value: 'midterm', label: 'Mid-term Exam' },
     { value: 'final', label: 'Final Exam' },
-    { value: 'quiz', label: 'Quiz' },
-    { value: 'test', label: 'Class Test' },
-    { value: 'assignment', label: 'Assignment' }
   ];
 
   const handleChange = (e) => {

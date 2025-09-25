@@ -3,18 +3,20 @@
 
 import { NavLink, Outlet } from "react-router-dom";
 import { useState } from "react";
+import { Menu, X, LayoutDashboard, User, BookOpen, ClipboardList, CalendarCheck, BarChart3, FileText, Calendar } from 'lucide-react';
 
 const StudentLayout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const menuItems = [
-    { label: "Dashboard", path: "/student" },
-    { label: "Profile", path: "/student/profile" },
-    { label: "Subjects", path: "/student/subjects" },
-    { label: "Assignments", path: "/student/assignments" },
-    { label: "Attendance", path: "/student/attendance" },
-    { label: "Results", path: "/student/results" },
-    { label: "Timetable", path: "/student/timetable" },
+    { label: "Dashboard", path: "/student", Icon: LayoutDashboard },
+    { label: "Profile", path: "/student/profile", Icon: User },
+    { label: "Subjects", path: "/student/subjects", Icon: BookOpen },
+    { label: "Assignments", path: "/student/assignments", Icon: ClipboardList },
+    { label: "Attendance", path: "/student/attendance", Icon: CalendarCheck },
+    { label: "Results", path: "/student/results", Icon: BarChart3 },
+    { label: "Report Cards", path: "/student/report-cards", Icon: FileText },
+    { label: "Timetable", path: "/student/timetable", Icon: Calendar },
   ];
 
   const toggleMobileMenu = () => {
@@ -30,28 +32,11 @@ const StudentLayout = () => {
         className="md:hidden fixed top-[var(--mobile-header-height,84px)] left-4 z-[1000] bg-teal-800 text-white px-3 py-2 rounded-md shadow-lg"
         aria-label="Toggle menu"
       >
-        <svg
-          className="w-6 h-6"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          {isMobileMenuOpen ? (
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          ) : (
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 6h16M4 12h16M4 18h16"
-            />
-          )}
-        </svg>
+        {isMobileMenuOpen ? (
+          <X className="w-6 h-6" />
+        ) : (
+          <Menu className="w-6 h-6" />
+        )}
       </button>
 
       {/* Mobile Menu Overlay */}
@@ -89,7 +74,10 @@ const StudentLayout = () => {
                     : "block px-3 py-3 rounded hover:bg-teal-600 transition text-sm"
                 }
               >
-                {item.label}
+                <div className="flex items-center gap-2">
+                  {item.Icon && <item.Icon className="w-4 h-4" aria-hidden="true" />}
+                  <span>{item.label}</span>
+                </div>
               </NavLink>
             ))}
           </nav>
@@ -117,7 +105,10 @@ const StudentLayout = () => {
                     : "block px-3 py-2 rounded hover:bg-teal-600 transition text-sm lg:text-base"
                 }
               >
-                {item.label}
+                <div className="flex items-center gap-2">
+                  {item.Icon && <item.Icon className="w-4 h-4" aria-hidden="true" />}
+                  <span>{item.label}</span>
+                </div>
               </NavLink>
             ))}
           </nav>

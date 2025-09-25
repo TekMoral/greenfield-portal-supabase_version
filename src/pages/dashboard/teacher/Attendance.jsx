@@ -10,9 +10,11 @@ import {
 import { getFullName, getInitials } from "../../../utils/nameUtils";
 import { aggregateSubjects, getClassesForSubject, expandClassEntryToIds } from "../../../utils/teacherClassSubjectUtils";
 import { getSubjectsByDepartment } from "../../../services/supabase/subjectService";
+import useToast from "../../../hooks/useToast";
 
 const Attendance = () => {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [allClasses, setAllClasses] = useState([]);
   const [coreSubjectNames, setCoreSubjectNames] = useState([]);
   const [availableSubjects, setAvailableSubjects] = useState([]);
@@ -130,8 +132,8 @@ const Attendance = () => {
             });
             setExistingAttendance(attendanceMap);
             
-            // Initialize attendance state with existing data
-            setAttendance(attendanceMap);
+            // Initialize as neutral (no pre-selected statuses)
+            setAttendance({});
           } catch (error) {
             console.error('Error fetching existing attendance:', error);
             setExistingAttendance({});
@@ -172,6 +174,8 @@ const Attendance = () => {
   }, [selectedClass, selectedSubject, selectedDate, user?.id, allClasses, availableSubjects, coreSubjectNames]);
 
   const handleAttendanceChange = (studentId, status) => {
+    // Immutable after save: don't allow changes for already-saved entries
+    if (existingAttendance[studentId]) return;
     setAttendance(prev => ({
       ...prev,
       [studentId]: status
@@ -179,16 +183,21 @@ const Attendance = () => {
   };
 
   const handleBulkAttendance = (status) => {
-    const bulkAttendance = {};
-    students.forEach(student => {
-      bulkAttendance[student.id] = status;
+    // Apply only to students not already saved (immutable after save)
+    setAttendance(prev => {
+      const next = { ...prev };
+      students.forEach(student => {
+        if (!existingAttendance[student.id]) {
+          next[student.id] = status;
+        }
+      });
+      return next;
     });
-    setAttendance(bulkAttendance);
   };
 
   const handleSaveAttendance = async () => {
     if (!selectedClass || !selectedSubject || !selectedDate) {
-      alert('Please select class, subject, and date.');
+      showToast('Please select class, subject, and date.', 'error');
       return;
     }
 
@@ -196,23 +205,44 @@ const Attendance = () => {
     const subjectEntry = availableSubjects.find(s => s.subjectName === selectedSubject);
     const subjectId = subjectEntry?.subjectId || '';
 
-    const attendanceRecords = students.map(student => ({
-      student_id: student.id,
-      teacher_id: user.id,
-      class_id: student.classId, // Use actual student's class ID
-      subject_id: subjectId,
-      date: selectedDate,
-      status: attendance[student.id] || 'absent',
-      remarks: null
-    }));
+    // Build only changed records to speed up saving
+    const byId = new Map(students.map(s => [s.id, s]));
+    const attendanceRecords = Object.entries(attendance)
+      .filter(([sid, st]) => !existingAttendance[sid] && (st === 'present' || st === 'absent'))
+      .map(([sid, st]) => {
+        const s = byId.get(sid);
+        return {
+          student_id: sid,
+          teacher_id: user.id,
+          class_id: s?.classId,
+          subject_id: subjectId,
+          date: selectedDate,
+          status: st,
+          remarks: null,
+        };
+      });
+
+    if (attendanceRecords.length === 0) {
+      showToast('No changes to save.', 'info');
+      return;
+    }
 
     setSaving(true);
     try {
       const result = await bulkMarkAttendance(attendanceRecords);
       
       if (result.success) {
-        // Update existing attendance
-        setExistingAttendance({ ...attendance });
+        // Merge newly saved statuses into existing and lock them
+        setExistingAttendance(prev => ({
+          ...prev,
+          ...Object.fromEntries(attendanceRecords.map(r => [r.student_id, r.status]))
+        }));
+        // Clear saved entries from staged attendance
+        setAttendance(prev => {
+          const next = { ...prev };
+          attendanceRecords.forEach(r => { delete next[r.student_id]; });
+          return next;
+        });
         
         // Refresh stats
         try {
@@ -230,7 +260,7 @@ const Attendance = () => {
           console.error('Error refreshing stats:', error);
         }
         
-        alert('Attendance saved successfully!');
+        showToast('Attendance saved successfully!', 'success');
       } else {
         throw new Error(result.error || 'Failed to save attendance');
       }
@@ -238,9 +268,9 @@ const Attendance = () => {
       console.error('Error saving attendance:', error);
       
       if (error.message.includes('permission') || error.message.includes('denied')) {
-        alert('Unable to save attendance due to insufficient permissions. Please contact your administrator.');
+        showToast('Unable to save attendance due to insufficient permissions. Please contact your administrator.', 'error');
       } else {
-        alert('Failed to save attendance. Please try again.');
+        showToast('Failed to save attendance. Please try again.', 'error');
       }
     } finally {
       setSaving(false);
@@ -253,7 +283,8 @@ const Attendance = () => {
   };
 
   const hasChanges = () => {
-    return JSON.stringify(attendance) !== JSON.stringify(existingAttendance);
+    // There are changes if there's any staged present/absent for a student not yet saved
+    return Object.entries(attendance).some(([id, st]) => !existingAttendance[id] && (st === 'present' || st === 'absent'));
   };
 
   if (loading) {
@@ -483,7 +514,9 @@ const Attendance = () => {
               <div className="space-y-3">
                 {students.map((student) => {
                   const studentStats = getAttendanceStatsForStudent(student.id);
-                  const currentStatus = attendance[student.id] || 'absent';
+                  const lockedStatus = existingAttendance[student.id];
+                  const currentStatus = lockedStatus || attendance[student.id] || 'neutral';
+                  const isLocked = Boolean(lockedStatus);
                   
                   return (
                     <div key={student.id} className="border border-slate-200 rounded-lg p-3 hover:bg-slate-50 transition-colors">
@@ -516,9 +549,13 @@ const Attendance = () => {
                           {/* Status Badge */}
                           <div>
                             <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                              currentStatus === 'present' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                              currentStatus === 'present'
+                                ? 'bg-green-100 text-green-800'
+                                : currentStatus === 'absent'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-slate-100 text-slate-700'
                             }`}>
-                              {currentStatus}
+                              {currentStatus === 'neutral' ? '—' : currentStatus}
                             </span>
                           </div>
                         </div>
@@ -526,22 +563,24 @@ const Attendance = () => {
                         {/* Attendance Buttons */}
                         <div className="flex space-x-2">
                           <button
+                            disabled={isLocked}
                             onClick={() => handleAttendanceChange(student.id, 'present')}
                             className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
                               currentStatus === 'present'
                                 ? 'bg-green-600 text-white'
                                 : 'bg-green-100 text-green-700 hover:bg-green-200'
-                            }`}
+                            } disabled:opacity-50 disabled:cursor-not-allowed`}
                           >
                             Present
                           </button>
                           <button
+                            disabled={isLocked}
                             onClick={() => handleAttendanceChange(student.id, 'absent')}
                             className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
                               currentStatus === 'absent'
                                 ? 'bg-red-600 text-white'
                                 : 'bg-red-100 text-red-700 hover:bg-red-200'
-                            }`}
+                            } disabled:opacity-50 disabled:cursor-not-allowed`}
                           >
                             Absent
                           </button>
@@ -579,22 +618,24 @@ const Attendance = () => {
                         <div className="flex items-center space-x-4">
                           <div className="flex space-x-2">
                             <button
+                              disabled={isLocked}
                               onClick={() => handleAttendanceChange(student.id, 'present')}
                               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                                 currentStatus === 'present'
                                   ? 'bg-green-600 text-white'
                                   : 'bg-green-100 text-green-700 hover:bg-green-200'
-                              }`}
+                              } disabled:opacity-50 disabled:cursor-not-allowed`}
                             >
                               Present
                             </button>
                             <button
+                              disabled={isLocked}
                               onClick={() => handleAttendanceChange(student.id, 'absent')}
                               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                                 currentStatus === 'absent'
                                   ? 'bg-red-600 text-white'
                                   : 'bg-red-100 text-red-700 hover:bg-red-200'
-                              }`}
+                              } disabled:opacity-50 disabled:cursor-not-allowed`}
                             >
                               Absent
                             </button>
@@ -602,9 +643,13 @@ const Attendance = () => {
                           
                           <div className="text-sm text-slate-600 w-16 text-right">
                             <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                              currentStatus === 'present' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                              currentStatus === 'present'
+                                ? 'bg-green-100 text-green-800'
+                                : currentStatus === 'absent'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-slate-100 text-slate-700'
                             }`}>
-                              {currentStatus}
+                              {currentStatus === 'neutral' ? '—' : currentStatus}
                             </span>
                           </div>
                         </div>

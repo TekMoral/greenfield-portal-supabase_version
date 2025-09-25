@@ -8,6 +8,7 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
   const [availableSubjects, setAvailableSubjects] = useState([]);
   const [classSubjects, setClassSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   
   // New subject form state
   const [newSubject, setNewSubject] = useState({
@@ -185,13 +186,21 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
     return availableSubjects;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // Filter out incomplete entries
     const validSubjects = classSubjects.filter(
       subject => subject.subjectName && subject.teacherId
     );
-    
-    onSubjectsUpdate(validSubjects);
+
+    setSaving(true);
+    try {
+      await onSubjectsUpdate(validSubjects);
+    } catch (e) {
+      // Errors should be handled by onSubjectsUpdate (toasts), but ensure UI unlocks
+      console.error('Save assignments failed:', e);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const getTeachersBySubject = (subjectName) => {
@@ -437,15 +446,20 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
           <div className="flex justify-end space-x-3">
             <button
               onClick={onClose}
-              className="border border-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              disabled={saving}
+              className="border border-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              disabled={saving}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              Save Assignments
+              {saving && (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              )}
+              {saving ? 'Saving...' : 'Save Assignments'}
             </button>
           </div>
         </div>

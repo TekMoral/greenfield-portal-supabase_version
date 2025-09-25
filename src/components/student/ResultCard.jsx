@@ -69,7 +69,7 @@ const ResultCard = ({ result }) => {
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="text-center p-3 bg-gray-50 rounded-lg">
             <div className="text-xl font-bold text-gray-900">
-              {result.totalScore}
+              {Math.round(Number(result.totalScore || 0))}
             </div>
             <div className="text-xs text-gray-600">Score</div>
             <div className="text-xs text-gray-500">/{result.totalMarks}</div>
@@ -77,7 +77,7 @@ const ResultCard = ({ result }) => {
 
           <div className="text-center p-3 bg-gray-50 rounded-lg">
             <div className="text-xl font-bold text-gray-900">
-              {result.percentage}%
+              {Math.round(Number(result.percentage || 0))}%
             </div>
             <div className="text-xs text-gray-600">Percentage</div>
           </div>
@@ -94,7 +94,7 @@ const ResultCard = ({ result }) => {
         <div className="mb-4">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-medium text-gray-700">Performance</span>
-            <span className="text-sm text-gray-600">{result.percentage}%</span>
+            <span className="text-sm text-gray-600">{Math.round(Number(result.percentage || 0))}%</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div 
@@ -105,7 +105,7 @@ const ResultCard = ({ result }) => {
                 result.percentage >= 60 ? 'bg-orange-500' :
                 'bg-red-500'
               }`}
-              style={{ width: `${Math.min(result.percentage, 100)}%` }}
+              style={{ width: `${Math.min(Math.round(Number(result.percentage || 0)), 100)}%` }}
             ></div>
           </div>
         </div>
@@ -157,8 +157,8 @@ const ResultCard = ({ result }) => {
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">Test Component:</span>
                     <div className="text-right">
-                      <span className="font-medium">{result.testScore}/30</span>
-                      <span className="text-gray-500 ml-2">({((result.testScore / 30) * 100).toFixed(1)}%)</span>
+                      <span className="font-medium">{Math.round(Number(result.testScore || 0))}/30</span>
+                      <span className="text-gray-500 ml-2">({Math.round(((Number(result.testScore || 0) / 30) * 100))}%)</span>
                     </div>
                   </div>
                 )}
@@ -166,8 +166,8 @@ const ResultCard = ({ result }) => {
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">Exam Component:</span>
                     <div className="text-right">
-                      <span className="font-medium">{result.examScore}/50</span>
-                      <span className="text-gray-500 ml-2">({((result.examScore / 50) * 100).toFixed(1)}%)</span>
+                      <span className="font-medium">{Math.round(Number(result.examScore || 0))}/50</span>
+                      <span className="text-gray-500 ml-2">({Math.round(((Number(result.examScore || 0) / 50) * 100))}%)</span>
                     </div>
                   </div>
                 )}
@@ -175,8 +175,8 @@ const ResultCard = ({ result }) => {
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">Admin Assessment:</span>
                     <div className="text-right">
-                      <span className="font-medium">{result.adminScore}/20</span>
-                      <span className="text-gray-500 ml-2">({((result.adminScore / 20) * 100).toFixed(1)}%)</span>
+                      <span className="font-medium">{Math.round(Number(result.adminScore || 0))}/20</span>
+                      <span className="text-gray-500 ml-2">({Math.round(((Number(result.adminScore || 0) / 20) * 100))}%)</span>
                     </div>
                   </div>
                 )}
@@ -184,8 +184,8 @@ const ResultCard = ({ result }) => {
                   <div className="flex justify-between items-center font-medium">
                     <span className="text-gray-800">Total Score:</span>
                     <div className="text-right">
-                      <span className="text-lg">{result.totalScore}/100</span>
-                      <span className="text-gray-600 ml-2">({result.percentage}%)</span>
+                      <span className="text-lg">{Math.round(Number(result.totalScore || 0))}/100</span>
+                      <span className="text-gray-600 ml-2">({Math.round(Number(result.percentage || 0))}%)</span>
                     </div>
                   </div>
                   <div className="flex justify-between items-center mt-1">

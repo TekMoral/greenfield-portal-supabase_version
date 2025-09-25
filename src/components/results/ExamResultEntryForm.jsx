@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useSettings } from '../../contexts/SettingsContext';
 
 const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, existingResult }) => {
   // Helper function to get student full name (consistent with Assignment component)
@@ -44,11 +45,28 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
   const examTypes = [
     { value: 'midterm', label: 'Mid-term Exam' },
     { value: 'final', label: 'Final Exam' },
-    { value: 'test', label: 'Class Test' },
-    { value: 'monthly', label: 'Monthly Test' }
   ];
 
   const terms = ['1st Term', '2nd Term', '3rd Term'];
+
+  const normalizeTermLabel = (t) => {
+    if (t === 1 || t === '1' || String(t).includes('1')) return '1st Term';
+    if (t === 2 || t === '2' || String(t).includes('2')) return '2nd Term';
+    if (t === 3 || t === '3' || String(t).includes('3')) return '3rd Term';
+    return '1st Term';
+  };
+
+  const { academicYear, currentTerm } = useSettings();
+
+  // Keep form in sync with system settings unless viewing an existing result
+  useEffect(() => {
+    if (existingResult) return;
+    setFormData((prev) => ({
+      ...prev,
+      session: String(academicYear || prev.session),
+      term: normalizeTermLabel(currentTerm || prev.term)
+    }));
+  }, [academicYear, currentTerm]);
 
   // Prefill when existingResult is provided
   useEffect(() => {
@@ -223,7 +241,7 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
                   name="session"
                   value={formData.session}
                   onChange={handleChange}
-                  disabled={isReadOnly}
+                  disabled
                   className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                     errors.session ? 'border-red-500' : 'border-gray-300'
                   } ${isReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`}
@@ -240,7 +258,7 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
                   name="term"
                   value={formData.term}
                   onChange={handleChange}
-                  disabled={isReadOnly}
+                  disabled
                   className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                     errors.term ? 'border-red-500' : 'border-gray-300'
                   } ${isReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`}

@@ -1,5 +1,78 @@
 import { supabase } from '../../lib/supabaseClient';
-import { uploadToCloudinary, validateFile } from '../../utils/cloudinaryUpload';
+import edgeFunctionsService from './edgeFunctions';
+
+// Simple validation (moved here to remove Cloudinary dependency)
+function validateFile(file, { maxSize, allowedTypes }) {
+  const errors = [];
+  if (!file) {
+    errors.push('No file provided');
+  } else {
+    if (maxSize && file.size > maxSize) errors.push(`File too large (max ${Math.round(maxSize / (1024 * 1024))}MB)`);
+    if (allowedTypes && !allowedTypes.includes(file.type)) errors.push(`Unsupported type ${file.type}`);
+  }
+  return { isValid: errors.length === 0, errors };
+}
+
+// Simple in-browser image compression using Canvas (no extra deps)
+// - Resizes to fit within maxWidth/maxHeight
+// - Converts to WebP (default) or JPEG
+// - Skips compression for GIFs or unsupported types
+async function compressImageFile(file, options = {}) {
+  const {
+    maxWidth = 1024,
+    maxHeight = 1024,
+    quality = 0.7,
+    outputType = 'image/webp', // 'image/webp' or 'image/jpeg'
+    skipIfSmallerThan = 200 * 1024 // skip compression for small files (<200KB)
+  } = options;
+
+  try {
+    if (!file || !file.type?.startsWith('image/')) return { blob: file, outMime: file?.type, outExt: file?.name?.split('.').pop() };
+    if (file.type === 'image/gif') return { blob: file, outMime: file.type, outExt: 'gif' }; // keep animations
+    if (file.size && file.size < skipIfSmallerThan) return { blob: file, outMime: file.type, outExt: (file.name?.split('.').pop() || 'jpg') };
+
+    const img = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = (e) => reject(e);
+        i.src = reader.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    // Compute target dimensions
+    const { width, height } = img;
+    let targetW = width;
+    let targetH = height;
+    if (width > maxWidth || height > maxHeight) {
+      const ratio = Math.min(maxWidth / width, maxHeight / height);
+      targetW = Math.round(width * ratio);
+      targetH = Math.round(height * ratio);
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext('2d', { alpha: true });
+    if (!ctx) return { blob: file, outMime: file.type, outExt: (file.name?.split('.').pop() || 'jpg') };
+    ctx.drawImage(img, 0, 0, targetW, targetH);
+
+    const outType = outputType || 'image/webp';
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, outType, quality));
+
+    if (!blob) return { blob: file, outMime: file.type, outExt: (file.name?.split('.').pop() || 'jpg') };
+
+    const outMime = blob.type || outType;
+    const outExt = outMime.includes('webp') ? 'webp' : outMime.includes('jpeg') ? 'jpg' : (file.name?.split('.').pop() || 'jpg');
+    return { blob, outMime, outExt };
+  } catch (_) {
+    // On any failure, return original
+    return { blob: file, outMime: file?.type, outExt: (file?.name?.split('.').pop() || 'jpg') };
+  }
+}
 
 /**
  * Upload student profile image to Cloudinary and update user profile
@@ -13,68 +86,67 @@ export const uploadStudentImage = async (file, admissionNumber, studentId = null
     });
 
     if (!validation.isValid) {
-      return { 
-        success: false, 
-        error: `Invalid file: ${validation.errors.join(', ')}` 
-      };
+      return null; // Caller expects a URL-like value; return null on invalid
     }
 
-    // Upload to Cloudinary with student-specific folder and public ID
-    const uploadOptions = {
-      folder: 'students/profiles',
-      publicId: `student_${admissionNumber}_profile`,
-      tags: ['student', 'profile', admissionNumber]
-    };
+    // Compress before upload
+    const { blob: compressedBlob, outExt } = await compressImageFile(file, {
+      maxWidth: 1024,
+      maxHeight: 1024,
+      quality: 0.7,
+      outputType: 'image/webp'
+    });
 
-    const result = await uploadToCloudinary(file, uploadOptions);
-    
-    console.log('Student image uploaded to Cloudinary:', result.url);
+    // Prepare storage path: profile-images/student-profiles/<admissionNumber>-<timestamp>.<ext>
+    const safeAdm = String(admissionNumber || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const ext = (outExt || (file?.name || 'jpg').split('.').pop() || 'jpg').toLowerCase();
+    const fileName = `${safeAdm}-${Date.now()}.${ext}`;
+    const filePath = studentId ? `student-profiles/${studentId}/${fileName}` : `student-profiles/${fileName}`;
 
-    // If studentId is provided, update the user profile with the image URL
+    // Upload to Supabase Storage (compressed)
+    const { error: uploadError } = await supabase.storage
+      .from('profile-images')
+      .upload(filePath, compressedBlob, { upsert: false });
+
+    if (uploadError) {
+      console.error('❌ Storage upload failed:', uploadError);
+      return null;
+    }
+
+    // Get a public URL (bucket configured as public)
+    const { data: publicData } = supabase.storage
+      .from('profile-images')
+      .getPublicUrl(filePath);
+
+    const publicUrl = publicData?.publicUrl || null;
+    if (!publicUrl) {
+      console.error('❌ Failed to obtain public URL for profile image');
+      return null;
+    }
+
+    // Optionally update the student's profile if studentId is provided
     if (studentId) {
-      const { data: updateData, error: updateError } = await supabase
+      const { error: updateError } = await supabase
         .from('user_profiles')
         .update({
-          profile_image: result.url,
-          profile_image_public_id: result.publicId,
+          profile_image: publicUrl,
+          profile_image_public_id: filePath, // store storage path as public_id analogue
           updated_at: new Date().toISOString()
         })
         .eq('id', studentId)
-        .eq('role', 'student')
-        .select()
-        .single();
+        .eq('role', 'student');
 
       if (updateError) {
-        console.error('Error updating student profile with image:', updateError);
-        return { 
-          success: false, 
-          error: `Image uploaded but profile update failed: ${updateError.message}` 
-        };
+        console.error('❌ Error updating student profile with image URL:', updateError);
+        // Still return the URL so caller can use it in subsequent update flows
       }
-
-      return { 
-        success: true, 
-        data: {
-          url: result.url,
-          publicId: result.publicId,
-          profile: updateData
-        }
-      };
     }
 
-    return { 
-      success: true, 
-      data: {
-        url: result.url,
-        publicId: result.publicId
-      }
-    };
+    // Return the URL string directly (callers expect a string)
+    return publicUrl;
   } catch (error) {
-    console.error('Error uploading student image:', error);
-    return { 
-      success: false, 
-      error: `Failed to upload image: ${error.message}` 
-    };
+    console.error('Error uploading student image to storage:', error);
+    return null;
   }
 };
 
@@ -95,15 +167,23 @@ export const uploadStudentDocument = async (file, admissionNumber, documentType,
       };
     }
 
-    const uploadOptions = {
-      folder: `students/documents/${documentType}`,
-      publicId: `student_${admissionNumber}_${documentType}_${Date.now()}`,
-      tags: ['student', 'document', documentType, admissionNumber]
-    };
+    const bucket = 'student-documents';
+    const safeAdm = String(admissionNumber || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const ext = (file?.name || 'bin').split('.').pop();
+    const fileName = `${safeAdm}_${documentType}_${Date.now()}.${ext}`;
+    const storagePath = `${safeAdm}/${fileName}`;
 
-    const result = await uploadToCloudinary(file, uploadOptions);
-    
-    console.log(`Student ${documentType} uploaded to Cloudinary:`, result.url);
+    const { error: uploadError } = await supabase.storage
+      .from(bucket)
+      .upload(storagePath, file, { contentType: file.type || 'application/octet-stream' });
+
+    if (uploadError) {
+      console.error('❌ Storage upload failed:', uploadError);
+      return { success: false, error: uploadError.message };
+    }
+
+    const { data: pub } = supabase.storage.from(bucket).getPublicUrl(storagePath);
+    const publicUrl = pub?.publicUrl || null;
 
     // Save document metadata to database
     const documentData = {
@@ -111,10 +191,13 @@ export const uploadStudentDocument = async (file, admissionNumber, documentType,
       admission_number: admissionNumber,
       document_type: documentType,
       file_name: file.name,
-      file_url: result.url,
-      public_id: result.publicId,
+      file_url: publicUrl,
+      public_id: storagePath, // storage object path
       file_size: file.size,
       mime_type: file.type,
+      bucket_name: bucket,
+      storage_path: storagePath,
+      file_path: storagePath,
       uploaded_at: new Date().toISOString()
     };
 
@@ -135,8 +218,8 @@ export const uploadStudentDocument = async (file, admissionNumber, documentType,
     return { 
       success: true, 
       data: {
-        url: result.url,
-        publicId: result.publicId,
+        url: publicUrl,
+        publicId: storagePath,
         document: docRecord
       }
     };
@@ -166,41 +249,51 @@ export const uploadTeacherImage = async (file, teacherId) => {
       };
     }
 
-    const uploadOptions = {
-      folder: 'teachers/profiles',
-      publicId: `teacher_${teacherId}_profile`,
-      tags: ['teacher', 'profile', teacherId]
-    };
+    // Compress before upload (match student pattern)
+    const { blob: compressedBlob, outExt } = await compressImageFile(file, {
+      maxWidth: 1024,
+      maxHeight: 1024,
+      quality: 0.7,
+      outputType: 'image/webp'
+    });
 
-    const result = await uploadToCloudinary(file, uploadOptions);
-    
-    // Update teacher profile with image URL
-    const { data: updateData, error: updateError } = await supabase
-      .from('user_profiles')
-      .update({
-        profile_image: result.url,
-        profile_image_public_id: result.publicId,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', teacherId)
-      .eq('role', 'teacher')
-      .select()
-      .single();
+    const bucket = 'profile-images';
+    const ext = (outExt || (file?.name || 'jpg').split('.').pop() || 'jpg').toLowerCase();
+    const fileName = `${teacherId}-${Date.now()}.${ext}`;
+    const storagePath = `teacher-profiles/${fileName}`;
 
-    if (updateError) {
-      console.error('Error updating teacher profile with image:', updateError);
+    const { error: uploadError } = await supabase.storage
+      .from(bucket)
+      .upload(storagePath, compressedBlob, { upsert: false });
+
+    if (uploadError) {
+      console.error('❌ Storage upload failed:', uploadError);
+      return { success: false, error: uploadError.message };
+    }
+
+    const { data: pub } = supabase.storage.from(bucket).getPublicUrl(storagePath);
+    const publicUrl = pub?.publicUrl || null;
+
+    // Update teacher profile using Edge Function to avoid RLS issues
+    try {
+      await edgeFunctionsService.updateUser(teacherId, 'teacher', {
+        profile_image: publicUrl,
+        profile_image_public_id: storagePath
+      });
+    } catch (e) {
+      console.error('Error updating teacher profile via Edge Function:', e);
       return { 
         success: false, 
-        error: `Image uploaded but profile update failed: ${updateError.message}` 
+        error: `Image uploaded but profile update failed: ${e?.message || 'Unknown error'}` 
       };
     }
 
     return { 
       success: true, 
       data: {
-        url: result.url,
-        publicId: result.publicId,
-        profile: updateData
+        url: publicUrl,
+        publicId: storagePath,
+        profile: { id: teacherId, profile_image: publicUrl }
       }
     };
   } catch (error) {
@@ -236,19 +329,27 @@ export const uploadFile = async (file, folder = 'general', tags = []) => {
       };
     }
 
-    const uploadOptions = {
-      folder: `school/${folder}`,
-      publicId: `${folder}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      tags: ['school', folder, ...tags]
-    };
+    const bucket = 'uploads';
+    const ext = (file?.name || 'bin').split('.').pop();
+    const fileName = `${folder}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${ext}`;
+    const storagePath = `${folder}/${fileName}`;
 
-    const result = await uploadToCloudinary(file, uploadOptions);
-    
+    const { error: uploadError } = await supabase.storage
+      .from(bucket)
+      .upload(storagePath, file, { contentType: file.type || 'application/octet-stream' });
+
+    if (uploadError) {
+      console.error('❌ Storage upload failed:', uploadError);
+      return { success: false, error: uploadError.message };
+    }
+
+    const { data: pub } = supabase.storage.from(bucket).getPublicUrl(storagePath);
+
     return { 
       success: true, 
       data: {
-        url: result.url,
-        publicId: result.publicId,
+        url: pub?.publicUrl || null,
+        publicId: storagePath,
         fileName: file.name,
         fileSize: file.size,
         mimeType: file.type

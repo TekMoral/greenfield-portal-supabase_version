@@ -1,16 +1,44 @@
 import { supabase } from "../../lib/supabaseClient";
+
+// Internal helper: only admins/super_admins can include graduated
+async function ensureGraduatedAccess(options = {}) {
+  const wantGraduated = !!options.includeGraduated;
+  if (!wantGraduated) return { includeGraduated: false };
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { includeGraduated: false };
+    const { data: me } = await supabase
+      .from('user_profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    const role = me?.role;
+    const allowed = role === 'admin' || role === 'super_admin';
+    return { includeGraduated: allowed };
+  } catch (_) {
+    return { includeGraduated: false };
+  }
+}
 export const studentService = {
   // Get all students - Simple and reliable 2-query approach
-  async getAllStudents() {
+  async getAllStudents(options = {}) {
     try {
       console.log("🔄 Fetching students and classes...");
 
       // Get all students
-      const { data: students, error: studentsError } = await supabase
+      const safe = await ensureGraduatedAccess(options);
+      let query = supabase
         .from("user_profiles")
         .select("*")
-        .eq("role", "student")
-        .neq("status", "deleted")
+        .eq("role", "student");
+
+      if (safe.includeGraduated) {
+        query = query.in("status", ["active", "graduated"]);
+      } else {
+        query = query.eq("status", "active");
+      }
+
+      const { data: students, error: studentsError } = await query
         .order("created_at", { ascending: false });
 
       if (studentsError) {
@@ -46,15 +74,23 @@ export const studentService = {
   },
 
   // Get student by ID
-  async getStudentById(studentId) {
+  async getStudentById(studentId, options = {}) {
     try {
       // Get student
-      const { data: student, error: studentError } = await supabase
+      const safe = await ensureGraduatedAccess(options);
+      let query = supabase
         .from("user_profiles")
         .select("*")
         .eq("id", studentId)
-        .eq("role", "student")
-        .single();
+        .eq("role", "student");
+
+      if (safe.includeGraduated) {
+        query = query.in("status", ["active", "graduated"]);
+      } else {
+        query = query.eq("status", "active");
+      }
+
+      const { data: student, error: studentError } = await query.single();
 
       if (studentError) throw studentError;
 
@@ -82,15 +118,23 @@ export const studentService = {
   },
 
   // Get student by admission number
-  async getStudentByAdmissionNumber(admissionNumber) {
+  async getStudentByAdmissionNumber(admissionNumber, options = {}) {
     try {
       // Get student
-      const { data: student, error: studentError } = await supabase
+      const safe = await ensureGraduatedAccess(options);
+      let query = supabase
         .from("user_profiles")
         .select("*")
         .eq("admission_number", admissionNumber)
-        .eq("role", "student")
-        .single();
+        .eq("role", "student");
+
+      if (safe.includeGraduated) {
+        query = query.in("status", ["active", "graduated"]);
+      } else {
+        query = query.eq("status", "active");
+      }
+
+      const { data: student, error: studentError } = await query.single();
 
       if (studentError) throw studentError;
 
@@ -146,7 +190,7 @@ export const studentService = {
         let baseNumber = 1;
 
         if (attempts === 0) {
-          const pattern = `${initial}%${year}`;
+          const pattern = `${year}${initial}%`;
           const { data, error } = await supabase
             .from("user_profiles")
             .select("admission_number")
@@ -159,7 +203,7 @@ export const studentService = {
 
           if (data && data.length > 0) {
             const lastNumber = data[0].admission_number;
-            const numberPart = lastNumber.slice(1, -2);
+            const numberPart = lastNumber.slice(-3);
             baseNumber = (parseInt(numberPart) || 0) + 1;
           }
         } else {
@@ -167,7 +211,7 @@ export const studentService = {
         }
 
         const paddedNumber = String(baseNumber).padStart(3, "0");
-        const candidateAdmissionNumber = `${initial}${paddedNumber}${year}`;
+        const candidateAdmissionNumber = `${year}${initial}${paddedNumber}`;
 
         const exists = await this.checkAdmissionNumberExists(
           candidateAdmissionNumber
@@ -190,15 +234,23 @@ export const studentService = {
   },
 
   // Get students by class
-  async getStudentsByClass(classId) {
+  async getStudentsByClass(classId, options = {}) {
     try {
       // Get students
-      const { data: students, error: studentsError } = await supabase
+      const safe = await ensureGraduatedAccess(options);
+      let query = supabase
         .from("user_profiles")
         .select("*")
         .eq("class_id", classId)
-        .eq("role", "student")
-        .neq("status", "deleted")
+        .eq("role", "student");
+
+      if (safe.includeGraduated) {
+        query = query.in("status", ["active", "graduated"]);
+      } else {
+        query = query.eq("status", "active");
+      }
+
+      const { data: students, error: studentsError } = await query
         .order("full_name", { ascending: true });
 
       if (studentsError) throw studentsError;

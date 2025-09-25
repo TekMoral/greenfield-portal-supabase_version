@@ -1,86 +1,149 @@
 import { supabase } from '../../lib/supabaseClient';
 import { directStorageClient } from '../../utils/directStorageClient';
+import { callFunction } from './edgeFunctions';
+
+// Simple in-browser image compression (mirrors profile image approach)
+async function compressImageFile(file, options = {}) {
+  const {
+    maxWidth = 1920,
+    maxHeight = 1080,
+    quality = 0.8,
+    outputType = 'image/webp',
+    skipIfSmallerThan = 200 * 1024
+  } = options;
+
+  try {
+    if (!file || !file.type?.startsWith('image/')) return { blob: file, outMime: file?.type, outExt: file?.name?.split('.').pop() };
+    if (file.type === 'image/gif') return { blob: file, outMime: file.type, outExt: 'gif' }; // keep animations
+    if (file.size && file.size < skipIfSmallerThan) return { blob: file, outMime: file.type, outExt: (file.name?.split('.').pop() || 'jpg') };
+
+    const img = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = (e) => reject(e);
+        i.src = reader.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    // Compute target dimensions (contain within max)
+    const { width, height } = img;
+    let targetW = width;
+    let targetH = height;
+    if (width > maxWidth || height > maxHeight) {
+      const ratio = Math.min(maxWidth / width, maxHeight / height);
+      targetW = Math.round(width * ratio);
+      targetH = Math.round(height * ratio);
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext('2d', { alpha: true });
+    if (!ctx) return { blob: file, outMime: file.type, outExt: (file.name?.split('.').pop() || 'jpg') };
+    ctx.drawImage(img, 0, 0, targetW, targetH);
+
+    const outType = outputType || 'image/webp';
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, outType, quality));
+    if (!blob) return { blob: file, outMime: file.type, outExt: (file.name?.split('.').pop() || 'jpg') };
+
+    const outMime = blob.type || outType;
+    const outExt = outMime.includes('webp') ? 'webp' : outMime.includes('jpeg') ? 'jpg' : (file.name?.split('.').pop() || 'jpg');
+    return { blob, outMime, outExt };
+  } catch (_) {
+    // Fallback to original on error
+    return { blob: file, outMime: file?.type, outExt: (file?.name?.split('.').pop() || 'jpg') };
+  }
+}
 
 /**
  * Upload carousel image to Supabase Storage and save metadata to Supabase
  */
 export const uploadCarouselImage = async (file, imageData) => {
   try {
-    // Validate the image file
-    const maxSize = 10 * 1024 * 1024; // 10MB max for carousel images
+    // Prefer secure Edge Function path for upload + DB write
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('metadata', JSON.stringify(imageData || {}));
+      const edgeResult = await callFunction('upload-carousel', formData);
+      if (edgeResult?.success) {
+        return edgeResult;
+      }
+      // if function returns but not success, fall through to client fallback
+      console.warn('upload-carousel edge function returned non-success, falling back:', edgeResult?.error);
+    } catch (efErr) {
+      console.warn('upload-carousel edge function failed, falling back to client path:', efErr?.userMessage || efErr?.message || efErr);
+    }
+
+    // Client-side validation for fallback path
+    const maxSize = 2 * 1024 * 1024; // 2MB max for carousel images
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
     if (file.size > maxSize) {
-      return { 
-        success: false, 
-        error: `File size too large. Maximum size is ${maxSize / (1024 * 1024)}MB` 
-      };
+      return { success: false, error: `File size too large. Maximum size is ${maxSize / (1024 * 1024)}MB` };
     }
-
     if (!allowedTypes.includes(file.type)) {
-      return { 
-        success: false, 
-        error: `Invalid file type. Allowed types: ${allowedTypes.join(', ')}` 
-      };
+      return { success: false, error: `Invalid file type. Allowed types: ${allowedTypes.join(', ')}` };
     }
 
-    // Generate unique filename
+    // Compress before upload (keep GIFs/very small images as-is)
+    const { blob: uploadBlob, outExt } = await compressImageFile(file, {
+      maxWidth: 1920,
+      maxHeight: 1080,
+      quality: 0.8,
+      outputType: 'image/webp',
+      skipIfSmallerThan: 200 * 1024
+    });
+
+    // Generate unique filename with correct extension
     const timestamp = Date.now();
-    const fileExtension = file.name.split('.').pop();
-    const fileName = `carousel/${timestamp}_${Math.random().toString(36).substring(7)}.${fileExtension}`;
+    const safeExt = (outExt || file.name.split('.').pop() || 'jpg').toLowerCase();
+    const fileName = `carousel/${timestamp}_${Math.random().toString(36).substring(7)}.${safeExt}`;
 
-    // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await directStorageClient.upload(
-      'carousel-images', 
-      fileName, 
-      file
-    );
-
+    // Upload to Supabase Storage (compressed blob)
+    const { error: uploadError } = await supabase.storage.from('carousel-images').upload(fileName, uploadBlob, { upsert: false });
     if (uploadError) {
       console.error('Supabase Storage upload error:', uploadError);
-      return { success: false, error: uploadError };
+      return { success: false, error: uploadError.message || String(uploadError) };
     }
 
-    // Get public URL
-    const publicUrl = directStorageClient.getPublicUrl('carousel-images', fileName);
+    const { data: pub } = supabase.storage.from('carousel-images').getPublicUrl(fileName);
+    const publicUrl = pub?.publicUrl || null;
 
     // Save image metadata to Supabase database using actual schema
     const carouselDoc = {
       title: imageData.title || '',
       description: imageData.caption || imageData.description || '',
-      image_path: fileName, // Store the file path for deletion
+      image_path: fileName,
       bucket_name: 'carousel-images',
       link_url: imageData.link_url || null,
       is_active: imageData.isActive !== undefined ? imageData.isActive : true,
       display_order: imageData.order || 0,
-      created_by: null, // Will be set by RLS policy if auth is working
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 
-    const { data, error } = await supabase
-      .from('carousel_images')
-      .insert(carouselDoc)
-      .select()
-      .single();
-
+    const { data, error } = await supabase.from('carousel_images').insert(carouselDoc).select().single();
     if (error) {
       console.error('Supabase error saving carousel image:', error);
-      // Try to clean up uploaded file if database save fails
-      await directStorageClient.remove('carousel-images', fileName);
+      // cleanup
+      try { await supabase.storage.from('carousel-images').remove([fileName]); } catch (_) {}
       return { success: false, error: error.message };
     }
 
-    console.log('Carousel image uploaded and saved:', publicUrl);
     return {
       success: true,
       data: {
         id: data.id,
         ...data,
-        src: publicUrl, // Add src for compatibility
-        caption: data.description, // Map description to caption for UI compatibility
-        alt: data.title || 'Carousel image', // Use title as alt
-        isActive: data.is_active // Map snake_case to camelCase
+        src: publicUrl,
+        caption: data.description,
+        alt: data.title || 'Carousel image',
+        isActive: data.is_active
       }
     };
   } catch (error) {

@@ -319,7 +319,6 @@ export const attendanceService = {
         total: data.length,
         present: data.filter(a => a.status === 'present').length,
         absent: data.filter(a => a.status === 'absent').length,
-        late: data.filter(a => a.status === 'late').length,
         excused: data.filter(a => a.status === 'excused').length
       };
 
@@ -347,7 +346,6 @@ export const attendanceService = {
         total: data.length,
         present: data.filter(a => a.status === 'present').length,
         absent: data.filter(a => a.status === 'absent').length,
-        late: data.filter(a => a.status === 'late').length,
         excused: data.filter(a => a.status === 'excused').length
       };
 

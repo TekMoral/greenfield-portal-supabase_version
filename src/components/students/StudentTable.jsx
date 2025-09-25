@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import ProfileImage from "../common/ProfileImage";
 import ImageModal from "../common/ImageModal";
-import { EditButton, DeleteButton, PromoteButton, SuspendButton, ReactivateButton } from "../ui/ActionButtons";
+import { EditButton, DeleteButton, PromoteButton, SuspendButton, ReactivateButton, ResetPasswordButton } from "../ui/ActionButtons";
 import { formatClassName } from "../../utils/classNameFormatter";
 
 const StudentTable = ({
@@ -13,6 +13,7 @@ const StudentTable = ({
   onPromote,
   onSuspend,
   onReactivate,
+  onResetPassword,
   searchTerm = "",
   setSearchTerm,
   sortBy = "name",
@@ -23,7 +24,7 @@ const StudentTable = ({
   itemsPerPage = 10,
   setItemsPerPage,
   onPageChange,
-  operationLoading = { create: false, update: false, delete: false, promote: false, suspend: false, reactivate: false },
+  operationLoading = { create: false, update: false, delete: false, promote: false, suspend: false, reactivate: false, resetPassword: false },
   startItem = 0,
   endItem = 0,
   totalItems = 0,
@@ -42,9 +43,10 @@ const StudentTable = ({
 
   // Selection helpers
   const selectedSet = useMemo(() => new Set(selectedIds || []), [selectedIds]);
+  const pageIds = useMemo(() => (students || []).map(s => s?.id).filter(Boolean), [students]);
   const allSelectedOnPage = useMemo(
-    () => showSelection && students.length > 0 && students.every((s) => selectedSet.has(s.id)),
-    [showSelection, students, selectedSet]
+    () => showSelection && pageIds.length > 0 && pageIds.every((id) => selectedSet.has(id)),
+    [showSelection, pageIds, selectedSet]
   );
 
   // Check if mobile on mount and resize
@@ -120,7 +122,7 @@ const StudentTable = ({
   // Determine actual view mode based on screen size and user preference
   const actualViewMode = useMemo(() => {
     if (viewMode === "auto") {
-      return isMobile ? "cards" : "table";
+      return "cards"; // Use cards for all screen sizes
     }
     return viewMode;
   }, [viewMode, isMobile]);
@@ -173,9 +175,10 @@ const StudentTable = ({
     onPromote,
     onSuspend,
     onReactivate,
+    onResetPassword,
     isMobile = false,
     isDesktopCard = false,
-    operationLoading = { create: false, update: false, delete: false, promote: false, suspend: false, reactivate: false },
+    operationLoading = { create: false, update: false, delete: false, promote: false, suspend: false, reactivate: false, resetPassword: false },
   }) => {
     const { userRole, isSuperAdmin } = useAuth();
 
@@ -197,33 +200,24 @@ const StudentTable = ({
 
     if (isMobile || isDesktopCard) {
       return (
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {canEdit && (
             <EditButton
               onClick={() => onEdit(student)}
               loading={operationLoading?.update}
               disabled={operationLoading?.update}
-              className="flex-1 min-w-0"
+              className="w-full"
               size="xs"
             />
           )}
           
-          {canPromote && studentStatus === 'active' && onPromote && (
-            <PromoteButton
-              onClick={() => onPromote(student)}
-              loading={operationLoading?.promote}
-              disabled={operationLoading?.promote}
-              className="flex-1 min-w-0"
-              size="xs"
-            />
-          )}
-          
+                              
           {canSuspend && studentStatus === 'active' && onSuspend && (
             <SuspendButton
               onClick={() => onSuspend(student)}
               loading={operationLoading?.suspend}
               disabled={operationLoading?.suspend}
-              className="flex-1 min-w-0"
+              className="w-full"
               size="xs"
             />
           )}
@@ -233,7 +227,18 @@ const StudentTable = ({
               onClick={() => onReactivate(student)}
               loading={operationLoading?.reactivate}
               disabled={operationLoading?.reactivate}
-              className="flex-1 min-w-0"
+              className="w-full"
+              size="xs"
+            />
+          )}
+          
+          {canSuspend && onResetPassword && (
+            <ResetPasswordButton
+              variant="success"
+              onClick={() => onResetPassword(student)}
+              loading={operationLoading?.resetPassword}
+              disabled={operationLoading?.resetPassword}
+              className="w-full"
               size="xs"
             />
           )}
@@ -247,7 +252,7 @@ const StudentTable = ({
               }}
               loading={operationLoading?.delete}
               disabled={operationLoading?.delete}
-              className="flex-1 min-w-0"
+              className="w-full"
               size="xs"
             />
           )}
@@ -272,7 +277,7 @@ const StudentTable = ({
             disabled={operationLoading?.promote}
           />
         )}
-        
+                
         {canSuspend && studentStatus === 'active' && onSuspend && (
           <SuspendButton
             onClick={() => onSuspend(student)}
@@ -286,6 +291,15 @@ const StudentTable = ({
             onClick={() => onReactivate(student)}
             loading={operationLoading?.reactivate}
             disabled={operationLoading?.reactivate}
+          />
+        )}
+        
+        {canSuspend && onResetPassword && (
+          <ResetPasswordButton
+            variant="success"
+            onClick={() => onResetPassword(student)}
+            loading={operationLoading?.resetPassword}
+            disabled={operationLoading?.resetPassword}
           />
         )}
         
@@ -321,8 +335,20 @@ const StudentTable = ({
     );
   };
 
-  const MobileStudentCard = ({ student, index }) => (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
+  
+  const StudentCard = ({ student, index }) => (
+    <div className="relative bg-white border border-emerald-200 hover:border-emerald-300 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden h-full flex flex-col">
+      {showSelection && (
+        <div className="absolute top-2 left-2 z-10 bg-white bg-opacity-90 rounded px-1.5 py-0.5 shadow-sm">
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+            checked={selectedSet.has(student?.id)}
+            onChange={(e) => { e.stopPropagation(); onToggleRow(student?.id); }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
       {/* Card Header */}
       <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 border-b border-gray-100">
         <div className="flex items-center space-x-3">
@@ -349,10 +375,28 @@ const StudentTable = ({
             <p className="text-sm text-gray-600 font-medium">
               ID: {student?.admission_number || "N/A"}
             </p>
-            <div className="flex items-center space-x-2 mt-1">
+            <div className="mt-1 flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                 {formatClassName(student?.classes?.name) || "N/A"}
               </span>
+              {(() => {
+                const raw = student?.classes?.category || student?.classCategory || (/JSS/i.test(student?.classes?.name || '') ? 'Junior' : null);
+                if (!raw) return null;
+                const c = String(raw);
+                const lower = c.toLowerCase();
+                const cls = lower === 'science'
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : lower === 'arts'
+                  ? 'bg-purple-100 text-purple-800'
+                  : lower === 'commercial'
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'bg-teal-100 text-teal-800'; // Junior or others
+                return (
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
+                    {c}
+                  </span>
+                );
+              })()}
               <StatusBadge status={student?.status || 'active'} />
               {student?.gender && (
                 <span
@@ -373,7 +417,7 @@ const StudentTable = ({
       </div>
 
       {/* Card Body */}
-      <div className="p-4">
+      <div className="p-4 flex-1">
         <div className="space-y-3">
           {student?.email && (
             <div className="flex items-start space-x-2">
@@ -474,6 +518,7 @@ const StudentTable = ({
           onPromote={onPromote}
           onSuspend={onSuspend}
           onReactivate={onReactivate}
+          onResetPassword={onResetPassword}
           isMobile={true}
           operationLoading={operationLoading}
         />
@@ -574,6 +619,17 @@ const StudentTable = ({
 
           {/* Controls */}
           <div className="flex items-center gap-3">
+            {showSelection && (
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  checked={allSelectedOnPage}
+                  onChange={(e) => onToggleAll(pageIds, e.target.checked)}
+                />
+                <span>Select all</span>
+              </label>
+            )}
             {/* Items per page */}
             <div className="flex items-center gap-2">
               <label className="text-sm text-gray-600 whitespace-nowrap hidden sm:block">
@@ -648,187 +704,12 @@ const StudentTable = ({
         </div>
       ) : (
         <>
-          {/* Table View - Desktop */}
-          {actualViewMode === "table" && (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-4 sm:px-3 py-3 text-left">
-                      {showSelection ? (
-                        <input
-                          type="checkbox"
-                          aria-label="Select all on page"
-                          checked={allSelectedOnPage}
-                          onChange={() => {
-                            const ids = students.map((s) => s.id).filter(Boolean);
-                            // If already all selected on page, unselect; otherwise select
-                            onToggleAll(ids, !allSelectedOnPage);
-                          }}
-                        />
-                      ) : null}
-                    </th>
-                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Photo
-                    </th>
-                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      <SortButton field="name">Student</SortButton>
-                    </th>
-                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      <SortButton field="admission">Admission No.</SortButton>
-                    </th>
-                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      <SortButton field="class">Class</SortButton>
-                    </th>
-                    <th className="hidden lg:table-cell px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="hidden lg:table-cell px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Gender
-                    </th>
-                    <th className="hidden xl:table-cell px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      <SortButton field="date_of_birth">Date of Birth</SortButton>
-                    </th>
-                    <th className="hidden xl:table-cell px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Guardian & Phone
-                    </th>
-                    <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {students.map((student, index) => (
-                    <tr
-                      key={student?.id || index}
-                      className="hover:bg-gray-50 transition-colors"
-                    >
-                      <td className="px-4 sm:px-3 py-4 whitespace-nowrap align-middle">
-                        {showSelection ? (
-                          <input
-                            type="checkbox"
-                            aria-label={`Select ${student?.full_name || 'student'}`}
-                            checked={!!student?.id && selectedSet.has(student.id)}
-                            onChange={() => student?.id && onToggleRow(student.id)}
-                          />
-                        ) : null}
-                      </td>
-                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                        <div
-                          className={`${
-                            (userRole === "admin" || isSuperAdmin) &&
-                            student?.profile_image
-                              ? "cursor-pointer hover:opacity-80 transition-opacity"
-                              : ""
-                          }`}
-                          onClick={() => handleImageClick(student)}
-                          title={
-                            (userRole === "admin" || isSuperAdmin) &&
-                            student?.profile_image
-                              ? "Click to view larger image"
-                              : ""
-                          }
-                        >
-                          <ProfileImage
-                            src={student?.profile_image}
-                            alt={student?.full_name || "Student"}
-                            size="sm"
-                            fallbackName={student?.full_name || ""}
-                          />
-                        </div>
-                      </td>
-                      <td className="px-4 sm:px-6 py-4">
-                        <div className="flex flex-col">
-                          <div className="text-sm font-medium text-gray-900 truncate max-w-[200px]">
-                            {student?.full_name || "N/A"}
-                          </div>
-                          <div className="text-sm text-gray-500 truncate max-w-[200px]">
-                            {student?.email || "No email"}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {student?.admission_number || "N/A"}
-                      </td>
-                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          {formatClassName(student?.classes?.name) || "N/A"}
-                        </span>
-                      </td>
-                      <td className="hidden lg:table-cell px-4 sm:px-6 py-4 whitespace-nowrap">
-                        <StatusBadge status={student?.status || 'active'} />
-                      </td>
-                      <td className="hidden lg:table-cell px-4 sm:px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            student?.gender?.toLowerCase() === "male"
-                              ? "bg-blue-100 text-blue-800"
-                              : student?.gender?.toLowerCase() === "female"
-                              ? "bg-pink-100 text-pink-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}
-                        >
-                          {student?.gender || "N/A"}
-                        </span>
-                      </td>
-                      <td className="hidden xl:table-cell px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {student?.date_of_birth
-                          ? new Date(student.date_of_birth).toLocaleDateString()
-                          : "N/A"}
-                      </td>
-                      <td className="hidden xl:table-cell px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="flex flex-col">
-                          <div className="truncate max-w-[150px]">
-                            {student?.guardian_name || "N/A"}
-                          </div>
-                          {(student?.guardian_phone ||
-                            student?.contact ||
-                            student?.phone_number) && (
-                            <div className="text-xs text-gray-500 flex items-center mt-1">
-                              <svg
-                                className="w-3 h-3 mr-1"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                                />
-                              </svg>
-                              {student.guardian_phone ||
-                                student.contact ||
-                                student.phone_number}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <ActionsCell
-                          student={student}
-                          onEdit={onEdit}
-                          onDelete={onDelete}
-                          onPromote={onPromote}
-                          onSuspend={onSuspend}
-                          onReactivate={onReactivate}
-                          operationLoading={operationLoading}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
           {/* Card Views */}
           {actualViewMode === "cards" && (
             <div className="p-4">
-              <div className="space-y-4">
+              <div className={`${isMobile ? 'space-y-4' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'}`}>
                 {students.map((student, index) => (
-                  <MobileStudentCard
+                  <StudentCard
                     key={student?.id || index}
                     student={student}
                     index={index}

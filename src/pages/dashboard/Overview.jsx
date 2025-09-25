@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { getDashboardStats } from "../../services/supabase/dashboardService";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import AttendanceDonut from "../../components/common/AttendanceDonut";
 
 const Overview = () => {
-  const { user } = useAuth();
+  const { user, isSuperAdminUser } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalStudents: 0,
@@ -14,7 +15,10 @@ const Overview = () => {
     activeExams: 0,
     newStudentsThisMonth: 0,
     newTeachersThisMonth: 0,
-    examsEndingThisWeek: 0
+    examsEndingThisWeek: 0,
+    pendingReviewCount: 0,
+    pendingReviewItems: [],
+    attendanceTodayPercent: 0,
   });
   const queryClient = useQueryClient();
 
@@ -22,6 +26,7 @@ const Overview = () => {
     const result = await getDashboardStats();
     if (!result.success) throw new Error(result.error || 'Failed to fetch dashboard stats');
     const overview = result.data.overview || {};
+    const pending = result.data.pendingReview || { count: 0, items: [] };
     return {
       totalStudents: overview.totalStudents || 0,
       totalTeachers: overview.totalTeachers || 0,
@@ -29,7 +34,10 @@ const Overview = () => {
       activeExams: overview.totalExams || 0,
       newStudentsThisMonth: overview.newStudentsThisMonth || 0,
       newTeachersThisMonth: overview.newTeachersThisMonth || 0,
-      examsEndingThisWeek: overview.examsEndingThisWeek || 0
+      examsEndingThisWeek: overview.examsEndingThisWeek || 0,
+      pendingReviewCount: pending.count || 0,
+      pendingReviewItems: Array.isArray(pending.items) ? pending.items : [],
+      attendanceTodayPercent: overview.attendanceTodayPercent ?? 0,
     };
   };
 
@@ -205,40 +213,40 @@ const Overview = () => {
               </svg>
             </div>
           </div>
-        </div>
-
-        {/* Active Exams Card */}
-        <div className="group bg-white/80 backdrop-blur-sm shadow-lg hover:shadow-xl rounded-xl p-6 border border-gray-200/50 transition-all duration-300 hover:-translate-y-1">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-sm font-medium uppercase tracking-wider">
-                Total Exams
-              </p>
-              <h3 className="text-3xl font-bold text-gray-900 mt-2">{stats.activeExams}</h3>
-              <div className="flex items-center mt-2">
-                <span className="text-orange-600 text-sm font-semibold">
-                  {stats.examsEndingThisWeek} ending
-                </span>
-                <span className="text-gray-500 text-sm ml-1">this week</span>
-              </div>
-            </div>
-            <div className="bg-orange-100 p-3 rounded-xl group-hover:bg-orange-200 transition-colors duration-300">
-              <svg
-                className="w-8 h-8 text-orange-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
-                />
-              </svg>
-            </div>
           </div>
+          
+          {/* Attendance Today */}
+          <div className="bg-white/80 backdrop-blur-sm shadow-lg rounded-xl p-6 border border-emerald-200/60">
+          <div className="flex items-center justify-between mb-2">
+          <h3 className="text-lg font-semibold text-gray-900">Attendance Today</h3>
+          <span className="text-sm text-gray-500">School-wide</span>
+          </div>
+          <div className="flex items-center gap-6">
+          <AttendanceDonut percent={stats.attendanceTodayPercent} size={120} />
+          <div>
+          <p className="text-sm text-gray-600">Percentage of present students today</p>
+          <p className="text-xs text-gray-500 mt-1">Updated with live dashboard stats</p>
+          </div>
+          </div>
+          </div>
+          
+          </div>
+
+      {/* Pending Exam Reviews */}
+      <div className="bg-white/80 backdrop-blur-sm shadow-lg rounded-xl p-6 border border-yellow-200/60">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Pending Exam Reviews</h3>
+          <button
+            onClick={() => navigate('/dashboard/admin-review')}
+            className="inline-flex items-center text-sm font-medium text-yellow-700 hover:text-yellow-800"
+          >
+            Grade Results
+            <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
         </div>
+        <div className="text-sm text-slate-700">Total pending: <span className={`font-semibold ${stats.pendingReviewCount > 0 ? 'text-red-600' : 'text-slate-700'}`}>{stats.pendingReviewCount}</span></div>
       </div>
 
       {/* Quick Actions Section */}
@@ -287,84 +295,37 @@ const Overview = () => {
             </svg>
             <span className="text-sm font-medium text-gray-700">New Class</span>
           </button>
-          <button
-            onClick={() => handleQuickAction('reports')}
-            className="flex flex-col items-center p-4 rounded-lg bg-green-50 hover:bg-green-100 transition-colors duration-200 group cursor-pointer"
-          >
-            <svg
-              className="w-6 h-6 text-green-600 mb-2 group-hover:scale-110 transition-transform duration-200"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+                    {isSuperAdminUser && (
+            <button
+              onClick={() => handleQuickAction('settings')}
+              className="flex flex-col items-center p-4 rounded-lg bg-orange-50 hover:bg-orange-100 transition-colors duration-200 group cursor-pointer"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 00-2 2v6a2 2 0 00-2 2zm6-10V5a2 2 0 00-2-2h-2a2 2 0 00-2 2v4h6z"
-              />
-            </svg>
-            <span className="text-sm font-medium text-gray-700">Exam Results</span>
-          </button>
-          <button
-            onClick={() => handleQuickAction('settings')}
-            className="flex flex-col items-center p-4 rounded-lg bg-orange-50 hover:bg-orange-100 transition-colors duration-200 group cursor-pointer"
-          >
-            <svg
-              className="w-6 h-6 text-orange-600 mb-2 group-hover:scale-110 transition-transform duration-200"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
-            <span className="text-sm font-medium text-gray-700">Settings</span>
-          </button>
+              <svg
+                className="w-6 h-6 text-orange-600 mb-2 group-hover:scale-110 transition-transform duration-200"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+              <span className="text-sm font-medium text-gray-700">Settings</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Recent Activity Section */}
-      <div className="bg-white/80 backdrop-blur-sm shadow-lg rounded-xl p-6 border border-gray-200/50">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          System Status
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex items-center p-3 bg-green-50 rounded-lg">
-            <div className="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
-            <div>
-              <p className="text-sm font-medium text-gray-900">Database</p>
-              <p className="text-xs text-gray-600">Connected</p>
-            </div>
-          </div>
-          <div className="flex items-center p-3 bg-blue-50 rounded-lg">
-            <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
-            <div>
-              <p className="text-sm font-medium text-gray-900">Students</p>
-              <p className="text-xs text-gray-600">{stats.totalStudents} enrolled</p>
-            </div>
-          </div>
-          <div className="flex items-center p-3 bg-purple-50 rounded-lg">
-            <div className="w-3 h-3 bg-purple-500 rounded-full mr-3"></div>
-            <div>
-              <p className="text-sm font-medium text-gray-900">Classes</p>
-              <p className="text-xs text-gray-600">{stats.totalClasses} active</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
+      
       </div>
   );
 };

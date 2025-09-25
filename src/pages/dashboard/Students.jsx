@@ -10,9 +10,11 @@ import edgeFunctionsService from "../../services/supabase/edgeFunctions";
 import { getAllClasses } from "../../services/supabase/classService";
 import { uploadService } from "../../services/supabase/uploadService";
 import { useAuditLog } from "../../hooks/useAuditLog";
+import { StudentStatusFilter, useStudentStatusFilter } from "../../components/common/StudentStatusFilter";
 import { EditButton, DeleteButton, CreateButton } from "../../components/ui/ActionButtons";
 import { formatClassName } from "../../utils/classNameFormatter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSettings } from "../../contexts/SettingsContext";
 
 const Students = () => {
   // Audit logging hook
@@ -35,6 +37,7 @@ const Students = () => {
     promote: false,
     suspend: false,
     reactivate: false,
+    resetPassword: false,
   });
 
   // Filter and search state
@@ -68,12 +71,66 @@ const Students = () => {
     student: null,
   });
 
+  // Graduation confirmation state
+  const [graduateConfirm, setGraduateConfirm] = useState({
+    isOpen: false,
+    students: [],
+  });
+
+  // Reset password confirmation state
+  const [resetPasswordConfirm, setResetPasswordConfirm] = useState({
+    isOpen: false,
+    student: null,
+  });
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
 
-  // Current academic year - you can make this dynamic
-  const currentAcademicYear = "2024-2025";
+  // Current academic year from global settings
+  const { academicYear: globalAcademicYear } = useSettings();
+  const currentAcademicYear = React.useMemo(() => {
+    // Ensure display in a consistent format, prefer stored "YYYY/YYYY+1"
+    if (!globalAcademicYear) return `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
+    const s = String(globalAcademicYear);
+    if (s.includes('/')) return s;
+    // If a single year like 2024, format as 2024-2025
+    const y = parseInt(s, 10);
+    if (Number.isFinite(y)) return `${y}-${y + 1}`;
+    return s;
+  }, [globalAcademicYear]);
+
+  // Build grouped classes by base label (e.g., SSS 1, JSS 2)
+  const classGroups = useMemo(() => {
+    if (!Array.isArray(classes)) return [];
+    const baseNormalize = (name) => {
+      if (!name) return { key: '', label: '' }
+      let n = String(name).trim()
+      // Strip common category suffixes
+      n = n.replace(/\s+(Science|Sciences|Arts|Commercial|Commerce|Management|Option\s*[A-Z])$/i, '')
+      // Normalize spacing like SSS1 -> SSS 1
+      n = n.replace(/([A-Za-z]+)\s*([0-9]+)/g, '$1 $2')
+      const label = n.replace(/\s+/g, ' ').trim()
+      const key = label.toLowerCase()
+      return { key, label }
+    }
+    const groupsMap = new Map()
+    for (const c of classes) {
+      const { key, label } = baseNormalize(c?.name)
+      if (!key) continue;
+      const entry = groupsMap.get(key) || { key, label, classIds: [] }
+      if (c?.id) entry.classIds.push(c.id)
+      groupsMap.set(key, entry)
+    }
+    return Array.from(groupsMap.values()).sort((a, b) => a.label.localeCompare(b.label))
+  }, [classes]);
+
+  // Status filter (admin can include graduated on demand)
+  const { includeGraduated, setIncludeGraduated, options: statusOptions } = useStudentStatusFilter({
+    defaultIncludeGraduated: false,
+    syncToQuery: true,
+    queryKey: 'includeGraduated'
+  });
 
   // Memoized enriched students with class data
   const enrichedStudents = useMemo(() => {
@@ -101,11 +158,11 @@ const Students = () => {
   const filteredAndSortedStudents = useMemo(() => {
     let filtered = enrichedStudents;
 
-    // Apply class filter
+    // Apply class filter (grouped)
     if (selectedClassId) {
-      filtered = filtered.filter(
-        (student) => student.class_id === selectedClassId
-      );
+      const group = classGroups.find(g => g.key === selectedClassId);
+      const ids = group ? new Set(group.classIds.map(String)) : new Set();
+      filtered = filtered.filter((student) => ids.has(String(student.class_id)));
     }
 
     // Apply search filter
@@ -192,7 +249,7 @@ const Students = () => {
   const queryClient = useQueryClient();
 
   const fetchStudentsQuery = async () => {
-    const res = await getAllStudents();
+    const res = await getAllStudents(statusOptions);
     if (!res.success) throw new Error(res.error || "Failed to fetch students");
     return res.data || [];
   };
@@ -204,7 +261,7 @@ const Students = () => {
     throw new Error(res?.error || "Failed to fetch classes");
   };
 
-  const { data: studentsData, isLoading: studentsLoading, error: studentsError } = useQuery({ queryKey: ['students'], queryFn: fetchStudentsQuery });
+  const { data: studentsData, isLoading: studentsLoading, error: studentsError } = useQuery({ queryKey: ['students', includeGraduated ? 'inclGrad' : 'activeOnly'], queryFn: fetchStudentsQuery });
   const { data: classesData, isLoading: classesLoading, error: classesError } = useQuery({ queryKey: ['classes'], queryFn: fetchClassesQuery });
 
   useEffect(() => { if (studentsData) setStudents(studentsData); }, [studentsData]);
@@ -218,13 +275,21 @@ const Students = () => {
   };
 
   // --- Bulk Promotion Handlers ---
-  const handleToggleRow = (id) =>
+  const handleToggleRow = (id) => {
+    const y = window.scrollY || window.pageYOffset || 0;
     setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
-  const handleToggleAll = (pageIds, selectAll) => setSelectedIds((prev) => {
-    const pageSet = new Set(pageIds);
-    if (selectAll) return Array.from(new Set([...prev, ...pageIds]));
-    return prev.filter((id) => !pageSet.has(id));
-  });
+    // Restore scroll position on next frame to prevent jump
+    requestAnimationFrame(() => window.scrollTo(0, y));
+  };
+  const handleToggleAll = (pageIds, selectAll) => {
+    const y = window.scrollY || window.pageYOffset || 0;
+    setSelectedIds((prev) => {
+      const pageSet = new Set(pageIds);
+      if (selectAll) return Array.from(new Set([...prev, ...pageIds]));
+      return prev.filter((id) => !pageSet.has(id));
+    });
+    requestAnimationFrame(() => window.scrollTo(0, y));
+  };
   const handleBulkPromoteConfirm = async ({ toClassId, academicYear, promotionReason, promotionData }) => {
     setBulkLoading(true);
     try {
@@ -305,7 +370,7 @@ const Students = () => {
       gender: student.gender || "",
       date_of_birth: student.date_of_birth || "",
       email: student.email || "",
-      contact: student.phone_number || student.contact || "",
+      contact: student.phone_number || student.guardian_phone || student.contact || "",
       guardian_name: student.guardian_name || "",
       profileImageUrl: student.profile_image || null,
 
@@ -494,6 +559,96 @@ const Students = () => {
     }
   };
 
+  const handleGraduateClick = useCallback((student) => {
+    setGraduateConfirm({ isOpen: true, student });
+  }, []);
+
+  // Reset password handlers
+  const handleResetPasswordClick = useCallback((student) => {
+    console.log("🔑 Reset password button clicked for student:", student);
+    setResetPasswordConfirm({
+      isOpen: true,
+      student: student,
+    });
+  }, []);
+
+  const handleResetPassword = async () => {
+    if (!resetPasswordConfirm.student) return;
+
+    setOperationLoading(prev => ({ ...prev, resetPassword: true }));
+
+    try {
+      console.log('🔑 Resetting password to admission number for student:', {
+        id: resetPasswordConfirm.student.id,
+        name: resetPasswordConfirm.student.full_name,
+        admission_number: resetPasswordConfirm.student.admission_number,
+      });
+
+      const result = await edgeFunctionsService.updateUser(
+        resetPasswordConfirm.student.id,
+        'student',
+        {
+          reset_to_admission_password: true
+        }
+      );
+
+      if (result && result.success) {
+        setResetPasswordConfirm({ isOpen: false, student: null });
+        toast.success(`Password reset to admission number for ${resetPasswordConfirm.student.full_name}. They will be required to change it on next login.`);
+      } else {
+        const errMsg = result?.error || 'Failed to reset password';
+        console.warn('Reset password failed:', result);
+        toast.error(errMsg);
+      }
+    } catch (error) {
+      console.error('❌ Reset password error:', error);
+      const detailed = error.userMessage || error.responseJson?.error || error.responseJson?.message || error.message || 'Failed to reset password';
+      toast.error(detailed);
+    } finally {
+      setOperationLoading(prev => ({ ...prev, resetPassword: false }));
+    }
+  };
+
+  const handleGraduateStudent = async () => {
+    const targets = Array.isArray(graduateConfirm.students) ? graduateConfirm.students : [];
+    if (targets.length === 0) return;
+
+    setOperationLoading(prev => ({ ...prev, graduate: true }));
+    try {
+      const successes = [];
+      const failures = [];
+      for (const stu of targets) {
+        try {
+          const result = await edgeFunctionsService.graduateStudent(
+            stu.id,
+            null,
+            `Graduated via admin panel`
+          );
+          if (result?.success) {
+            successes.push(stu);
+            setStudents(prev => prev.map(s => s.id === stu.id ? { ...s, status: 'graduated', is_active: false, class_id: null } : s));
+          } else {
+            failures.push({ stu, error: result?.error || 'Unknown error' });
+          }
+        } catch (e) {
+          failures.push({ stu, error: e?.message || 'Exception' });
+        }
+      }
+
+      if (successes.length > 0) {
+        toast.success(`Graduated ${successes.length} student${successes.length > 1 ? 's' : ''}`);
+      }
+      if (failures.length > 0) {
+        toast.error(`Failed to graduate ${failures.length} student${failures.length > 1 ? 's' : ''}`);
+      }
+    } finally {
+      setGraduateConfirm({ isOpen: false, students: [] });
+      setSelectedIds([]);
+      setOperationLoading(prev => ({ ...prev, graduate: false }));
+      await fetchData();
+    }
+  };
+
   const confirmDelete = async () => {
     // Set delete loading to true when operation starts
     setOperationLoading((prev) => ({ ...prev, delete: true }));
@@ -604,34 +759,38 @@ const Students = () => {
 
     try {
       console.log("🔄 Starting form submission with data:", formData);
+      // Determine if we have a newly selected image file from the form
+      const hasNewFile = formData.profileImage && typeof formData.profileImage !== 'string';
       let imageUrl = null;
-
-      if (selectedImage && formData.admission_number) {
-        const imageLoadingToast = toast.loading("Uploading image...");
-        try {
-          imageUrl = await uploadService.uploadStudentImage(
-            selectedImage,
-            formData.admission_number
-          );
-          toast.dismiss(imageLoadingToast);
-          console.log("✅ Image uploaded successfully:", imageUrl);
-        } catch (uploadError) {
-          toast.dismiss(imageLoadingToast);
-          toast.error("Failed to upload image, but student data will be saved");
-          console.error("❌ Image upload error:", uploadError);
-        }
-      }
 
       const studentData = {
         ...formData,
-        profileImageUrl:
-          imageUrl || editStudent?.profile_image || editStudent?.image || null,
+        // This will be finalized per-branch (edit/create). Keep any existing URL for preview fallback.
+        profileImageUrl: editStudent?.profile_image || editStudent?.image || formData.profileImageUrl || null,
       };
 
       console.log("📝 Final student data to save:", studentData);
 
       if (editStudent) {
         console.log("🔄 Updating existing student:", editStudent.id);
+
+        // If a new image file is provided, upload it first to storage under this student's folder
+        if (hasNewFile) {
+          const imageLoadingToast = toast.loading('Uploading image...');
+          try {
+            imageUrl = await uploadService.uploadStudentImage(
+              formData.profileImage,
+              formData.admission_number,
+              editStudent.id
+            );
+            toast.dismiss(imageLoadingToast);
+            console.log('✅ Image uploaded successfully:', imageUrl);
+          } catch (uploadError) {
+            toast.dismiss(imageLoadingToast);
+            toast.error('Failed to upload image, continuing without image update');
+            console.error('❌ Image upload error:', uploadError);
+          }
+        }
 
         // Prepare update data for the edge function
         const updateData = {
@@ -643,7 +802,7 @@ const Students = () => {
           guardian_name: formData.guardian_name,
           date_of_birth: formData.date_of_birth,
           gender: formData.gender,
-          profile_image: studentData.profileImageUrl,
+          profile_image: imageUrl || formData.profileImageUrl || editStudent?.profile_image || null,
         };
 
         const result = await edgeFunctionsService.updateUser(
@@ -689,6 +848,24 @@ const Students = () => {
 
         if (result.success) {
           console.log("✅ Student created successfully:", result.data);
+
+          // If a new image file was provided, upload now that we have the new student ID
+          if (hasNewFile && result.data?.id) {
+            const imageLoadingToast = toast.loading('Uploading image...');
+            try {
+              const uploadedUrl = await uploadService.uploadStudentImage(
+                formData.profileImage,
+                formData.admission_number,
+                result.data.id
+              );
+              console.log('✅ Image uploaded for new student:', uploadedUrl);
+            } catch (uploadError) {
+              console.error('❌ Image upload error (post-create):', uploadError);
+              toast.error('Student created, but image upload failed');
+            } finally {
+              toast.dismiss(imageLoadingToast);
+            }
+          }
 
           // Log admin activity for create
           if (isAdmin) {
@@ -821,16 +998,16 @@ const Students = () => {
               Manage student records, promotions, and status
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-3 items-center">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-center lg:justify-end gap-2 sm:gap-3 w-full">
             <select
               value={selectedClassId}
               onChange={(e) => setSelectedClassId(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-sm"
+              className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-sm"
             >
               <option value="">All Classes</option>
-              {classes.map((cls) => (
-                <option key={cls.id} value={cls.id}>
-                  {cls.name} - {cls.level} {cls.category && `(${cls.category})`}
+              {classGroups.map((g) => (
+                <option key={g.key} value={g.key}>
+                  {g.label}
                 </option>
               ))}
             </select>
@@ -838,18 +1015,42 @@ const Students = () => {
               onClick={handleAddClick}
               loading={operationLoading.create}
               disabled={operationLoading.create}
+              className="w-full sm:w-auto"
             >
               Add Student
             </CreateButton>
             {isAdmin && (
               <button
-                className="ml-2 px-4 py-2 rounded-lg bg-blue-600 text-white font-medium disabled:opacity-30"
+                className="w-full sm:w-auto sm:ml-2 px-4 py-2 rounded-lg bg-blue-600 text-white font-medium disabled:opacity-30"
                 disabled={selectedIds.length === 0}
                 onClick={() => setBulkModalOpen(true)}
                 type="button"
               >
                 Promote Selected ({selectedIds.length})
               </button>
+            )}
+            {isAdmin && (
+              <button
+                className="w-full sm:w-auto sm:ml-2 px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium disabled:opacity-30"
+                disabled={selectedIds.length === 0}
+                onClick={() => {
+                  const targets = students.filter(s => selectedIds.includes(s.id) && (s.status === 'active' || !s.status));
+                  setGraduateConfirm({ isOpen: true, students: targets });
+                }}
+                type="button"
+                title="Select one or more active students to graduate"
+              >
+                Graduate Selected ({selectedIds.length})
+              </button>
+            )}
+            {isAdmin && (
+              <StudentStatusFilter
+                className="w-full sm:w-auto sm:ml-2"
+                value={includeGraduated}
+                onChange={setIncludeGraduated}
+                label="Include Graduated"
+                helperText="Show alumni in results"
+              />
             )}
           </div>
         </div>
@@ -984,13 +1185,13 @@ const Students = () => {
 
         {/* Promotion Modal */}
         <PromotionModal
-          isOpen={promotionModal.isOpen}
-          onClose={() => setPromotionModal({ isOpen: false, student: null })}
-          onPromote={handlePromoteStudent}
-          student={promotionModal.student}
-          classes={classes}
-          loading={operationLoading.promote}
-          currentAcademicYear={currentAcademicYear}
+        isOpen={promotionModal.isOpen}
+        onClose={() => setPromotionModal({ isOpen: false, student: null })}
+        onPromote={handlePromoteStudent}
+        student={promotionModal.student}
+        classes={classes}
+        loading={operationLoading.promote}
+        currentAcademicYear={currentAcademicYear}
         />
 
         {/* Student Table */}
@@ -1002,6 +1203,7 @@ const Students = () => {
           onPromote={handlePromoteClick}
           onSuspend={handleSuspendClick}
           onReactivate={handleReactivateClick}
+          onResetPassword={handleResetPasswordClick}
           searchTerm={searchTerm}
           setSearchTerm={setSearchTerm}
           sortBy={sortBy}
@@ -1054,6 +1256,39 @@ const Students = () => {
           message={`Are you sure you want to suspend ${suspendConfirm.student?.full_name}? They will not be able to access the system until reactivated.`}
           confirmText={operationLoading.suspend ? "Suspending..." : "Suspend"} 
           loading={operationLoading.suspend}  
+          cancelText="Cancel"
+          type="warning"
+        />
+
+        {/* Graduate Confirmation Dialog */}
+        <ConfirmDialog
+          isOpen={graduateConfirm.isOpen}
+          onClose={() => setGraduateConfirm({ isOpen: false, students: [] })}
+          onConfirm={handleGraduateStudent}
+          title="Graduate Students"
+          message={(() => {
+            const count = graduateConfirm.students?.length || 0;
+            if (count <= 1) {
+              const name = graduateConfirm.students?.[0]?.full_name || 'this student';
+              return `Graduate ${name}? This will remove them from rosters and mark as alumni.`;
+            }
+            return `Graduate ${count} selected students? This will remove them from rosters and mark them as alumni.`;
+          })()}
+          confirmText={operationLoading.graduate ? "Graduating..." : "Graduate"}
+          loading={operationLoading.graduate}
+          cancelText="Cancel"
+          type="primary"
+        />
+
+        {/* Reset Password Confirmation Dialog */}
+        <ConfirmDialog
+          isOpen={resetPasswordConfirm.isOpen}
+          onClose={() => setResetPasswordConfirm({ isOpen: false, student: null })}
+          onConfirm={handleResetPassword}
+          title="Reset Password to Admission Number"
+          message={`Are you sure you want to reset ${resetPasswordConfirm.student?.full_name}'s password to their admission number (${resetPasswordConfirm.student?.admission_number})? They will be required to change it on their next login.`}
+          confirmText={operationLoading.resetPassword ? "Resetting..." : "Reset Password"} 
+          loading={operationLoading.resetPassword}  
           cancelText="Cancel"
           type="warning"
         />

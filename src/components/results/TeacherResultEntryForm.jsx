@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { calculateGrade as serviceCalculateGrade } from '../../services/supabase/studentResultService';
 
 const TeacherResultEntryForm = ({ student, exam, onSubmit, onClose, submitting }) => {
   const [formData, setFormData] = useState({
@@ -23,14 +24,9 @@ const TeacherResultEntryForm = ({ student, exam, onSubmit, onClose, submitting }
     }
   }, [exam]);
 
-  const calculateGrade = (score, totalMarks) => {
-    const percentage = (score / totalMarks) * 100;
-    if (percentage >= 90) return 'A+';
-    if (percentage >= 80) return 'A';
-    if (percentage >= 70) return 'B';
-    if (percentage >= 60) return 'C';
-    if (percentage >= 50) return 'D';
-    return 'F';
+  const localCalculateLetter = (score, totalMarks) => {
+    const { grade } = serviceCalculateGrade(score, totalMarks);
+    return grade;
   };
 
   const handleChange = (e) => {
@@ -42,7 +38,7 @@ const TeacherResultEntryForm = ({ student, exam, onSubmit, onClose, submitting }
       if (name === 'totalScore' && value && exam?.totalMarks) {
         const score = parseFloat(value);
         if (!isNaN(score)) {
-          updated.grade = calculateGrade(score, exam.totalMarks);
+          updated.grade = localCalculateLetter(score, exam.totalMarks);
         }
       }
       
@@ -58,10 +54,10 @@ const TeacherResultEntryForm = ({ student, exam, onSubmit, onClose, submitting }
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formdata.total_score) {
+    if (!formData.totalScore) {
       newErrors.totalScore = 'Total score is required';
     } else {
-      const score = parseFloat(formdata.total_score);
+      const score = parseFloat(formData.totalScore);
       if (isNaN(score) || score < 0 || score > exam.totalMarks) {
         newErrors.totalScore = `Score must be between 0 and ${exam.totalMarks}`;
       }
@@ -88,9 +84,9 @@ const TeacherResultEntryForm = ({ student, exam, onSubmit, onClose, submitting }
 
     const resultData = {
       ...formData,
-      totalScore: parseFloat(formdata.total_score),
-      percentage: Math.round((parseFloat(formdata.total_score) / exam.totalMarks) * 100),
-      status: parseFloat(formdata.total_score) >= exam.passingMarks ? 'passed' : 'failed'
+      totalScore: parseFloat(formData.totalScore),
+      percentage: Math.round((parseFloat(formData.totalScore) / exam.totalMarks) * 100),
+      status: parseFloat(formData.totalScore) >= exam.passingMarks ? 'passed' : 'failed'
     };
 
     await onSubmit(resultData);
@@ -172,7 +168,7 @@ const TeacherResultEntryForm = ({ student, exam, onSubmit, onClose, submitting }
               <input
                 type="number"
                 name="totalScore"
-                value={formdata.total_score}
+                value={formData.totalScore}
                 onChange={handleChange}
                 min="0"
                 max={exam?.totalMarks}
@@ -217,18 +213,18 @@ const TeacherResultEntryForm = ({ student, exam, onSubmit, onClose, submitting }
             </div>
 
             {/* Score Summary */}
-            {formdata.total_score && (
+            {formData.totalScore && (
               <div className="bg-blue-50 rounded-lg p-4">
                 <h4 className="font-medium text-blue-900 mb-2">Score Summary</h4>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-blue-700">Score:</span>
-                    <span className="font-medium ml-2">{formdata.total_score}/{exam?.totalMarks}</span>
+                    <span className="font-medium ml-2">{formData.totalScore}/{exam?.totalMarks}</span>
                   </div>
                   <div>
                     <span className="text-blue-700">Percentage:</span>
                     <span className="font-medium ml-2">
-                      {Math.round((parseFloat(formdata.total_score) / exam?.totalMarks) * 100)}%
+                      {Math.round((parseFloat(formData.totalScore) / exam?.totalMarks) * 100)}%
                     </span>
                   </div>
                   <div>
@@ -238,9 +234,9 @@ const TeacherResultEntryForm = ({ student, exam, onSubmit, onClose, submitting }
                   <div>
                     <span className="text-blue-700">Status:</span>
                     <span className={`font-medium ml-2 ${
-                      parseFloat(formdata.total_score) >= exam?.passingMarks ? 'text-green-600' : 'text-red-600'
+                      parseFloat(formData.totalScore) >= exam?.passingMarks ? 'text-green-600' : 'text-red-600'
                     }`}>
-                      {parseFloat(formdata.total_score) >= exam?.passingMarks ? 'Passed' : 'Failed'}
+                      {parseFloat(formData.totalScore) >= exam?.passingMarks ? 'Passed' : 'Failed'}
                     </span>
                   </div>
                 </div>

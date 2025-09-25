@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { getTransformedUrl } from '../../utils/cloudinaryUpload';
+import React, { useState, useEffect, useRef } from 'react';
 
 const ProfileImage = ({
   src,
@@ -8,10 +7,12 @@ const ProfileImage = ({
   className = "",
   fallbackName = "",
   showFallback = true,
-  transformations = {}
+  transformations = {},
+  loadingMode = "eager"
 }) => {
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
+  const imgRef = useRef(null);
 
   // Size configurations
   const sizeConfig = {
@@ -50,37 +51,7 @@ const ProfileImage = ({
     if (!isValidImageUrl(imageUrl)) {
       return null;
     }
-
-    // Check if it's a Cloudinary URL
-    if (imageUrl.includes('cloudinary.com')) {
-      try {
-        // Extract public ID from Cloudinary URL
-        const urlParts = imageUrl.split('/');
-        const uploadIndex = urlParts.findIndex(part => part === 'upload');
-        if (uploadIndex !== -1 && uploadIndex < urlParts.length - 1) {
-          // Get everything after 'upload/' and remove file extension
-          const publicIdWithPath = urlParts.slice(uploadIndex + 1).join('/');
-          const publicId = publicIdWithPath.replace(/\.[^/.]+$/, "");
-
-          // Apply transformations for optimization
-          const defaultTransformations = {
-            width: config.width * 2, // 2x for retina displays
-            height: config.height * 2,
-            crop: 'fill',
-            quality: 'auto',
-            format: 'auto',
-            ...transformations
-          };
-
-          return getTransformedUrl(publicId, defaultTransformations);
-        }
-      } catch (error) {
-        console.warn('Error processing Cloudinary URL:', error);
-        return null;
-      }
-    }
-
-    // Return original URL if valid but not Cloudinary
+    // Not using Cloudinary; return original URL
     return imageUrl;
   };
 
@@ -90,7 +61,16 @@ const ProfileImage = ({
   // Reset states when src changes
   useEffect(() => {
     setImageError(false);
-    setImageLoading(hasValidImage);
+    const shouldLoad = !!hasValidImage;
+    setImageLoading(shouldLoad);
+
+    if (shouldLoad) {
+      // If the image element already finished loading from cache
+      if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
+        setImageLoading(false);
+      }
+      // Do not set error based on timeouts; rely on onLoad/onError events.
+    }
   }, [src, hasValidImage]);
 
   // Generate fallback avatar URL using UI Avatars service
@@ -132,9 +112,13 @@ const ProfileImage = ({
       {/* Main image - only render if we have a valid image URL */}
       {hasValidImage && !imageError && (
         <img
+          ref={imgRef}
           src={optimizedSrc}
           alt={alt}
           className={imageClasses}
+          loading={loadingMode}
+          fetchPriority={loadingMode === 'eager' ? 'high' : 'auto'}
+          decoding="async"
           onLoad={handleImageLoad}
           onError={handleImageError}
         />
@@ -173,4 +157,17 @@ const ProfileImage = ({
   );
 };
 
-export default ProfileImage;
+// Prevent unnecessary re-renders to avoid image reloads when parent state changes (e.g., opening a modal)
+const areEqual = (prevProps, nextProps) => {
+  return (
+    prevProps.src === nextProps.src &&
+    prevProps.alt === nextProps.alt &&
+    prevProps.size === nextProps.size &&
+    prevProps.className === nextProps.className &&
+    prevProps.fallbackName === nextProps.fallbackName &&
+    prevProps.showFallback === nextProps.showFallback &&
+    prevProps.loadingMode === nextProps.loadingMode
+  );
+};
+
+export default React.memo(ProfileImage, areEqual);

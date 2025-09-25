@@ -3,6 +3,22 @@ import React, { useEffect, useState } from 'react'
 import { supabase, getUserProfile } from '../lib/supabaseClient'
 import { debugUserProfile, checkAndFixUserProfile } from '../utils/authDebug'
 import { AuthContext } from '../hooks/useAuth'
+import { toast } from 'react-hot-toast'
+import { cookieAuth, getAccessToken } from '../lib/cookieAuthClient'
+
+// Debug flag to control verbose auth logging
+const AUTH_DEBUG = (typeof window !== 'undefined' && window.AUTH_DEBUG === true) || (import.meta?.env?.VITE_AUTH_DEBUG === 'true')
+
+// Inactivity-based session expiry (default: 48 hours). Override via VITE_AUTH_MAX_IDLE_MS
+const LAST_ACTIVE_KEY = 'auth:lastActiveAt'
+const MAX_IDLE_MS = Number(import.meta.env.VITE_AUTH_MAX_IDLE_MS || 1000 * 60 * 60 * 48)
+const nowMs = () => Date.now()
+const getLastActiveAt = () => {
+  try { const v = Number(localStorage.getItem(LAST_ACTIVE_KEY) || '0'); return Number.isFinite(v) ? v : 0 } catch { return 0 }
+}
+const setLastActiveNow = () => { try { localStorage.setItem(LAST_ACTIVE_KEY, String(nowMs())) } catch (_) {} }
+const clearLastActive = () => { try { localStorage.removeItem(LAST_ACTIVE_KEY) } catch (_) {} }
+const isIdleExpired = () => (nowMs() - getLastActiveAt()) > MAX_IDLE_MS
 
 // Add uid alias to Supabase user object to support legacy code paths that reference user.uid
 const withUid = (u) => (u ? { ...u, uid: u.id } : u)
@@ -15,13 +31,14 @@ export const AuthProvider = ({ children }) => {
   const [isActive, setIsActive] = useState(false)
   const [initialSessionLoaded, setInitialSessionLoaded] = useState(false)
 
-  // AbortController for profile fetching
   const profileAbortControllerRef = React.useRef(null)
+  const realtimeChannelRef = React.useRef(null)
+  const accountStateHandledRef = React.useRef(false)
+  const refreshTimerRef = React.useRef(null)
 
   useEffect(() => {
     let isMounted = true
 
-    // Cancel any ongoing profile fetch
     const cancelProfileFetch = () => {
       if (profileAbortControllerRef.current) {
         profileAbortControllerRef.current.abort()
@@ -29,32 +46,205 @@ export const AuthProvider = ({ children }) => {
       }
     }
 
-    // Get initial session
-    const getInitialSession = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession()
+    const clearRefreshTimer = () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current)
+        refreshTimerRef.current = null
+      }
+    }
 
-        if (error) {
-          console.error('❌ Error getting initial session:', error)
-          if (isMounted) {
-            setLoading(false)
-            setInitialSessionLoaded(true)
+    const scheduleRefresh = (expiresInSeconds) => {
+      clearRefreshTimer()
+      const jitter = Math.floor(Math.random() * 5000)
+      const ms = Math.max(10000, (expiresInSeconds - 30) * 1000 - jitter)
+      refreshTimerRef.current = setTimeout(async () => {
+        try {
+          const res = await cookieAuth.refresh()
+          if (res?.success && isMounted) {
+            await applySession()
+            // res contains expires_in
+            scheduleRefresh(res.expires_in || 3600)
+          } else {
+            // If refresh fails, treat as signed out
+            await handleLocalSignOut()
           }
-          return
+        } catch (_) {
+          await handleLocalSignOut()
+        }
+      }, ms)
+    }
+
+    const subscribeToProfileChanges = (userId) => {
+      if (!userId) return
+      unsubscribeProfileChanges()
+
+      const channel = supabase
+        .channel(`user_profile_status_${userId}`)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_profiles', filter: `id=eq.${userId}` }, (payload) => {
+          const newRow = payload?.new || {}
+          const computedActive = ((newRow?.status ?? 'active') === 'active') && (newRow?.is_active !== false)
+          if (!computedActive) {
+            notifyAndSignOut(newRow?.status, newRow?.is_active)
+          }
+        })
+        .subscribe()
+
+      realtimeChannelRef.current = channel
+    }
+
+    const unsubscribeProfileChanges = () => {
+      try {
+        if (realtimeChannelRef.current) {
+          realtimeChannelRef.current.unsubscribe()
+        }
+      } catch (_) { /* ignore */ }
+      realtimeChannelRef.current = null
+    }
+
+    const notifyAndSignOut = (status, is_active) => {
+      const isDeleted = status === 'deleted'
+      const isSuspended = status === 'suspended'
+      const message = isDeleted
+        ? 'Your account has been deleted. Please contact the administrator.'
+        : (isSuspended
+          ? 'Your account has been suspended. Please contact the administrator.'
+          : 'Your account is inactive. Please contact the administrator.')
+
+      if (!accountStateHandledRef.current) {
+        try { toast.error(message) } catch (_) { /* ignore */ }
+        accountStateHandledRef.current = true
+      }
+      cookieAuth.logout().catch(() => {})
+      supabase.auth.signOut().catch(() => {})
+    }
+
+    const fetchUserProfile = async (userId) => {
+      if (!userId) {
+        setProfile(null)
+        setRole(null)
+        setIsActive(false)
+        return
+      }
+
+      if (profileAbortControllerRef.current) {
+        profileAbortControllerRef.current.abort()
+      }
+
+      profileAbortControllerRef.current = new AbortController()
+      const signal = profileAbortControllerRef.current.signal
+
+      try {
+        if (signal.aborted) return
+
+        let profileData = await getUserProfile(userId, signal)
+        if (signal.aborted) return
+
+        if (!profileData) {
+          try {
+            const { data, error } = await supabase
+              .from('user_profiles')
+              .select('*')
+              .eq('id', userId)
+              .single()
+              .abortSignal(signal)
+
+            if (!error && data) {
+              profileData = data
+            }
+          } catch (directError) {
+            if (directError.name !== 'AbortError' && !signal.aborted) {
+              console.error('Direct fetch error:', directError)
+            }
+          }
         }
 
-        if (session?.user && isMounted) {
-          setUser(withUid(session.user))
-          await fetchUserProfile(session.user.id)
-        } else if (isMounted) {
-          cancelProfileFetch() // Cancel any ongoing profile fetch
-          setUser(null)
+        if (signal.aborted) return
+
+        if (!profileData && AUTH_DEBUG) {
+          await debugUserProfile(userId)
+
+          const { data: { user: currentUser } } = await supabase.auth.getUser(getAccessToken && getAccessToken())
+          if (currentUser && currentUser.id === userId && !signal.aborted) {
+            const result = await checkAndFixUserProfile(currentUser)
+            if (result.success) {
+              profileData = result.data
+            } else {
+              console.error('❌ Failed to create profile:', result.error)
+            }
+          }
+        }
+
+        if (!signal.aborted) {
+          if (profileData) {
+            setProfile(profileData)
+            setRole(profileData.role)
+            const computedActive = ((profileData?.status ?? 'active') === 'active') && (profileData?.is_active !== false)
+            if (!computedActive) {
+              if (AUTH_DEBUG) console.warn('Auth:Signing out inactive profile', { status: profileData?.status, is_active: profileData?.is_active })
+              notifyAndSignOut(profileData?.status, profileData?.is_active)
+            }
+            setIsActive(computedActive)
+          } else {
+            console.error('❌ No profile found for user, treating as deleted:', userId)
+            notifyAndSignOut('deleted', false)
+            setProfile(null)
+            setRole(null)
+            setIsActive(false)
+          }
+        }
+      } catch (error) {
+        if (!signal.aborted && error.name !== 'AbortError') {
+          console.error('💥 Exception in fetchUserProfile:', error)
           setProfile(null)
           setRole(null)
           setIsActive(false)
         }
+      }
+    }
+
+    const applySession = async () => {
+      // After cookieAuth.login/refresh sets the in-memory token, ask Supabase for the user
+      const { data: { user: authUser }, error } = await supabase.auth.getUser(getAccessToken && getAccessToken())
+      if (error || !authUser) {
+        // No valid token -> clear state
+        await handleLocalSignOut()
+        return null
+      }
+      setLastActiveNow()
+      setUser(withUid(authUser))
+      accountStateHandledRef.current = false
+      try { subscribeToProfileChanges(authUser.id) } catch (_) { /* ignore */ }
+      await fetchUserProfile(authUser.id)
+      return authUser
+    }
+
+    const handleLocalSignOut = async () => {
+      cancelProfileFetch()
+      clearRefreshTimer()
+      setUser(null)
+      setProfile(null)
+      setRole(null)
+      setIsActive(false)
+      accountStateHandledRef.current = false
+      clearLastActive()
+      try { unsubscribeProfileChanges() } catch (_) { /* ignore */ }
+    }
+
+    const getInitialSession = async () => {
+      try {
+        // Attempt to exchange HttpOnly cookie for an access token
+        const res = await cookieAuth.refresh()
+        if (res?.success) {
+          const u = await applySession()
+          if (u) {
+            scheduleRefresh(res.expires_in || 3600)
+          }
+        } else {
+          await handleLocalSignOut()
+        }
       } catch (error) {
         console.error('💥 Exception getting initial session:', error)
+        await handleLocalSignOut()
       } finally {
         if (isMounted) {
           setLoading(false)
@@ -63,55 +253,42 @@ export const AuthProvider = ({ children }) => {
       }
     }
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        // Only process auth state changes after initial session is loaded
-        // This prevents race conditions between initial session and auth state changes
-        if (!initialSessionLoaded && event === 'INITIAL_SESSION') {
-          if (session?.user && isMounted) {
-            setUser(withUid(session.user))
-            await fetchUserProfile(session.user.id)
-          } else if (isMounted) {
-            cancelProfileFetch() // Cancel any ongoing profile fetch
-            setUser(null)
-            setProfile(null)
-            setRole(null)
-            setIsActive(false)
-          }
-          if (isMounted) {
-            setLoading(false)
-            setInitialSessionLoaded(true)
-          }
-          return
-        }
-
-        // Handle other auth events (SIGNED_IN, SIGNED_OUT, etc.)
-        if (initialSessionLoaded && isMounted) {
-          if (session?.user) {
-            setUser(withUid(session.user))
-            await fetchUserProfile(session.user.id)
-          } else {
-            cancelProfileFetch() // Cancel any ongoing profile fetch
-            setUser(null)
-            setProfile(null)
-            setRole(null)
-            setIsActive(false)
-          }
-        }
-      }
-    )
-
     // Start the initial session check
     getInitialSession()
 
     return () => {
       isMounted = false
-      cancelProfileFetch() // Cancel any ongoing profile fetch on cleanup
-      subscription.unsubscribe()
+      cancelProfileFetch()
+      clearRefreshTimer()
+      try { unsubscribeProfileChanges() } catch (_) { /* ignore */ }
     }
-  }, [initialSessionLoaded])
+  }, [])
 
+  const unsubscribeProfileChanges = () => {
+    try {
+      if (realtimeChannelRef.current) {
+        realtimeChannelRef.current.unsubscribe()
+      }
+    } catch (_) { /* ignore */ }
+    realtimeChannelRef.current = null
+  }
+
+  const notifyAndSignOut = (status, is_active) => {
+    const isDeleted = status === 'deleted'
+    const isSuspended = status === 'suspended'
+    const message = isDeleted
+      ? 'Your account has been deleted. Please contact the administrator.'
+      : (isSuspended
+        ? 'Your account has been suspended. Please contact the administrator.'
+        : 'Your account is inactive. Please contact the administrator.')
+
+    if (!accountStateHandledRef.current) {
+      try { toast.error(message) } catch (_) { /* ignore */ }
+      accountStateHandledRef.current = true
+    }
+    cookieAuth.logout().catch(() => {})
+    supabase.auth.signOut().catch(() => {})
+  }
 
   const fetchUserProfile = async (userId) => {
     if (!userId) {
@@ -121,26 +298,19 @@ export const AuthProvider = ({ children }) => {
       return
     }
 
-    // Cancel any previous profile fetch
     if (profileAbortControllerRef.current) {
       profileAbortControllerRef.current.abort()
     }
 
-    // Create new AbortController for this fetch
     profileAbortControllerRef.current = new AbortController()
     const signal = profileAbortControllerRef.current.signal
 
     try {
-      // Check if we should still proceed (component might be unmounted)
       if (signal.aborted) return
 
-      // First try the helper function with abort signal
       let profileData = await getUserProfile(userId, signal)
-
-      // Check again if we should proceed
       if (signal.aborted) return
 
-      // If that fails, try direct fetch
       if (!profileData) {
         try {
           const { data, error } = await supabase
@@ -154,26 +324,20 @@ export const AuthProvider = ({ children }) => {
             profileData = data
           }
         } catch (directError) {
-          // Don't log abort errors for direct fetch either
           if (directError.name !== 'AbortError' && !signal.aborted) {
             console.error('Direct fetch error:', directError)
           }
         }
       }
 
-      // Check again if we should proceed
       if (signal.aborted) return
 
-      // If still no profile, try to create one automatically
-      if (!profileData) {
+      if (!profileData && AUTH_DEBUG) {
         await debugUserProfile(userId)
 
-        // Get the current user from Supabase auth
-        const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser()
-
+        const { data: { user: currentUser } } = await supabase.auth.getUser(getAccessToken && getAccessToken())
         if (currentUser && currentUser.id === userId && !signal.aborted) {
           const result = await checkAndFixUserProfile(currentUser)
-
           if (result.success) {
             profileData = result.data
           } else {
@@ -182,21 +346,25 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
-      // Final check before setting state
       if (!signal.aborted) {
         if (profileData) {
           setProfile(profileData)
           setRole(profileData.role)
-          setIsActive(profileData.is_active !== false) // Default to true unless explicitly false
+          const computedActive = ((profileData?.status ?? 'active') === 'active') && (profileData?.is_active !== false)
+          if (!computedActive) {
+            if (AUTH_DEBUG) console.warn('Auth:Signing out inactive profile', { status: profileData?.status, is_active: profileData?.is_active })
+            notifyAndSignOut(profileData?.status, profileData?.is_active)
+          }
+          setIsActive(computedActive)
         } else {
-          console.error('❌ No profile found and could not create one for user:', userId)
+          console.error('❌ No profile found for user, treating as deleted:', userId)
+          notifyAndSignOut('deleted', false)
           setProfile(null)
           setRole(null)
           setIsActive(false)
         }
       }
     } catch (error) {
-      // Don't log errors if the request was aborted
       if (!signal.aborted && error.name !== 'AbortError') {
         console.error('💥 Exception in fetchUserProfile:', error)
         setProfile(null)
@@ -210,31 +378,90 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true)
 
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password
-      })
+      const result = await cookieAuth.login(email.trim(), password)
+      if (!result?.success) {
+        return { success: false, error: result?.error || 'Failed to sign in' }
+      }
 
-      if (error) {
-        console.error('Sign in error:', error)
-        return {
-          success: false,
-          error: error.message || 'Failed to sign in'
+      // Ensure Supabase client uses the fresh access token immediately
+      try { if (result?.access_token) { supabase.auth.setAuth(result.access_token) } } catch (_) {}
+
+      // Try to obtain the user with optimized retry (faster for better UX)
+      let authUser = null
+      for (let i = 0; i < 4; i++) {
+        const { data: { user: u } } = await supabase.auth.getUser(result?.access_token || (getAccessToken && getAccessToken()))
+        if (u) { authUser = u; break }
+        if (i < 3) await new Promise(r => setTimeout(r, 100))
+      }
+
+      // Fallback: if the function returned user info, construct a minimal user
+      if (!authUser && result?.user?.id) {
+        authUser = { id: result.user.id, email: result.user.email }
+      }
+
+      if (!authUser) {
+        return { success: false, error: 'Failed to obtain user after login' }
+      }
+
+      // Proactively check profile status to block suspended/inactive logins
+      try {
+        // Prefer SECURITY DEFINER RPC to bypass RLS safely
+        let prof = null
+        let profErr = null
+        try {
+          const { data, error } = await supabase.rpc('rpc_get_current_profile')
+          prof = data || null
+          profErr = error || null
+        } catch (e) {
+          profErr = e
         }
-      }
 
-      if (data.user) {
-        // Profile will be fetched automatically by the auth state change listener
-        return { success: true, user: data.user }
-      }
+        // Fallback to direct select if RPC is unavailable
+        if (!prof && profErr) {
+          const { data, error } = await supabase
+            .from('user_profiles')
+            .select('status, is_active')
+            .eq('id', authUser.id)
+            .single()
+          prof = data || null
+          profErr = error || null
+        }
 
-      return { success: false, error: 'No user returned from sign in' }
+        if (!profErr && prof) {
+          const active = ((prof?.status ?? 'active') === 'active') && (prof?.is_active !== false)
+          if (!active) {
+            await cookieAuth.logout().catch(() => {})
+            await supabase.auth.signOut().catch(() => {})
+            const isDeleted = prof?.status === 'deleted'
+            const isSuspended = prof?.status === 'suspended'
+            const msg = isDeleted
+              ? 'Your account has been deleted. Please contact the administrator.'
+              : (isSuspended
+                ? 'Your account has been suspended. Please contact the administrator.'
+                : 'Your account is inactive. Please contact the administrator.')
+            return { success: false, error: msg }
+          }
+        } else {
+          console.warn('Auth pre-check: profile missing/unavailable, allowing login and deferring to post-login fetch', profErr)
+          // Do not block login here; post-login fetchUserProfile will enforce status and sign out if needed
+        }
+      } catch (_) { /* ignore profile pre-check errors */ }
+
+      setLastActiveNow()
+      setUser(withUid(authUser))
+      await fetchUserProfile(authUser.id)
+      try { subscribeToProfileChanges(authUser.id) } catch (_) { /* ignore */ }
+
+      // Schedule token refresh using returned expires_in
+      const expiresIn = result?.expires_in || 3600
+      // start background refresh timer
+      // handled by initial effect on next mount, but here we schedule once
+      // We don't have access to schedule function here; rely on periodic activity/refresh in the effect on reload
+
+      return { success: true, user: authUser }
     } catch (error) {
       console.error('Sign in exception:', error)
-      return {
-        success: false,
-        error: error.message || 'An unexpected error occurred'
-      }
+      return { success: false, error: error.message || 'An unexpected error occurred' }
     } finally {
       setLoading(false)
     }
@@ -289,21 +516,17 @@ export const AuthProvider = ({ children }) => {
       setRole(null)
       setIsActive(false)
 
+      await cookieAuth.logout().catch(() => {})
       const { error } = await supabase.auth.signOut()
-
       if (error) {
         console.error('Sign out error:', error)
         return { success: false, error: error.message }
       }
 
-      console.log('User signed out successfully')
       return { success: true }
     } catch (error) {
       console.error('Sign out exception:', error)
-      return {
-        success: false,
-        error: error.message || 'Failed to sign out'
-      }
+      return { success: false, error: error.message || 'Failed to sign out' }
     } finally {
       setLoading(false)
     }
@@ -315,7 +538,6 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: 'No user logged in' }
       }
 
-      // Update auth user if email is being changed
       if (updates.email && updates.email !== user.email) {
         const { error: authError } = await supabase.auth.updateUser({
           email: updates.email
@@ -326,7 +548,6 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
-      // Update user profile
       const { data, error } = await supabase
         .from('user_profiles')
         .update(updates)
@@ -341,94 +562,137 @@ export const AuthProvider = ({ children }) => {
 
       setProfile(data)
       if (data.role) setRole(data.role)
-      if (typeof data.is_active === 'boolean') setIsActive(data.is_active)
+      const computedActive = ((data?.status ?? 'active') === 'active') && (data?.is_active !== false)
+      if (!computedActive) {
+        if (AUTH_DEBUG) console.warn('Auth:Signing out inactive profile after update', { status: data?.status, is_active: data?.is_active })
+        notifyAndSignOut(data?.status, data?.is_active)
+      }
+      setIsActive(computedActive)
 
       return { success: true, data }
     } catch (error) {
       console.error('Update profile exception:', error)
-      return {
-        success: false,
-        error: error.message || 'Failed to update profile'
-      }
+      return { success: false, error: error.message || 'Failed to update profile' }
     }
   }
 
   const resetPassword = async (email) => {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
+      if (!email) return { success: false, error: 'Email is required' }
+
+      const { data: result, error } = await supabase.functions.invoke('reset-password', {
+        body: {
+          email: email.trim(),
+          redirectTo: `${window.location.origin}/reset-password`
+        }
       })
 
       if (error) {
-        return { success: false, error: error.message }
+        console.error('Reset password function error:', error)
+        return { success: false, error: error.message || 'Failed to send reset email' }
+      }
+
+      if (!result?.success) {
+        return { success: false, error: result?.error || 'Failed to send reset email' }
       }
 
       return { success: true }
     } catch (error) {
       console.error('Reset password exception:', error)
-      return {
-        success: false,
-        error: error.message || 'Failed to send reset email'
-      }
+      return { success: false, error: error.message || 'Failed to send reset email' }
     }
   }
 
   const refreshSession = async () => {
     try {
-      const { data, error } = await supabase.auth.refreshSession()
-
-      if (error) {
-        console.error('Session refresh error:', error)
-        return { success: false, error: error.message }
+      const res = await cookieAuth.refresh()
+      if (!res?.success) {
+        return { success: false, error: res?.error || 'Failed to refresh session' }
       }
-
-      if (data.user) {
-        await fetchUserProfile(data.user.id)
+      const { data: { user: authUser } } = await supabase.auth.getUser(res?.access_token || (getAccessToken && getAccessToken()))
+      if (authUser) {
+        await fetchUserProfile(authUser.id)
       }
-
-      return { success: true, session: data.session }
+      return { success: true, session: { access_token: res.access_token, expires_in: res.expires_in } }
     } catch (error) {
       console.error('Refresh session exception:', error)
-      return {
-        success: false,
-        error: error.message || 'Failed to refresh session'
-      }
+      return { success: false, error: error.message || 'Failed to refresh session' }
     }
   }
 
-  // Helper function to check if user has specific role
   const hasRole = (requiredRole) => {
     if (!role) return false
-
-    // If user has a role but is_active is explicitly false, deny access
     if (isActive === false) return false
-
     if (Array.isArray(requiredRole)) {
       return requiredRole.includes(role)
     }
-
     return role === requiredRole
   }
 
-  // Helper function to check if user is admin (admin or super_admin)
-  const isAdmin = () => {
-    return hasRole(['admin', 'super_admin'])
-  }
+  const isAdmin = () => hasRole(['admin', 'super_admin'])
+  const isSuperAdmin = () => hasRole('super_admin')
 
-  // Helper function to check if user is super admin
-  const isSuperAdmin = () => {
-    return hasRole('super_admin')
-  }
+  React.useEffect(() => {
+    let lastWrite = 0
+    const writeIfNeeded = () => {
+      const t = nowMs()
+      if (t - lastWrite > 60000) {
+        setLastActiveNow()
+        lastWrite = t
+      }
+    }
+
+    // Only enforce idle timeout after initial session check and when a user exists
+    const shouldEnforceIdle = () => initialSessionLoaded && !!user
+
+    const handleExpiry = () => {
+      if (!shouldEnforceIdle()) return
+      const last = getLastActiveAt()
+      if (!last || last <= 0) {
+        // Initialize marker on first activity to avoid false expiry on fresh loads
+        setLastActiveNow()
+        return
+      }
+      if (isIdleExpired()) {
+        cookieAuth.logout().finally(() => { clearLastActive(); supabase.auth.signOut().catch(() => {}) })
+        return
+      }
+    }
+
+    const activityHandler = () => {
+      handleExpiry()
+      writeIfNeeded()
+    }
+
+    const focusHandler = () => {
+      handleExpiry()
+      writeIfNeeded()
+    }
+
+    const events = ['click', 'keydown', 'mousemove']
+    events.forEach(ev => window.addEventListener(ev, activityHandler))
+    window.addEventListener('focus', focusHandler)
+    document.addEventListener('visibilitychange', focusHandler)
+
+    const interval = setInterval(() => {
+      handleExpiry()
+    }, 60000)
+
+    return () => {
+      events.forEach(ev => window.removeEventListener(ev, activityHandler))
+      window.removeEventListener('focus', focusHandler)
+      document.removeEventListener('visibilitychange', focusHandler)
+      clearInterval(interval)
+    }
+  }, [initialSessionLoaded, user])
 
   const value = {
-    // State
     user,
     profile,
     role,
     loading,
     isActive,
 
-    // Auth methods
     signIn,
     signUp,
     signOut,
@@ -436,13 +700,11 @@ export const AuthProvider = ({ children }) => {
     resetPassword,
     refreshSession,
 
-    // Helper methods
     hasRole,
     isAdmin,
     isSuperAdmin,
     fetchUserProfile,
 
-    // Computed values
     isAuthenticated: !!user && !!profile,
     isStudent: hasRole('student'),
     isTeacher: hasRole('teacher'),

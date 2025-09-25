@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { calculateGrade, getStudentExamResults } from '../../services/studentResultService';
-import { getAllExams } from '../../services/examService';
+import { calculateGrade, getStudentExamResults } from '../../services/supabase/studentResultService';
+import { getTermName } from '../../utils/reportUtils';
+import { getAllExams } from '../../services/supabase/examService';
 import { getAllSubjects } from '../../services/supabase/subjectService';
-import { getStudentByUid } from '../../services/studentService';
+import { getStudentById } from '../../services/supabase/studentService';
 
 const StudentExamResults = () => {
   const { user } = useAuth();
@@ -38,7 +39,7 @@ const StudentExamResults = () => {
     setLoading(true);
     try {
       // Get student profile
-      const studentData = await getStudentByUid(user.uid);
+      const studentData = (await getStudentById(user.uid))?.data || null;
       setStudent(studentData);
 
       if (studentData) {
@@ -107,14 +108,7 @@ const StudentExamResults = () => {
     return subject ? subject.name : 'Unknown Subject';
   };
 
-  const getTermName = (term) => {
-    switch (term) {
-      case 1: return '1st Term';
-      case 2: return '2nd Term';
-      case 3: return '3rd Term';
-      default: return `Term ${term}`;
-    }
-  };
+  // getTermName centralized in utils/reportUtils
 
   const getGradeColor = (grade) => {
     switch (grade) {
@@ -143,7 +137,7 @@ const StudentExamResults = () => {
       return sum + gradeInfo.gpa;
     }, 0);
     
-    return (totalGPA / filteredResults.length).toFixed(2);
+    return Math.round(totalGPA / filteredResults.length);
   };
 
   const getUniqueAcademicYears = () => {
@@ -203,7 +197,7 @@ const StudentExamResults = () => {
           <div className="text-sm text-slate-600">Average Score</div>
           <div className="text-2xl font-bold text-green-600">
             {filteredResults.length > 0 
-              ? (filteredResults.reduce((sum, r) => sum + ((r.totalScore / r.maxScore) * 100), 0) / filteredResults.length).toFixed(1)
+              ? Math.round(filteredResults.reduce((sum, r) => sum + ((r.totalScore / r.maxScore) * 100), 0) / filteredResults.length)
               : 0}%
           </div>
         </div>
@@ -290,7 +284,7 @@ const StudentExamResults = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredResults.map((result) => {
           const gradeInfo = calculateGrade(result.totalScore, result.maxScore);
-          const percentage = ((result.totalScore / result.maxScore) * 100).toFixed(1);
+          const percentage = Math.round((result.totalScore / result.maxScore) * 100);
           
           return (
             <div key={result.id} className="bg-white rounded-lg shadow-md border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow">
@@ -303,11 +297,11 @@ const StudentExamResults = () => {
               <div className="p-4">
                 <div className="flex items-center justify-between mb-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-slate-800">{result.totalScore}</div>
-                    <div className="text-sm text-slate-600">out of {result.maxScore}</div>
+                    <div className="text-2xl font-bold text-slate-800">{Math.round(Number(result.totalScore || 0))}</div>
+                    <div className="text-sm text-slate-600">out of {Math.round(Number(result.maxScore || 0))}</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">{percentage}%</div>
+                    <div className="text-2xl font-bold text-blue-600">{Math.round(Number(percentage || 0))}%</div>
                     <div className="text-sm text-slate-600">Percentage</div>
                   </div>
                   <div className="text-center">
@@ -323,25 +317,25 @@ const StudentExamResults = () => {
                   {result.testScore !== undefined && (
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-600">Test Score:</span>
-                      <span className="font-medium">{result.testScore}/{result.testMaxScore || 100}</span>
+                      <span className="font-medium">{Math.round(Number(result.testScore || 0))}/{Math.round(Number(result.testMaxScore || 100))}</span>
                     </div>
                   )}
                   {result.examScore !== undefined && (
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-600">Exam Score:</span>
-                      <span className="font-medium">{result.examScore}/{result.examMaxScore || 100}</span>
+                      <span className="font-medium">{Math.round(Number(result.examScore || 0))}/{Math.round(Number(result.examMaxScore || 100))}</span>
                     </div>
                   )}
                   {result.assignmentScore !== undefined && (
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-600">Assignment Score:</span>
-                      <span className="font-medium">{result.assignmentScore}/{result.assignmentMaxScore || 100}</span>
+                      <span className="font-medium">{Math.round(Number(result.assignmentScore || 0))}/{Math.round(Number(result.assignmentMaxScore || 100))}</span>
                     </div>
                   )}
                   {result.attendanceScore !== undefined && (
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-600">Attendance Score:</span>
-                      <span className="font-medium">{result.attendanceScore}/{result.attendanceMaxScore || 100}</span>
+                      <span className="font-medium">{Math.round(Number(result.attendanceScore || 0))}/{Math.round(Number(result.attendanceMaxScore || 100))}</span>
                     </div>
                   )}
                 </div>
@@ -407,13 +401,13 @@ const StudentExamResults = () => {
                 <h4 className="text-lg font-semibold text-slate-800 mb-3">Overall Performance</h4>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="text-center p-4 bg-slate-50 rounded-lg">
-                    <div className="text-2xl font-bold text-slate-800">{selectedResult.totalScore}</div>
+                    <div className="text-2xl font-bold text-slate-800">{Math.round(Number(selectedResult.totalScore || 0))}</div>
                     <div className="text-sm text-slate-600">Total Score</div>
-                    <div className="text-xs text-slate-500">out of {selectedResult.maxScore}</div>
+                    <div className="text-xs text-slate-500">out of {Math.round(Number(selectedResult.maxScore || 0))}</div>
                   </div>
                   <div className="text-center p-4 bg-blue-50 rounded-lg">
                     <div className="text-2xl font-bold text-blue-600">
-                      {((selectedResult.totalScore / selectedResult.maxScore) * 100).toFixed(1)}%
+                      {Math.round((selectedResult.totalScore / selectedResult.maxScore) * 100)}%
                     </div>
                     <div className="text-sm text-slate-600">Percentage</div>
                   </div>
@@ -441,10 +435,10 @@ const StudentExamResults = () => {
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-slate-800">
-                          {selectedResult.testScore}/{selectedResult.testMaxScore || 100}
+                          {Math.round(Number(selectedResult.testScore || 0))}/{Math.round(Number(selectedResult.testMaxScore || 100))}
                         </div>
                         <div className="text-sm text-slate-600">
-                          {((selectedResult.testScore / (selectedResult.testMaxScore || 100)) * 100).toFixed(1)}%
+                          {Math.round((selectedResult.testScore / (selectedResult.testMaxScore || 100)) * 100)}%
                         </div>
                       </div>
                     </div>
@@ -458,10 +452,10 @@ const StudentExamResults = () => {
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-slate-800">
-                          {selectedResult.examScore}/{selectedResult.examMaxScore || 100}
+                          {Math.round(Number(selectedResult.examScore || 0))}/{Math.round(Number(selectedResult.examMaxScore || 100))}
                         </div>
                         <div className="text-sm text-slate-600">
-                          {((selectedResult.examScore / (selectedResult.examMaxScore || 100)) * 100).toFixed(1)}%
+                          {Math.round((selectedResult.examScore / (selectedResult.examMaxScore || 100)) * 100)}%
                         </div>
                       </div>
                     </div>
@@ -475,10 +469,10 @@ const StudentExamResults = () => {
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-slate-800">
-                          {selectedResult.assignmentScore}/{selectedResult.assignmentMaxScore || 100}
+                          {Math.round(Number(selectedResult.assignmentScore || 0))}/{Math.round(Number(selectedResult.assignmentMaxScore || 100))}
                         </div>
                         <div className="text-sm text-slate-600">
-                          {((selectedResult.assignmentScore / (selectedResult.assignmentMaxScore || 100)) * 100).toFixed(1)}%
+                          {Math.round((selectedResult.assignmentScore / (selectedResult.assignmentMaxScore || 100)) * 100)}%
                         </div>
                       </div>
                     </div>
@@ -492,10 +486,10 @@ const StudentExamResults = () => {
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-slate-800">
-                          {selectedResult.attendanceScore}/{selectedResult.attendanceMaxScore || 100}
+                          {Math.round(Number(selectedResult.attendanceScore || 0))}/{Math.round(Number(selectedResult.attendanceMaxScore || 100))}
                         </div>
                         <div className="text-sm text-slate-600">
-                          {((selectedResult.attendanceScore / (selectedResult.attendanceMaxScore || 100)) * 100).toFixed(1)}%
+                          {Math.round((selectedResult.attendanceScore / (selectedResult.attendanceMaxScore || 100)) * 100)}%
                         </div>
                       </div>
                     </div>

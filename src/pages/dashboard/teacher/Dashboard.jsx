@@ -1,3 +1,4 @@
+
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../../hooks/useAuth";
@@ -112,7 +113,7 @@ const Dashboard = () => {
           {getCurrentTime()}, {teacher?.name || 'Teacher'}!
         </h1>
         <p className="text-slate-200 text-sm sm:text-base">
-          Welcome to your teacher dashboard. Manage your classes and students effectively.
+          Welcome to your dashboard. Manage your classes and students effectively.
         </p>
       </div>
 

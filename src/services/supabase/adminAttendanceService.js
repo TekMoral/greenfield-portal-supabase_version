@@ -87,13 +87,12 @@ export async function summaryByClass(filters = {}) {
     const classId = r.class_id ?? r.classId
     const className = r.classes?.name ?? r.class_name ?? r.className ?? 'Unknown'
     if (!byClass[classId]) {
-      byClass[classId] = { classId, className, total: 0, present: 0, absent: 0, late: 0, excused: 0 }
+      byClass[classId] = { classId, className, total: 0, present: 0, absent: 0, excused: 0 }
     }
     const status = String(r.status || '').toLowerCase()
     byClass[classId].total += 1
     if (status === 'present') byClass[classId].present += 1
     else if (status === 'absent') byClass[classId].absent += 1
-    else if (status === 'late') byClass[classId].late += 1
     else if (status === 'excused') byClass[classId].excused += 1
   }
 
@@ -116,13 +115,12 @@ export async function summaryByDateRange(filters = {}) {
   for (const r of rows) {
     const date = r.date
     if (!byDate[date]) {
-      byDate[date] = { date, total: 0, present: 0, absent: 0, late: 0, excused: 0 }
+      byDate[date] = { date, total: 0, present: 0, absent: 0, excused: 0 }
     }
     const status = String(r.status || '').toLowerCase()
     byDate[date].total += 1
     if (status === 'present') byDate[date].present += 1
     else if (status === 'absent') byDate[date].absent += 1
-    else if (status === 'late') byDate[date].late += 1
     else if (status === 'excused') byDate[date].excused += 1
   }
 

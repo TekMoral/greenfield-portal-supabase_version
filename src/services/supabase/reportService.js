@@ -650,9 +650,9 @@ export const teacherUpsertSubjectReport = async (payload) => {
 export const getTermReportCard = async (studentId, term, academicYear) => {
   try {
     const { data, error } = await supabase.rpc('rpc_get_term_report_card', {
-      student_id: studentId,
-      term,
-      academic_year: academicYear,
+      p_student_id: studentId,
+      p_term: Number(term),
+      p_academic_year: Number(academicYear),
     });
     if (error) {
       console.error('Supabase error fetching term report card:', error);

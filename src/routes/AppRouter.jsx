@@ -18,8 +18,9 @@ import lazyWithRetry from "../utils/lazyWithRetry";
 
 // Lazy loaded components with retry handling
 const Login = lazyWithRetry(() => import("../pages/Login"));
+const ResetPassword = lazyWithRetry(() => import("../pages/ResetPassword"));
+const ForcePasswordChange = lazyWithRetry(() => import("../pages/ForcePasswordChange"));
 const Unauthorized = lazyWithRetry(() => import("../pages/Unauthorized"));
-const CreateAdmin = lazyWithRetry(() => import("../pages/CreateAdmin"));
 
 // Debug/Test components (temporary for migration)
 const AuthSessionDebug = lazyWithRetry(() =>
@@ -40,6 +41,7 @@ const StudentSubjects = lazyWithRetry(() => import("../pages/student/Subjects"))
 const StudentAssignments = lazyWithRetry(() => import("../pages/student/Assignments"));
 const StudentExamResults = lazyWithRetry(() => import("../pages/student/ExamResults"));
 const StudentAttendance = lazyWithRetry(() => import("../pages/student/Attendance"));
+const StudentReportCards = lazyWithRetry(() => import("../pages/student/ReportCards"));
 
 // Teacher routes
 const TeacherDashboard = lazyWithRetry(() =>
@@ -79,8 +81,11 @@ const AdminReports = lazyWithRetry(() => import("../pages/dashboard/Reports"));
 const AdminStudentReports = lazyWithRetry(() => import("../pages/dashboard/AdminStudentReports"));
 const ManageResults = lazyWithRetry(() => import("../pages/dashboard/ManageResults"));
 const AdminAttendance = lazyWithRetry(() => import("../pages/dashboard/AdminAttendance"));
+const AdminTimetable = lazyWithRetry(() => import("../pages/dashboard/AdminTimetable"));
 
 const AdminReview = lazyWithRetry(() => import("../pages/dashboard/AdminReview"));
+const AdminReportCards = lazyWithRetry(() => import("../pages/dashboard/AdminReportCards"));
+const GeneratedReportCards = lazyWithRetry(() => import("../pages/dashboard/GeneratedReportCards"));
 const CarouselManagement = lazyWithRetry(() =>
   import("../pages/dashboard/CarouselManagement")
 );
@@ -120,14 +125,24 @@ const AppRouter = () => (
     />
 
     <Route
-      path="/create-admin"
+      path="/reset-password"
       element={
         <Suspense fallback={<LoadingFallback />}>
-          <CreateAdmin />
+          <ResetPassword />
         </Suspense>
       }
     />
 
+    <Route
+      path="/force-password-change"
+      element={
+        <Suspense fallback={<LoadingFallback />}>
+          <ForcePasswordChange />
+        </Suspense>
+      }
+    />
+
+    
     {/* Admin Dashboard Routes */}
     <Route
       path="/dashboard"
@@ -212,10 +227,34 @@ const AppRouter = () => (
         }
       />
       <Route
+        path="timetable"
+        element={
+          <Suspense fallback={<LoadingFallback />}>
+            <AdminTimetable />
+          </Suspense>
+        }
+      />
+      <Route
         path="admin-review"
         element={
           <Suspense fallback={<LoadingFallback />}>
             <AdminReview />
+          </Suspense>
+        }
+      />
+      <Route
+        path="report-cards"
+        element={
+          <Suspense fallback={<LoadingFallback />}>
+            <AdminReportCards />
+          </Suspense>
+        }
+      />
+      <Route
+        path="generated-report-cards"
+        element={
+          <Suspense fallback={<LoadingFallback />}>
+            <GeneratedReportCards />
           </Suspense>
         }
       />
@@ -232,9 +271,11 @@ const AppRouter = () => (
       <Route
         path="settings"
         element={
-          <Suspense fallback={<LoadingFallback />}>
-            <Settings />
-          </Suspense>
+          <RoleBasedRoute allowedRoles={["super_admin"]}>
+            <Suspense fallback={<LoadingFallback />}>
+              <Settings />
+            </Suspense>
+          </RoleBasedRoute>
         }
       />
       <Route
@@ -464,6 +505,14 @@ const AppRouter = () => (
         element={
           <Suspense fallback={<LoadingFallback />}>
             <StudentAttendance />
+          </Suspense>
+        }
+      />
+      <Route
+        path="report-cards"
+        element={
+          <Suspense fallback={<LoadingFallback />}>
+            <StudentReportCards />
           </Suspense>
         }
       />

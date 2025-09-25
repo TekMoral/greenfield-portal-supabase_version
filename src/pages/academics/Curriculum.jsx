@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { COMPONENT_COLORS, getButtonClasses } from "../../constants/colors";
 
 const Curriculum = () => {
   const [isVisible, setIsVisible] = useState(false);
@@ -16,7 +17,7 @@ const Curriculum = () => {
         "Mathematics", "English Language", "Basic Science", "Social Studies",
         "Computer Studies", "Creative Arts", "Physical Education", "Civic Education"
       ],
-      color: "from-blue-400 to-cyan-500"
+      color: "from-slate-800 to-emerald-700"
     },
     {
       level: "Senior Secondary (SSS 1-3)",
@@ -28,7 +29,7 @@ const Curriculum = () => {
         "Arts: Literature, Government, Economics, Geography",
         "Commercial: Accounting, Commerce, Economics"
       ],
-      color: "from-green-400 to-emerald-500"
+      color: "from-emerald-700 to-teal-600"
     }
   ];
 
@@ -56,9 +57,9 @@ const Curriculum = () => {
   ];
 
   return (
-    <div className="bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50 min-h-screen overflow-hidden relative -mt-[var(--header-height,90px)]">
+    <div className={`${COMPONENT_COLORS.backgrounds.gradient} min-h-screen overflow-hidden relative`}>
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-white py-20" style={{ paddingTop: "var(--header-height, 100px)" }}>
+      <section className={`${COMPONENT_COLORS.backgrounds.hero} text-white py-20`} style={{ paddingTop: "var(--header-height, 100px)" }}>
         <div className="max-w-7xl mx-auto px-6">
           <div
             className={`text-center transform transition-all duration-1000 ${
@@ -72,9 +73,9 @@ const Curriculum = () => {
               </span>
             </div>
             <h1 className="text-5xl md:text-7xl font-black mb-6 leading-tight">
-              Our <span className="text-yellow-300">Curriculum</span>
+              Our <span className="text-emerald-200">Curriculum</span>
             </h1>
-            <p className="text-xl md:text-2xl text-blue-100 max-w-4xl mx-auto leading-relaxed">
+            <p className="text-xl md:text-2xl text-emerald-100 max-w-4xl mx-auto leading-relaxed">
               A comprehensive educational framework designed to nurture intellectual growth,
               character development, and prepare students for future success.
             </p>
@@ -103,7 +104,7 @@ const Curriculum = () => {
               >
                 <div className="mb-6">
                   <h3 className="text-2xl font-bold text-gray-800 mb-2">{level.level}</h3>
-                  <p className="text-blue-600 font-semibold mb-4">{level.age}</p>
+                  <p className="text-emerald-700 font-semibold mb-4">{level.age}</p>
                   <p className="text-gray-600 leading-relaxed">{level.description}</p>
                 </div>
 
@@ -113,9 +114,9 @@ const Curriculum = () => {
                     {level.subjects.map((subject, subIndex) => (
                       <div
                         key={subIndex}
-                        className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg"
+                        className="flex items-center space-x-2 p-3 bg-emerald-50 rounded-lg"
                       >
-                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
                         <span className="text-gray-700 font-medium">{subject}</span>
                       </div>
                     ))}
@@ -164,7 +165,7 @@ const Curriculum = () => {
       </section>
 
       {/* Assessment & Evaluation */}
-      <section className="py-20 bg-blue-50">
+      <section className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <div>
@@ -173,7 +174,7 @@ const Curriculum = () => {
               </h2>
               <div className="space-y-6">
                 <div className="flex items-start space-x-4">
-                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                  <div className="w-8 h-8 bg-emerald-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
                     1
                   </div>
                   <div>
@@ -182,7 +183,7 @@ const Curriculum = () => {
                   </div>
                 </div>
                 <div className="flex items-start space-x-4">
-                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                  <div className="w-8 h-8 bg-emerald-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
                     2
                   </div>
                   <div>
@@ -191,7 +192,7 @@ const Curriculum = () => {
                   </div>
                 </div>
                 <div className="flex items-start space-x-4">
-                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                  <div className="w-8 h-8 bg-emerald-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
                     3
                   </div>
                   <div>
@@ -201,20 +202,20 @@ const Curriculum = () => {
                 </div>
               </div>
             </div>
-            <div className="bg-white rounded-3xl p-8 shadow-lg">
+            <div className="bg-white rounded-3xl p-8 shadow-lg border border-gray-200">
               <h3 className="text-2xl font-bold text-gray-800 mb-6">Academic Calendar</h3>
               <div className="space-y-4">
-                <div className="flex justify-between items-center p-4 bg-blue-50 rounded-lg">
+                <div className="flex justify-between items-center p-4 bg-emerald-50 rounded-lg">
                   <span className="font-semibold text-gray-800">1st</span>
-                  <span className="text-blue-600">Sept - Dec</span>
+                  <span className="text-emerald-700">Sept - Dec</span>
                 </div>
-                <div className="flex justify-between items-center p-4 bg-green-50 rounded-lg">
+                <div className="flex justify-between items-center p-4 bg-emerald-50 rounded-lg">
                   <span className="font-semibold text-gray-800">2nd</span>
-                  <span className="text-green-600">Jan - Apr</span>
+                  <span className="text-emerald-700">Jan - Apr</span>
                 </div>
-                <div className="flex justify-between items-center p-4 bg-yellow-50 rounded-lg">
+                <div className="flex justify-between items-center p-4 bg-emerald-50 rounded-lg">
                   <span className="font-semibold text-gray-800">Third Term</span>
-                  <span className="text-yellow-600">May - Jul</span>
+                  <span className="text-emerald-700">May - Jul</span>
                 </div>
               </div>
             </div>
@@ -223,25 +224,25 @@ const Curriculum = () => {
       </section>
 
       {/* Call to Action */}
-      <section className="py-20 bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
+      <section className="py-20 bg-gradient-to-br from-slate-900 to-slate-800 text-white">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <h2 className="text-4xl md:text-5xl font-black mb-6">
             Ready to Join Our Academic Community?
           </h2>
-          <p className="text-xl text-blue-100 mb-8 leading-relaxed">
+          <p className="text-xl text-gray-300 mb-8 leading-relaxed">
             Discover how our comprehensive curriculum can provide your child with
             the foundation for lifelong learning and success.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
               href="/admissions"
-              className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-8 py-4 rounded-lg font-semibold transition-colors duration-200 shadow-lg hover:shadow-xl"
+              className={getButtonClasses('accent')}
             >
               Apply for Admission
             </a>
             <a
               href="/contact"
-              className="bg-white/10 hover:bg-white/20 text-white px-8 py-4 rounded-lg font-semibold transition-colors duration-200 border border-white/20"
+              className={getButtonClasses('ghost')}
             >
               Contact Us
             </a>

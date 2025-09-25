@@ -189,7 +189,12 @@ export const getPublishedResultsByStudent = async (studentId) => {
       return { success: false, error: error.message };
     }
 
-    const mapped = (data || []).map((r) => ({
+    const mapped = (data || []).map((r) => {
+  const hasAdmin = (r.admin_score ?? r.adminScore) != null;
+  const total = r.total_score ?? r.totalScore ?? ((r.test_score || 0) + (r.exam_score || 0) + (hasAdmin ? (r.admin_score || r.adminScore || 0) : 0));
+  const max = hasAdmin ? 100 : 80;
+  const gradeInfo = mapGradeFromBackend(r, total, max);
+  return {
     ...r,
     id: r.id,
     studentId: r.student_id ?? r.studentId,
@@ -198,12 +203,14 @@ export const getPublishedResultsByStudent = async (studentId) => {
     year: r.year,
     published: (r.is_published ?? r.published),
     createdAt: r.created_at ?? r.createdAt,
-    totalScore: r.total_score ?? r.totalScore ?? ((r.test_score || 0) + (r.exam_score || 0) + (r.admin_score || r.adminScore || 0)),
-    maxScore: ((r.admin_score ?? r.adminScore) != null) ? 100 : 80,
+    totalScore: total,
+    maxScore: max,
     testScore: r.test_score ?? r.testScore ?? null,
     examScore: r.exam_score ?? r.examScore ?? null,
     adminScore: r.admin_score ?? r.adminScore ?? null,
-    }));
+    ...gradeInfo,
+  };
+});
 
     return { success: true, data: mapped };
   } catch (error) {
@@ -250,27 +257,29 @@ export const getSubmittedResults = async (filters = {}) => {
 
     // Normalize snake_case -> camelCase for UI and provide score fallbacks
     const mapped = (data || []).map((r) => {
-      const teacherSubtotal = (r.test_score || 0) + (r.exam_score || 0);
-      // Before admin grading, total_score stores teacher subtotal (out of 80). After grading, it's final (out of 100).
-      const total = r.total_score ?? r.totalScore ?? teacherSubtotal;
-      const hasAdmin = (r.admin_score ?? r.adminScore) != null;
-      const max = hasAdmin ? 100 : 80;
-      return {
-        ...r,
-        id: r.id,
-        studentId: r.student_id ?? r.studentId,
-        subjectId: r.subject_id ?? r.subjectId,
-        term: r.term,
-        year: r.year,
-        status: r.status,
-        createdAt: r.created_at ?? r.createdAt,
-        totalScore: total,
-        maxScore: max,
-        testScore: r.test_score ?? r.testScore ?? null,
-        examScore: r.exam_score ?? r.examScore ?? null,
-        adminScore: r.admin_score ?? r.adminScore ?? null
-      };
-    });
+  const teacherSubtotal = (r.test_score || 0) + (r.exam_score || 0);
+  // Before admin grading, total_score stores teacher subtotal (out of 80). After grading, it's final (out of 100).
+  const total = r.total_score ?? r.totalScore ?? teacherSubtotal;
+  const hasAdmin = (r.admin_score ?? r.adminScore) != null;
+  const max = hasAdmin ? 100 : 80;
+  const gradeInfo = mapGradeFromBackend(r, total, max);
+  return {
+    ...r,
+    id: r.id,
+    studentId: r.student_id ?? r.studentId,
+    subjectId: r.subject_id ?? r.subjectId,
+    term: r.term,
+    year: r.year,
+    status: r.status,
+    createdAt: r.created_at ?? r.createdAt,
+    totalScore: total,
+    maxScore: max,
+    testScore: r.test_score ?? r.testScore ?? null,
+    examScore: r.exam_score ?? r.examScore ?? null,
+    adminScore: r.admin_score ?? r.adminScore ?? null,
+    ...gradeInfo,
+  };
+});
 
     return { success: true, data: mapped };
   } catch (error) {
@@ -294,6 +303,26 @@ export const calculateGrade = (totalScore, maxScore = 100) => {
 };
 
 /**
+ * Prefer backend-provided grade if available; fallback to local calculation.
+ */
+export const mapGradeFromBackend = (row, total, max = 100) => {
+  const percentage = max ? (total / max) * 100 : 0;
+  const backendGrade = row?.grade ?? row?.letter_grade ?? null;
+  if (backendGrade) {
+    // Map GPA best-effort using existing thresholds
+    const g = String(backendGrade).toUpperCase();
+    let gpa = 0.0;
+    if (g === 'A+' || g === 'A') gpa = g === 'A+' ? 4.0 : 3.7;
+    else if (g === 'B') gpa = 3.0;
+    else if (g === 'C') gpa = 2.0;
+    else if (g === 'D') gpa = 1.0;
+    else gpa = 0.0;
+    return { grade: backendGrade, gpa, percentage };
+  }
+  return calculateGrade(total, max);
+};
+
+/**
  * Get published results for a student (for student portal)
  */
 export const getStudentExamResults = async (studentId) => {
@@ -313,27 +342,27 @@ export const getStudentExamResults = async (studentId) => {
 
     // Normalize snake_case -> camelCase and enrich with grades
     const mapped = (data || []).map((r) => {
-      const hasAdmin = (r.admin_score ?? r.adminScore) != null;
-      const total = r.total_score ?? r.totalScore ?? ((r.test_score || 0) + (r.exam_score || 0) + (hasAdmin ? (r.admin_score || r.adminScore || 0) : 0));
-      const max = hasAdmin ? 100 : 80;
-      const gradeInfo = calculateGrade(total, max);
-      return {
-        ...r,
-        id: r.id,
-        studentId: r.student_id ?? r.studentId,
-        subjectId: r.subject_id ?? r.subjectId,
-        term: r.term,
-        year: r.year,
-        published: (r.is_published ?? r.published),
-        createdAt: r.created_at ?? r.createdAt,
-        totalScore: total,
-        maxScore: max,
-        testScore: r.test_score ?? r.testScore ?? null,
-        examScore: r.exam_score ?? r.examScore ?? null,
-        adminScore: r.admin_score ?? r.adminScore ?? null,
-        ...gradeInfo,
-      };
-    });
+    const hasAdmin = (r.admin_score ?? r.adminScore) != null;
+    const total = r.total_score ?? r.totalScore ?? ((r.test_score || 0) + (r.exam_score || 0) + (hasAdmin ? (r.admin_score || r.adminScore || 0) : 0));
+    const max = hasAdmin ? 100 : 80;
+    const gradeInfo = mapGradeFromBackend(r, total, max);
+    return {
+      ...r,
+      id: r.id,
+      studentId: r.student_id ?? r.studentId,
+      subjectId: r.subject_id ?? r.subjectId,
+      term: r.term,
+      year: r.year,
+      published: (r.is_published ?? r.published),
+      createdAt: r.created_at ?? r.createdAt,
+      totalScore: total,
+      maxScore: max,
+      testScore: r.test_score ?? r.testScore ?? null,
+      examScore: r.exam_score ?? r.examScore ?? null,
+      adminScore: r.admin_score ?? r.adminScore ?? null,
+      ...gradeInfo,
+    };
+  });
 
     return { success: true, data: mapped };
   } catch (error) {
@@ -366,7 +395,9 @@ export const getResultById = async (resultId) => {
       Number(data.total_score ?? 0),
       Number(((data.test_score || 0) + (data.exam_score || 0))) + Number(data.admin_score ?? 0)
     );
-    const gradeInfo = calculateGrade(normalizedTotal, 100);
+    const hasAdmin = (data.admin_score ?? data.adminScore) != null;
+    const max = hasAdmin ? 100 : 80;
+    const gradeInfo = mapGradeFromBackend(data, normalizedTotal, max);
     const enrichedResult = {
       ...data,
       totalScore: normalizedTotal,

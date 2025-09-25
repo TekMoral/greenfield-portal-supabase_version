@@ -190,3 +190,51 @@ export const ReactivateButton = ({ onClick, loading = false, disabled = false, s
     </Button>
   );
 };
+
+// Graduate Button
+export const GraduateButton = ({ onClick, loading = false, disabled = false, size = 'sm', ...props }) => {
+  const graduateIcon = (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0v6m-5-3h10" />
+    </svg>
+  );
+
+  return (
+    <Button
+      variant="primary"
+      size={size}
+      onClick={onClick}
+      loading={loading}
+      disabled={disabled}
+      loadingText="Graduating..."
+      icon={graduateIcon}
+      {...props}
+    >
+      Graduate
+    </Button>
+  );
+};
+
+// Reset Password Button
+export const ResetPasswordButton = ({ onClick, loading = false, disabled = false, size = 'sm', ...props }) => {
+  const resetPasswordIcon = (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 12H9v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.586l4.707-4.707C10.923 2.663 11.596 2 12.414 2.414L15 5" />
+    </svg>
+  );
+
+  return (
+    <Button
+      variant="warning"
+      size={size}
+      onClick={onClick}
+      loading={loading}
+      disabled={disabled}
+      loadingText="Resetting..."
+      icon={resetPasswordIcon}
+      {...props}
+    >
+      Reset Password
+    </Button>
+  );
+};

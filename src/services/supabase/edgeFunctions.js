@@ -1,4 +1,5 @@
 import { supabase } from "../../lib/supabaseClient";
+import { getAccessToken } from "../../lib/cookieAuthClient";
 
 /**
  * Edge Functions Service
@@ -23,15 +24,15 @@ class EdgeFunctionsService {
 
       // Supabase client handles JSON stringification internally
       // We just need to pass the payload directly as body
-      // Explicitly attach the current session JWT to ensure Authorization header is present
+      // Explicitly attach the current session JWT (from in-memory cookie-based flow)
       let headers = { ...(options.headers || {}) };
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token && !headers['Authorization'] && !headers['authorization']) {
-          headers['Authorization'] = `Bearer ${session.access_token}`;
+        const token = typeof getAccessToken === 'function' ? getAccessToken() : null;
+        if (token && !headers['Authorization'] && !headers['authorization']) {
+          headers['Authorization'] = `Bearer ${token}`;
         }
       } catch (_) {
-        // ignore issues obtaining session; function will handle missing auth
+        // ignore issues obtaining token; function will handle missing auth
       }
 
       const invokeOptions = {
@@ -320,15 +321,13 @@ class EdgeFunctionsService {
   /**
    * Graduate a student using Edge Function
    * @param {string} studentId - Student ID to graduate
-   * @param {string} graduatedBy - ID of user performing the graduation (optional)
    * @param {Date|string} graduationDate - Graduation date (optional, defaults to current date)
    * @param {string} graduationReason - Reason/notes for graduation (optional)
    * @returns {Promise<Object>} Graduation result
    */
-  async graduateStudent(studentId, graduatedBy = null, graduationDate = null, graduationReason = null) {
+  async graduateStudent(studentId, graduationDate = null, graduationReason = null) {
     return this.callFunction('graduate-student', { 
       studentId, 
-      graduatedBy, 
       graduationDate, 
       graduationReason 
     });
@@ -409,6 +408,15 @@ class EdgeFunctionsService {
   }
 
   /**
+   * Finalize (publish) a generated report by stamping branding and signature.
+   * @param {Object} payload - { document_id, verified_by, bucket?, source_path?, destination_path?, overrides?, debug? }
+   * @returns {Promise<Object>} Finalization result { success, url, path, bucket }
+   */
+  async finalizeReport(payload) {
+    return this.callFunction('finalize-report', payload);
+  }
+
+  /**
    * Send notifications using Edge Function
    * @param {Object} notificationData - Notification data
    * @returns {Promise<Object>} Notification result
@@ -475,6 +483,7 @@ export const getPromotionEligibility = edgeFunctionsService.getPromotionEligibil
 // Other operations exports
 export const bulkOperation = edgeFunctionsService.bulkOperation.bind(edgeFunctionsService);
 export const generateReport = edgeFunctionsService.generateReport.bind(edgeFunctionsService);
+export const finalizeReport = edgeFunctionsService.finalizeReport.bind(edgeFunctionsService);
 export const sendNotification = edgeFunctionsService.sendNotification.bind(edgeFunctionsService);
 export const uploadFile = edgeFunctionsService.uploadFile.bind(edgeFunctionsService);
 export const checkSystemHealth = edgeFunctionsService.checkSystemHealth.bind(edgeFunctionsService);

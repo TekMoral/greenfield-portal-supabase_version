@@ -166,7 +166,7 @@ const Dashboard = () => {
           {getCurrentTime()}, {student.firstName}!
         </h1>
         <p className="text-slate-200 text-sm sm:text-base">
-          Welcome back to your student dashboard.
+          Welcome back to your dashboard.
           {pendingAssignments.length > 0 && (
             <span className="block mt-1">
               📋 You have {pendingAssignments.length} pending assignment{pendingAssignments.length !== 1 ? 's' : ''}.

@@ -14,7 +14,8 @@ export const useAssignmentsData = (userId) => {
     isLoading: loadingClasses,
     error: errorClasses,
   } = useQuery({
-    queryKey: ['teacher', 'classes-subjects', userId],
+    // Use a unique key to avoid collisions with other pages using a different result shape
+    queryKey: ['teacher', 'classes-subjects', 'array', userId],
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {

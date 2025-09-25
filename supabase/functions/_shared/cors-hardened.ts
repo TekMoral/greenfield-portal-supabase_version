@@ -1,6 +1,8 @@
 // Hardened CORS configuration for production security
 // This provides more restrictive CORS policies for enhanced security
 
+const CORS_MODULE_VERSION = '2025-09-24-1'
+
 interface CorsConfig {
   allowedOrigins: string[]
   allowedMethods: string[]
@@ -146,19 +148,29 @@ export function getHardenedCorsHeaders(req: Request): Record<string, string> {
 export function handleHardenedCors(req: Request): Response {
   if (req.method === 'OPTIONS') {
     const headers = getHardenedCorsHeaders(req)
-    
+
     // Add security headers for preflight
     headers['X-Content-Type-Options'] = 'nosniff'
     headers['X-Frame-Options'] = 'DENY'
     headers['X-XSS-Protection'] = '1; mode=block'
     headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-    
-    return new Response('ok', { 
+
+    // Debug headers (development only)
+    const env = Deno.env.get('ENVIRONMENT') || 'development'
+    if (env === 'development') {
+      headers['X-Debug-Env'] = env
+      headers['X-Debug-Requested-Origin'] = req.headers.get('origin') || ''
+      headers['X-Debug-Allowed-Origin'] = headers['Access-Control-Allow-Origin'] || ''
+      headers['X-Debug-Allow-Credentials'] = headers['Access-Control-Allow-Credentials'] || ''
+      headers['X-Debug-Cors-Version'] = CORS_MODULE_VERSION
+    }
+
+    return new Response(null, {
       headers,
       status: 204 // No Content for preflight
     })
   }
-  
+
   // This shouldn't be called for non-OPTIONS requests
   throw new Error('handleHardenedCors should only be called for OPTIONS requests')
 }
@@ -166,16 +178,27 @@ export function handleHardenedCors(req: Request): Response {
 // Get CORS headers for regular responses
 export function getResponseCorsHeaders(req: Request): Record<string, string> {
   const corsHeaders = getHardenedCorsHeaders(req)
-  
-  // Add additional security headers for all responses
-  return {
+
+  const headers: Record<string, string> = {
     ...corsHeaders,
     'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY', 
+    'X-Frame-Options': 'DENY',
     'X-XSS-Protection': '1; mode=block',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
   }
+
+  // Debug headers (development only)
+  const env = Deno.env.get('ENVIRONMENT') || 'development'
+  if (env === 'development') {
+    headers['X-Debug-Env'] = env
+    headers['X-Debug-Requested-Origin'] = req.headers.get('origin') || ''
+    headers['X-Debug-Allowed-Origin'] = headers['Access-Control-Allow-Origin'] || ''
+    headers['X-Debug-Allow-Credentials'] = headers['Access-Control-Allow-Credentials'] || ''
+    headers['X-Debug-Cors-Version'] = CORS_MODULE_VERSION
+  }
+
+  return headers
 }
 
 // Validate request origin and method
@@ -212,15 +235,8 @@ export const corsHeaders = {
 
 // Legacy CORS handler for backward compatibility (development only)
 export function handleCors(req: Request) {
-  const environment = Deno.env.get('ENVIRONMENT') || 'development'
-  
-  if (environment === 'development') {
-    // Use legacy permissive CORS in development
-    if (req.method === 'OPTIONS') {
-      return new Response('ok', { headers: corsHeaders })
-    }
-  } else {
-    // Use hardened CORS in production
+  // Always use hardened CORS so credentials: 'include' works properly
+  if (req.method === 'OPTIONS') {
     return handleHardenedCors(req)
   }
 }

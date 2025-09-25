@@ -14,8 +14,7 @@ const AdminReviewModal = ({
 }) => {
   const [formData, setFormData] = useState({
     adminScore: '',
-    adminMaxScore: 20, // Default 20% admin assessment
-    adminComments: ''
+    adminMaxScore: 20 // Default 20% admin assessment
   });
 
   const [errors, setErrors] = useState({});
@@ -24,8 +23,7 @@ const AdminReviewModal = ({
     if (result) {
       setFormData({
         adminScore: result.adminScore || '',
-        adminMaxScore: result.adminMaxScore || 20,
-        adminComments: result.adminComments || ''
+        adminMaxScore: result.adminMaxScore || 20
       });
     }
   }, [result]);
@@ -86,7 +84,6 @@ const AdminReviewModal = ({
         await onSubmit({
           adminScore: parseFloat(formData.adminScore),
           adminMaxScore: parseFloat(formData.adminMaxScore),
-          adminComments: formData.adminComments,
           teacherScore: originalScore
         });
       }
@@ -98,8 +95,7 @@ const AdminReviewModal = ({
   const resetForm = () => {
     setFormData({
       adminScore: '',
-      adminMaxScore: 20,
-      adminComments: ''
+      adminMaxScore: 20
     });
     setErrors({});
   };
@@ -274,23 +270,7 @@ const AdminReviewModal = ({
               </div>
             </div>
 
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Admin Comments
-              </label>
-              <textarea
-                name="adminComments"
-                value={formData.adminComments}
-                onChange={handleChange}
-                rows={3}
-                disabled={isReadOnly}
-                className={`w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  isReadOnly ? 'bg-gray-50' : ''
-                }`}
-                placeholder="Optional comments about the admin assessment..."
-              />
-            </div>
-          </div>
+                      </div>
 
           {/* Score Preview */}
           <div className="mb-6">

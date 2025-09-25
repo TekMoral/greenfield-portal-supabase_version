@@ -1,21 +1,21 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
+import { Menu, X, LayoutDashboard, Users, Layers, ClipboardList, CalendarCheck, BarChart3, FileText, Calendar, User } from 'lucide-react';
 
 const TeacherLayout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const mobileHeaderRef = useRef(null);
 
   const menuItems = [
-    { label: "Dashboard", path: "/teacher" },
-    { label: "My Classes", path: "/teacher/classes" },
-    { label: "Students", path: "/teacher/students" },
-    { label: "Exam Results", path: "/teacher/exam-results" },
-        { label: "Assignments", path: "/teacher/assignments" },
-    { label: "Grades", path: "/teacher/grades" },
-    { label: "Timetable", path: "/teacher/timetable" },
-    { label: "Attendance", path: "/teacher/attendance" },
-    { label: "Submit Reports", path: "/teacher/reports" },
-    { label: "Profile", path: "/teacher/profile" },
+    { label: "Dashboard", path: "/teacher", Icon: LayoutDashboard },
+    { label: "Classes", path: "/teacher/classes", Icon: Layers },
+    { label: "Students", path: "/teacher/students", Icon: Users },
+    { label: "Results", path: "/teacher/exam-results", Icon: BarChart3 },
+    { label: "Assignments", path: "/teacher/assignments", Icon: ClipboardList },
+    { label: "Gradebook", path: "/teacher/grades", Icon: FileText },
+    { label: "Timetable", path: "/teacher/timetable", Icon: Calendar },
+    { label: "Attendance", path: "/teacher/attendance", Icon: CalendarCheck },
+    { label: "Profile", path: "/teacher/profile", Icon: User },
   ];
 
   // Set --mobile-header-height for consistent spacing
@@ -71,7 +71,10 @@ const TeacherLayout = () => {
                     : "block px-3 py-2 rounded hover:bg-teal-600 transition text-sm lg:text-base"
                 }
               >
-                {item.label}
+                <div className="flex items-center gap-2">
+                  {item.Icon && <item.Icon className="w-4 h-4" aria-hidden="true" />}
+                  <span>{item.label}</span>
+                </div>
               </NavLink>
             ))}
           </nav>
@@ -94,28 +97,11 @@ const TeacherLayout = () => {
           onClick={toggleMobileMenu}
           className="fixed top-[var(--mobile-header-height,84px)] left-4 z-[1000] bg-teal-800 text-white px-3 py-2 rounded-md shadow-lg"
         >
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            {isMobileMenuOpen ? (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            ) : (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 6h16M4 12h16M4 18h16"
-              />
-            )}
-          </svg>
+          {isMobileMenuOpen ? (
+            <X className="w-6 h-6" />
+          ) : (
+            <Menu className="w-6 h-6" />
+          )}
         </button>
 
         {/* Mobile Menu Overlay */}
@@ -155,7 +141,10 @@ const TeacherLayout = () => {
                       : "block px-3 py-3 rounded hover:bg-teal-600 transition text-sm"
                   }
                 >
-                  {item.label}
+                  <div className="flex items-center gap-2">
+                    {item.Icon && <item.Icon className="w-4 h-4" aria-hidden="true" />}
+                    <span>{item.label}</span>
+                  </div>
                 </NavLink>
               ))}
             </nav>

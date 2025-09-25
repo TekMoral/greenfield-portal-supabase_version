@@ -14,6 +14,17 @@ export const getTermName = (term) => {
   }
 };
 
+export const extractYearTermFromPath = (path) => {
+  try {
+    if (!path) return {};
+    const m = String(path).match(/(20\d{2}|19\d{2})\/term-(\d+)/i);
+    if (m) return { year: parseInt(m[1], 10), term: parseInt(m[2], 10) };
+    return {};
+  } catch {
+    return {};
+  }
+};
+
 export const getTeacherName = (user) => {
   if (!user) return 'Unknown Teacher';
 
@@ -28,7 +39,7 @@ export const calculateAttendanceRate = (attendanceData) => {
   if (attendanceData.length === 0) return 0;
 
   const presentDays = attendanceData.filter(record =>
-    record.status === 'present' || record.status === 'late'
+    record.status === 'present'
   ).length;
 
   return Math.round((presentDays / attendanceData.length) * 100);

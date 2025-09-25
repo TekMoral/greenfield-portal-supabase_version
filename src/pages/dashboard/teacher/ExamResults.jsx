@@ -8,12 +8,29 @@ import ExamResultEntryForm from '../../../components/results/ExamResultEntryForm
 import BulkExamResultUpload from '../../../components/results/BulkExamResultUpload';
 import { aggregateSubjects, getClassesForSubject as buildClassesForSubject, expandClassEntryToIds } from '../../../utils/teacherClassSubjectUtils';
 import { getSubjectsByDepartment } from '../../../services/supabase/subjectService';
+import { useSettings } from '../../../contexts/SettingsContext';
 
 
 const ExamResults = () => {
 
   const { user } = useAuth();
   const { showToast } = useToast();
+  const { academicYear, currentTerm } = useSettings();
+  const normalizeTermToNumber = (t) => {
+    const s = String(t || '').toLowerCase();
+    if (s.includes('2')) return 2;
+    if (s.includes('3')) return 3;
+    return 1;
+  };
+  const parseYearFromAcademic = (val) => {
+    const s = String(val || '');
+    if (s.includes('/')) {
+      const head = parseInt(s.split('/')[0], 10);
+      return Number.isFinite(head) ? head : new Date().getFullYear();
+    }
+    const n = parseInt(s, 10);
+    return Number.isFinite(n) ? n : new Date().getFullYear();
+  };
 
   const [teacherClasses, setTeacherClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState('');
@@ -333,11 +350,18 @@ const ExamResults = () => {
       setSubmitting(true);
 
       const classData = getSelectedClassData();
-      const term = bulkResults[0]?.term || '1st Term';
-      const year = bulkResults[0]?.session || new Date().getFullYear().toString();
+      // Force term/year from global settings when submitting
+      const term = normalizeTermToNumber(currentTerm);
+      const year = String(parseYearFromAcademic(academicYear));
+      // Normalize each row to global session/term to avoid mismatches
+      const normalizedBulk = (bulkResults || []).map(r => ({
+        ...r,
+        term: term,
+        session: year,
+      }));
 
       const res = await insertExamResultsBulk({
-        results: bulkResults,
+        results: normalizedBulk,
         subjectId: selectedSubjectId,
         term,
         year,

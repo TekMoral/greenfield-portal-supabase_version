@@ -4,6 +4,7 @@ import { attendanceService } from "../services/supabase/attendanceService";
 import { getFullName } from "../utils/nameUtils";
 import { aggregateSubjects, getClassesForSubject, expandClassEntryToIds } from "../utils/teacherClassSubjectUtils";
 import { getSubjectsByDepartment } from "../services/supabase/subjectService";
+import { useSettings } from "../contexts/SettingsContext";
 
 export const useReportsData = (user) => {
   const [allClasses, setAllClasses] = useState([]);
@@ -33,6 +34,39 @@ export const useReportsData = (user) => {
   // Report submission states
   const [selectedTerm, setSelectedTerm] = useState(1);
   const [selectedAcademicYear, setSelectedAcademicYear] = useState(new Date().getFullYear());
+
+  // Pull global settings for academic year and term
+  const { academicYear: globalAcademicYear, currentTerm: globalCurrentTerm } = useSettings();
+
+  // Normalize helpers
+  const normalizeTermToNumber = (t) => {
+    if (t == null) return 1;
+    const s = String(t).toLowerCase();
+    if (s.includes('1')) return 1;
+    if (s.includes('2')) return 2;
+    if (s.includes('3')) return 3;
+    const n = parseInt(String(t), 10);
+    return [1, 2, 3].includes(n) ? n : 1;
+  };
+  const parseYearFromAcademic = (val) => {
+    if (!val) return new Date().getFullYear();
+    const s = String(val);
+    if (s.includes('/')) {
+      const head = parseInt(s.split('/')[0], 10);
+      return Number.isFinite(head) ? head : new Date().getFullYear();
+    }
+    const n = parseInt(s, 10);
+    return Number.isFinite(n) ? n : new Date().getFullYear();
+  };
+
+  // Keep local term/year in sync with global settings
+  useEffect(() => {
+    const nextTerm = normalizeTermToNumber(globalCurrentTerm);
+    const nextYear = parseYearFromAcademic(globalAcademicYear);
+    setSelectedTerm(nextTerm);
+    setSelectedAcademicYear(nextYear);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [globalAcademicYear, globalCurrentTerm]);
 
   // Fetch teacher's classes and subjects using centralized utilities
   useEffect(() => {

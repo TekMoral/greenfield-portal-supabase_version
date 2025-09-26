@@ -5,6 +5,7 @@ import { getAllClasses } from "../../services/supabase/classService";
 import { createClass, updateClass, deleteClass } from "../../services/supabase/classAdminService";
 import { getStudentsByClass } from "../../services/supabase/studentService";
 import { supabase } from "../../lib/supabaseClient";
+import { callFunction } from "../../services/supabase/edgeFunctions";
 import toast from "react-hot-toast";
 import { useAuth } from "../../hooks/useAuth";
 import useAuditLog from "../../hooks/useAuditLog";
@@ -183,29 +184,23 @@ export default function Classes() {
 
           console.log(`🔄 Creating assignment via Edge Function: Teacher ${subjectAssignment.teacherId} -> Subject ${subjectRecord.id} (${subjectRecord.name}) -> Class ${selectedClass.id}`);
 
-          // Use Edge Function to create the teacher assignment (bypasses RLS)
-          const { data, error } = await supabase.functions.invoke('assign-teacher-subject', {
-            body: {
-              teacherId: subjectAssignment.teacherId,
-              subjectId: subjectRecord.id,
-              classId: selectedClass.id,
-              academicYear: new Date().getFullYear() + '/' + (new Date().getFullYear() + 1),
-              term: 1
-            }
+          // Use centralized wrapper to ensure Authorization header is attached
+          const res = await callFunction('assign-teacher-subject', {
+            teacherId: subjectAssignment.teacherId,
+            subjectId: subjectRecord.id,
+            classId: selectedClass.id,
+            academicYear: new Date().getFullYear() + '/' + (new Date().getFullYear() + 1),
+            term: 1
           });
 
-          if (error) {
-            console.error(`❌ Edge Function error for ${subjectAssignment.subjectName}:`, error);
-            return { success: false, error: error.message };
+          if (!res || res.success === false) {
+            const errMsg = res?.userMessage || res?.error || 'Edge Function call failed';
+            console.error(`❌ Edge Function error for ${subjectAssignment.subjectName}:`, errMsg, res);
+            return { success: false, error: errMsg };
           }
 
-          if (data?.error) {
-            console.error(`❌ Assignment failed for ${subjectAssignment.subjectName}:`, data.error);
-            return { success: false, error: data.error };
-          }
-
-          console.log(`✅ Assignment result:`, data);
-          return { success: true, data: data?.data };
+          console.log(`✅ Assignment result:`, res);
+          return { success: true, data: res?.data || res };
         } catch (error) {
           console.error(`❌ Error creating assignment for ${subjectAssignment.subjectName}:`, error);
           return { success: false, error: error.message };
@@ -216,12 +211,22 @@ export default function Classes() {
       const results = await Promise.all(assignmentPromises);
       console.log('📊 Assignment results:', results);
 
-      // Check if any assignments failed
+      const successes = results.filter(r => r.success);
       const failures = results.filter(r => !r.success);
-      if (failures.length > 0) {
-        console.error('❌ Some assignments failed:', failures);
-        toast.error(`Failed to create ${failures.length} assignment(s). Check console for details.`);
+
+      // If everything failed, surface an error and stop
+      if (successes.length === 0) {
+        console.error('❌ All assignments failed:', failures);
+        toast.error('Failed to create assignments. Check console for details.');
         return;
+      }
+
+      // Proceed if we have at least one success. Treat partial failures as a warning, not a hard error.
+      if (failures.length > 0) {
+        console.warn('⚠️ Some assignments failed:', failures);
+        toast(`Created ${successes.length} assignment(s). ${failures.length} skipped/failed.`);
+      } else {
+        toast.success(`Class subjects updated successfully! Created ${successes.length} teacher assignments.`);
       }
 
       // Also update the class record with subjects for backward compatibility
@@ -240,12 +245,11 @@ export default function Classes() {
           category: selectedClass.category,
           subjectsCount: subjects.length,
           subjects: subjects,
-          assignmentsCreated: results.filter(r => r.success).length
+          assignmentsCreated: successes.length
         },
-        `Updated subjects for class: ${selectedClass.name} (${subjects.length} subjects, ${results.filter(r => r.success).length} assignments created)`
+        `Updated subjects for class: ${selectedClass.name} (${subjects.length} subjects, ${successes.length} assignments created)`
       );
 
-      toast.success(`Class subjects updated successfully! Created ${results.filter(r => r.success).length} teacher assignments.`);
       await fetchClassesRQ();
       closeSubjectManager();
     } catch (error) {

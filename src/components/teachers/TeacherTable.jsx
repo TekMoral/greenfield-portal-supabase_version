@@ -22,6 +22,7 @@ const TeacherTable = ({
   setItemsPerPage,
   onPageChange,
   operationLoading = { create: false, update: false, delete: false, suspend: false, reactivate: false },
+  rowLoading = { suspend: {}, reactivate: {} },
   startItem = 0,
   endItem = 0,
   totalItems = 0,
@@ -173,6 +174,7 @@ const TeacherTable = ({
     isMobile = false,
     isDesktopCard = false,
     operationLoading = { create: false, update: false, delete: false, suspend: false, reactivate: false },
+    rowLoading = { suspend: {}, reactivate: {} },
   }) => {
     const { userRole, isSuperAdmin } = useAuth();
 
@@ -207,8 +209,8 @@ const TeacherTable = ({
           {canSuspend && teacherStatus === 'active' && onSuspend && (
             <SuspendButton
               onClick={() => onSuspend(teacher)}
-              loading={operationLoading?.suspend}
-              disabled={operationLoading?.suspend}
+              loading={rowLoading?.suspend?.[teacher.id] ?? operationLoading?.suspend}
+              disabled={rowLoading?.suspend?.[teacher.id] ?? operationLoading?.suspend}
               className="w-full"
               size="xs"
             />
@@ -217,8 +219,8 @@ const TeacherTable = ({
           {canSuspend && teacherStatus === 'inactive' && onReactivate && (
             <ReactivateButton
               onClick={() => onReactivate(teacher)}
-              loading={operationLoading?.reactivate}
-              disabled={operationLoading?.reactivate}
+              loading={rowLoading?.reactivate?.[teacher.id] ?? operationLoading?.reactivate}
+              disabled={rowLoading?.reactivate?.[teacher.id] ?? operationLoading?.reactivate}
               className="w-full"
               size="xs"
             />
@@ -254,16 +256,16 @@ const TeacherTable = ({
         {canSuspend && teacherStatus === 'active' && onSuspend && (
           <SuspendButton
             onClick={() => onSuspend(teacher)}
-            loading={operationLoading?.suspend}
-            disabled={operationLoading?.suspend}
+            loading={rowLoading?.suspend?.[teacher.id] ?? operationLoading?.suspend}
+            disabled={rowLoading?.suspend?.[teacher.id] ?? operationLoading?.suspend}
           />
         )}
         
         {canSuspend && teacherStatus === 'inactive' && onReactivate && (
           <ReactivateButton
             onClick={() => onReactivate(teacher)}
-            loading={operationLoading?.reactivate}
-            disabled={operationLoading?.reactivate}
+            loading={rowLoading?.reactivate?.[teacher.id] ?? operationLoading?.reactivate}
+            disabled={rowLoading?.reactivate?.[teacher.id] ?? operationLoading?.reactivate}
           />
         )}
         
@@ -448,6 +450,7 @@ const TeacherTable = ({
           onReactivate={onReactivate}
           isMobile={true}
           operationLoading={operationLoading}
+          rowLoading={rowLoading}
         />
       </div>
     </div>

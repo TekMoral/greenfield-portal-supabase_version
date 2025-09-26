@@ -24,9 +24,9 @@ export function createServiceClient() {
 
 // Create client for user operations (with user's JWT)
 export function createUserClient(authHeader: string) {
-  const jwt = authHeader.replace('Bearer ', '')
-  
-  return createClient(
+  const jwt = (authHeader || '').replace('Bearer ', '').trim()
+
+  const client = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_ANON_KEY') ?? '',
     {
@@ -41,6 +41,16 @@ export function createUserClient(authHeader: string) {
       }
     }
   )
+
+  // Bind the JWT to the auth client so auth.getUser() works without passing a token param
+  try {
+    if (jwt) {
+      // @ts-ignore - setAuth is available in supabase-js v2
+      client.auth.setAuth(jwt)
+    }
+  } catch (_) { /* ignore */ }
+
+  return client
 }
 
 // Verify user has required role

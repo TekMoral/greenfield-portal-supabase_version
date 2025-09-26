@@ -54,6 +54,7 @@ const Teachers = () => {
     delete: false,
     reactivate: false
   });
+  const [rowLoading, setRowLoading] = useState({ suspend: {}, reactivate: {} });
   const [editTeacher, setEditTeacher] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, teacherId: null, teacherName: '' });
 
@@ -193,33 +194,35 @@ const Teachers = () => {
   };
 
   const handleSuspend = async (teacher) => {
+    const id = teacher.id;
     try {
-      setOperationLoading((p) => ({ ...p, suspend: true }));
+      setRowLoading(prev => ({ ...prev, suspend: { ...prev.suspend, [id]: true } }));
       if (teacher.isActive) {
-        await edgeFunctionsService.suspendUser(teacher.id, 'teacher', 'Suspended via admin panel');
+        await edgeFunctionsService.suspendUser(id, 'teacher', 'Suspended via admin panel');
         toast.success('Teacher suspended');
       } else {
-        await edgeFunctionsService.reactivateUser(teacher.id, 'teacher');
+        await edgeFunctionsService.reactivateUser(id, 'teacher');
         toast.success('Teacher reactivated');
       }
       await fetchTeachers();
     } catch (e) {
       toast.error(e?.userMessage || e?.message || 'Operation failed');
     } finally {
-      setOperationLoading((p) => ({ ...p, suspend: false }));
+      setRowLoading(prev => ({ ...prev, suspend: { ...prev.suspend, [id]: false } }));
     }
   };
 
   const handleReactivate = async (teacher) => {
+    const id = teacher.id;
     try {
-      setOperationLoading((p) => ({ ...p, reactivate: true }));
-      await edgeFunctionsService.reactivateUser(teacher.id, 'teacher');
+      setRowLoading(prev => ({ ...prev, reactivate: { ...prev.reactivate, [id]: true } }));
+      await edgeFunctionsService.reactivateUser(id, 'teacher');
       toast.success('Teacher reactivated');
       await fetchTeachers();
     } catch (e) {
       toast.error(e?.userMessage || e?.message || 'Failed to reactivate teacher');
     } finally {
-      setOperationLoading((p) => ({ ...p, reactivate: false }));
+      setRowLoading(prev => ({ ...prev, reactivate: { ...prev.reactivate, [id]: false } }));
     }
   };
 
@@ -425,6 +428,7 @@ const Teachers = () => {
         setItemsPerPage={setItemsPerPage}
         onPageChange={handlePageChange}
         operationLoading={operationLoading}
+        rowLoading={rowLoading}
         startItem={startItem}
         endItem={endItem}
         totalItems={filteredAndSortedTeachers.length}

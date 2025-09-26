@@ -26,11 +26,11 @@ export function setAccessToken(token) {
 
 function getFunctionsBaseUrl() {
   // 1) Explicit override (useful for local supabase serve)
-  const explicit = import.meta?.env?.VITE_SUPABASE_FUNCTIONS_URL
+  const explicit = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
   if (explicit) return explicit.replace(/\/$/, '')
 
   // 2) Standard Vite env
-  let supaUrl = import.meta?.env?.VITE_SUPABASE_URL || null
+  let supaUrl = import.meta.env.VITE_SUPABASE_URL || null
 
   // 3) Fallback to global (set by supabaseClient)
   if (!supaUrl && typeof window !== 'undefined' && window.supabaseUrl) {

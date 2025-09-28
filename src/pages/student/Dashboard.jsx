@@ -175,49 +175,46 @@ const Dashboard = () => {
         </p>
       </div>
 
-      {/* Student Info Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 px-2 sm:px-0">
-        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border-l-4 border-green-500">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0 flex-1">
-              <h3 className="text-xs sm:text-sm font-medium text-slate-600 uppercase tracking-wide">Current Class</h3>
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 mt-1 truncate">{student.class || 'N/A'}</p>
+      {/* Student Stats Summary (mobile friendly) */}
+      <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 lg:p-6 border border-slate-200 mx-2 sm:mx-0">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="p-2 border-l-4 border-green-500 rounded">
+            <div className="flex items-center justify-between">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-xs sm:text-sm font-medium text-slate-600 uppercase tracking-wide">Current Class</h3>
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 mt-1 truncate">{student.class || 'N/A'}</p>
+              </div>
+              <div className="text-green-600 text-xl sm:text-2xl ml-2 flex-shrink-0">🎓</div>
             </div>
-            <div className="text-green-600 text-xl sm:text-2xl ml-2 flex-shrink-0">🎓</div>
           </div>
-        </div>
-
-        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border-l-4 border-slate-700">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0 flex-1">
-              <h3 className="text-xs sm:text-sm font-medium text-slate-600 uppercase tracking-wide">Admission No.</h3>
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 mt-1 truncate">{student.admissionNumber || 'N/A'}</p>
+          <div className="p-2 border-l-4 border-slate-700 rounded">
+            <div className="flex items-center justify-between">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-xs sm:text-sm font-medium text-slate-600 uppercase tracking-wide">Admission No.</h3>
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 mt-1 truncate">{student.admissionNumber || 'N/A'}</p>
+              </div>
+              <div className="text-slate-700 text-xl sm:text-2xl ml-2 flex-shrink-0">🆔</div>
             </div>
-            <div className="text-slate-700 text-xl sm:text-2xl ml-2 flex-shrink-0">🆔</div>
           </div>
-        </div>
-
-        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border-l-4 border-green-600">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0 flex-1">
-              <h3 className="text-xs sm:text-sm font-medium text-slate-600 uppercase tracking-wide">Status</h3>
-              <span className={`inline-flex px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold mt-1 ${getStatusColor(student.status)}`}>
-                {student.status ? student.status.charAt(0).toUpperCase() + student.status.slice(1) : 'N/A'}
-              </span>
+          <div className="p-2 border-l-4 border-green-600 rounded">
+            <div className="flex items-center justify-between">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-xs sm:text-sm font-medium text-slate-600 uppercase tracking-wide">Status</h3>
+                <span className={`inline-flex px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold mt-1 ${getStatusColor(student.status)}`}>
+                  {student.status ? student.status.charAt(0).toUpperCase() + student.status.slice(1) : 'N/A'}
+                </span>
+              </div>
+              <div className="text-green-600 text-xl sm:text-2xl ml-2 flex-shrink-0">📊</div>
             </div>
-            <div className="text-green-600 text-xl sm:text-2xl ml-2 flex-shrink-0">📊</div>
           </div>
-        </div>
-
-        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border-l-4 border-slate-600">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0 flex-1">
-              <h3 className="text-xs sm:text-sm font-medium text-slate-600 uppercase tracking-wide">Academic Year</h3>
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 mt-1">
-                {student.academicYear || new Date().getFullYear()}
-              </p>
+          <div className="p-2 border-l-4 border-slate-600 rounded">
+            <div className="flex items-center justify-between">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-xs sm:text-sm font-medium text-slate-600 uppercase tracking-wide">Academic Year</h3>
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 mt-1">{student.academicYear || new Date().getFullYear()}</p>
+              </div>
+              <div className="text-slate-700 text-xl sm:text-2xl ml-2 flex-shrink-0">📅</div>
             </div>
-            <div className="text-slate-700 text-xl sm:text-2xl ml-2 flex-shrink-0">📅</div>
           </div>
         </div>
       </div>

@@ -2,9 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { reportService } from '../../services/supabase/reportService';
 import { supabase } from '../../lib/supabaseClient';
+import useToast from '../../hooks/useToast';
 
 const AdminStudentReports = () => {
   const { user } = useAuth();
+  const { showToast } = useToast();
   
   // Data states
   const [reports, setReports] = useState([]);
@@ -100,13 +102,13 @@ const AdminStudentReports = () => {
             ? { ...report, status: newStatus, admin_notes, reviewed_at: new Date().toISOString() }
             : report
         ));
-        alert(`Report ${newStatus} successfully!`);
+        showToast(`Report ${newStatus} successfully!`, 'success');
       } else {
-        alert(res?.error || 'Failed to update report status');
+        showToast(res?.error || 'Failed to update report status', 'error');
       }
     } catch (error) {
       console.error('Error updating report status:', error);
-      alert('Error updating report status');
+      showToast('Error updating report status', 'error');
     } finally {
       setUpdating(false);
     }

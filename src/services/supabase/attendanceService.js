@@ -250,7 +250,8 @@ export const attendanceService = {
         query = query.eq('subject_id', subjectId);
       }
 
-      const { data, error } = await query.order('students(user_profiles(full_name))', { ascending: true });
+      const { data, error } = await query
+        .order('full_name', { ascending: true, foreignTable: 'students.user_profiles' });
 
       if (error) throw error;
       return { success: true, data };

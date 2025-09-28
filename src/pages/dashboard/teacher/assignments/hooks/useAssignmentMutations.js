@@ -36,9 +36,16 @@ export const useAssignmentMutations = (userId, setAssignments) => {
         throw new Error('Please select at least one class.');
       }
 
+      // Clamp total marks to maximum 50
+      const safeForm = { ...form };
+      if (safeForm && typeof safeForm.totalMarks === 'number') {
+        if (safeForm.totalMarks > 50) safeForm.totalMarks = 50;
+        if (safeForm.totalMarks < 1) safeForm.totalMarks = 1;
+      }
+
       const results = [];
       for (const cid of classIds) {
-        const payload = mapCreatePayload(form, userId, cid, form.subjectId);
+        const payload = mapCreatePayload(safeForm, userId, cid, safeForm.subjectId);
         const res = await createAssignment(payload);
         if (res?.success === false) {
           throw new Error(res?.error || 'Failed to create assignment');

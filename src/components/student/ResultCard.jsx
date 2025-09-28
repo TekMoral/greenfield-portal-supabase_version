@@ -47,12 +47,7 @@ const ResultCard = ({ result }) => {
               {result.subject}
             </h2>
             <p className="text-gray-600 text-sm">{result.examTitle || 'Exam Result'}</p>
-            <div className="flex items-center space-x-2 mt-1 text-xs text-gray-500">
-              <span>{result.session}</span>
-              <span>•</span>
-              <span>{result.term}</span>
-            </div>
-          </div>
+                      </div>
           <div className="flex items-center justify-between sm:justify-end space-x-2">
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(result.status)}`}>
               {result.status === 'passed' ? 'Passed' : 'Failed'}

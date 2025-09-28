@@ -54,14 +54,11 @@ const Overview = () => {
       case 'add-student':
         navigate('/dashboard/students');
         break;
-      case 'new-class':
-        navigate('/dashboard/classes');
+      case 'add-teacher':
+        navigate('/dashboard/teachers');
         break;
       case 'reports':
         navigate('/dashboard/reports');
-        break;
-      case 'settings':
-        navigate('/dashboard/settings');
         break;
       default:
         break;
@@ -103,9 +100,11 @@ const Overview = () => {
           <h2 className="text-3xl font-bold text-gray-900 mb-2">
             Dashboard Overview
           </h2>
-          <p className="text-gray-600">
-            Welcome back, <span className="inline-block bg-gray-200 text-gray-800 font-semibold px-2 py-1 rounded-md">{user?.email?.split("@")[0]?.toUpperCase() || "ADMIN"}!</span> Here's what's happening at your school today.
-          </p>
+          <div className="rounded-lg bg-gradient-to-r from-slate-800 to-slate-900 text-white p-4 shadow border-l-4 border-emerald-500">
+            <p className="text-slate-200 text-sm sm:text-base">
+              Welcome back, <span className="inline-block bg-emerald-100 text-emerald-800 font-semibold px-2 py-1 rounded-md">{user?.email?.split("@")[0]?.toUpperCase() || "ADMIN"}</span>. Here is your admin overview for today.
+            </p>
+          </div>
         </div>
         <div className="hidden sm:block">
           <div className="flex items-center space-x-2 text-sm text-gray-500">
@@ -115,7 +114,50 @@ const Overview = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="sm:hidden">
+        <div className="bg-white/80 backdrop-blur-sm shadow-lg rounded-xl p-4 border border-gray-200/60">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-semibold text-gray-900">School Totals</h3>
+            <div className="flex items-center space-x-1 text-xs text-gray-500">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              <span>Live</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 divide-x divide-gray-200">
+            <div className="px-2 text-center">
+              <div className="text-2xl font-bold text-gray-900">{stats.totalStudents}</div>
+              <div className="text-[11px] uppercase tracking-wide text-gray-500 mt-1">Students</div>
+              <div className="text-xs text-emerald-600 mt-1 font-medium">+{stats.newStudentsThisMonth} this month</div>
+            </div>
+            <div className="px-2 text-center">
+              <div className="text-2xl font-bold text-gray-900">{stats.totalTeachers}</div>
+              <div className="text-[11px] uppercase tracking-wide text-gray-500 mt-1">Teachers</div>
+              <div className="text-xs text-emerald-600 mt-1 font-medium">+{stats.newTeachersThisMonth} this month</div>
+            </div>
+            <div className="px-2 text-center">
+              <div className="text-2xl font-bold text-gray-900">{stats.totalClasses}</div>
+              <div className="text-[11px] uppercase tracking-wide text-gray-500 mt-1">Classes</div>
+              <div className="text-xs text-blue-600 mt-1 font-medium">Active</div>
+            </div>
+          </div>
+        </div>
+        {/* Attendance Today (Mobile) */}
+        <div className="mt-4 bg-white/80 backdrop-blur-sm shadow-lg rounded-xl p-4 border border-emerald-200/60">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-base font-semibold text-gray-900">Attendance Today</h3>
+            <span className="text-xs text-gray-500">School-wide</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <AttendanceDonut percent={stats.attendanceTodayPercent} size={96} />
+            <div>
+              <p className="text-sm text-gray-600">Percentage of present students today</p>
+              <p className="text-xs text-gray-500 mt-1">Live dashboard stats</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="hidden sm:grid grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Total Students Card */}
         <div className="group bg-white/80 backdrop-blur-sm shadow-lg hover:shadow-xl rounded-xl p-6 border border-gray-200/50 transition-all duration-300 hover:-translate-y-1">
           <div className="flex items-center justify-between">
@@ -254,7 +296,7 @@ const Overview = () => {
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
           Quick Actions
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <button
             onClick={() => handleQuickAction('add-student')}
             className="flex flex-col items-center p-4 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors duration-200 group cursor-pointer"
@@ -277,11 +319,11 @@ const Overview = () => {
             </span>
           </button>
           <button
-            onClick={() => handleQuickAction('new-class')}
-            className="flex flex-col items-center p-4 rounded-lg bg-purple-50 hover:bg-purple-100 transition-colors duration-200 group cursor-pointer"
+            onClick={() => handleQuickAction('add-teacher')}
+            className="flex flex-col items-center p-4 rounded-lg bg-green-50 hover:bg-green-100 transition-colors duration-200 group cursor-pointer"
           >
             <svg
-              className="w-6 h-6 text-purple-600 mb-2 group-hover:scale-110 transition-transform duration-200"
+              className="w-6 h-6 text-green-600 mb-2 group-hover:scale-110 transition-transform duration-200"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -290,38 +332,11 @@ const Overview = () => {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-2M8 7v8a2 2 0 002 2h4a2 2 0 002-2V7"
+                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
               />
             </svg>
-            <span className="text-sm font-medium text-gray-700">New Class</span>
+            <span className="text-sm font-medium text-gray-700">Add Teacher</span>
           </button>
-                    {isSuperAdminUser && (
-            <button
-              onClick={() => handleQuickAction('settings')}
-              className="flex flex-col items-center p-4 rounded-lg bg-orange-50 hover:bg-orange-100 transition-colors duration-200 group cursor-pointer"
-            >
-              <svg
-                className="w-6 h-6 text-orange-600 mb-2 group-hover:scale-110 transition-transform duration-200"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-              </svg>
-              <span className="text-sm font-medium text-gray-700">Settings</span>
-            </button>
-          )}
         </div>
       </div>
 

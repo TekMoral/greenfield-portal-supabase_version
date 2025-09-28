@@ -95,12 +95,12 @@ const TeacherLayout = () => {
         {/* Mobile Toggle Button */}
         <button
           onClick={toggleMobileMenu}
-          className="fixed top-[var(--mobile-header-height,84px)] left-4 z-[1000] bg-teal-800 text-white px-3 py-2 rounded-md shadow-lg"
+          className="fixed top-[calc(var(--appbar-height,56px)+8px)] left-4 z-[10000] bg-teal-800 text-white px-2 py-1 rounded-md shadow-lg"
         >
           {isMobileMenuOpen ? (
-            <X className="w-6 h-6" />
+            <X className="w-4 h-4" />
           ) : (
-            <Menu className="w-6 h-6" />
+            <Menu className="w-4 h-4" />
           )}
         </button>
 
@@ -114,7 +114,7 @@ const TeacherLayout = () => {
 
         {/* Mobile Sidebar */}
         <aside
-          className={`fixed top-[var(--mobile-header-height,74px)] left-0 z-[1001] w-64 h-[calc(100vh-var(--mobile-header-height,64px))] bg-gradient-to-b from-teal-700 to-teal-800 text-white transform transition-transform duration-300 ease-in-out ${
+          className={`fixed top-[var(--appbar-height,56px)] left-0 z-[1001] w-64 h-[calc(100vh-var(--appbar-height,56px))] bg-gradient-to-b from-teal-700 to-teal-800 text-white transform transition-transform duration-300 ease-in-out ${
             isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
@@ -154,7 +154,7 @@ const TeacherLayout = () => {
         {/* Mobile Main Content */}
         <main
           className="flex-1 overflow-auto p-4"
-          style={{ paddingTop: "var(--mobile-header-height, 64px)" }}
+          style={{ paddingTop: "calc(var(--mobile-header-height, 64px) + 16px)" }}
         >
           <Outlet />
         </main>

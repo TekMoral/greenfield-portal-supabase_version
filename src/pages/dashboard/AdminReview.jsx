@@ -11,10 +11,11 @@ import { getAllClasses } from '../../services/supabase/classService';
 import { getSubjects } from '../../services/supabase/subjectService';
 import { getAllStudents } from '../../services/supabase/studentService';
 import AdminReviewModal from '../../components/examResults/AdminReviewModal';
-import { publishStudentTermReport } from '../../services/reportCardPublisher';
+import useToast from '../../hooks/useToast';
 
 const AdminReview = () => {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [pendingResults, setPendingResults] = useState([]);
   const [reviewedResults, setReviewedResults] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,6 +23,10 @@ const AdminReview = () => {
   const [selectedResults, setSelectedResults] = useState([]);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [selectedResult, setSelectedResult] = useState(null);
+  const [expanded, setExpanded] = useState({});
+  const toggleExpand = (id) => {
+    setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   
   // Reference data
@@ -160,23 +165,23 @@ const AdminReview = () => {
       setShowReviewModal(false);
       setSelectedResult(null);
       await fetchResults();
-      alert('Review submitted successfully!');
+      showToast('Review submitted successfully!', 'success');
     } catch (error) {
       console.error('Error submitting review:', error);
-      alert('Error submitting review. Please try again.');
+      showToast('Error submitting review. Please try again.', 'error');
     }
   };
 
   const handleBulkPublish = async () => {
     if (selectedResults.length === 0) {
-      alert('Please select results to publish');
+      showToast('Please select results to publish', 'error');
       return;
     }
 
     const selectedObjs = currentResults.filter(r => selectedResults.includes(r.id));
     const ineligible = selectedObjs.filter(r => !isEligibleForPublish(r));
     if (ineligible.length > 0) {
-      alert(`${ineligible.length} selected result(s) must be reviewed and graded (20%) before publishing.`);
+      showToast(`${ineligible.length} selected result(s) must be reviewed and graded (20%) before publishing.`, 'error');
       return;
     }
 
@@ -199,10 +204,10 @@ const AdminReview = () => {
       }
       setSelectedResults([]);
       await fetchResults();
-      alert(`${selectedResults.length} result(s) published successfully!`);
+      showToast(`${selectedResults.length} result(s) published successfully!`, 'success');
     } catch (error) {
       console.error('Error publishing results:', error);
-      alert('Error publishing results. Please try again.');
+      showToast('Error publishing results. Please try again.', 'error');
     }
   };
 
@@ -427,32 +432,32 @@ const AdminReview = () => {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-hidden md:overflow-x-auto">
           <table className="w-full">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden md:table-cell">
                   Select
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Student
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden md:table-cell">
                   Exam
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden md:table-cell">
                   Subject
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden md:table-cell">
                   Current Score
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden md:table-cell">
                   Admin Score
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden md:table-cell">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden md:table-cell">
                   Actions
                 </th>
               </tr>
@@ -469,7 +474,7 @@ const AdminReview = () => {
 
                 return (
                   <tr key={result.id} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
                       <input
                       type="checkbox"
                       checked={selectedResults.includes(result.id)}
@@ -480,24 +485,68 @@ const AdminReview = () => {
                       />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-slate-900">
-                        {getStudentName(result.studentId)}
+                      <div className="flex items-center gap-2 w-full">
+                        {/* Mobile inline checkbox */}
+                        <label className="inline-flex items-center md:hidden">
+                          <input
+                            type="checkbox"
+                            checked={selectedResults.includes(result.id)}
+                            onChange={() => handleSelectResult(result.id)}
+                            disabled={!isEligibleForPublish(result)}
+                            title={!isEligibleForPublish(result) ? 'Review and grade the admin 20% before publishing' : 'Select for publish'}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                          />
+                        </label>
+                        <div className="text-sm font-medium text-slate-900">
+                          {getStudentName(result.studentId)}
+                        </div>
+                        {/* Mobile Open/Close toggle */}
+                        <button
+                          type="button"
+                          onClick={() => toggleExpand(result.id)}
+                          className="md:hidden ml-auto inline-flex items-center text-xs px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+                        >
+                          {expanded[result.id] ? 'Close' : 'Open'}
+                        </button>
                       </div>
                       <div className="text-sm text-slate-500">
                         ID: {getStudentAdmissionNumber(result.studentId)}
                       </div>
+
+                      {/* Mobile details panel */}
+                      {expanded[result.id] && (
+                        <div className="md:hidden mt-3 p-3 rounded-lg border border-emerald-200 bg-emerald-50 text-sm space-y-2 shadow-sm">
+                          <div className="flex justify-between"><span className="text-slate-600">Exam</span><span className="font-medium text-slate-900">{result.examId ? getExamName(result.examId) : `${result.term || 'Term'} ${result.year || new Date().getFullYear()}`}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-600">Subject</span><span className="font-medium text-slate-900">{getSubjectName(result.subjectId)}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-600">Current Score</span><span className="font-medium text-slate-900">{(Number((result.testScore || 0) + (result.examScore || 0)) || Number(result.score ?? 0) || 0)}/80</span></div>
+                          <div className="flex justify-between"><span className="text-slate-600">Admin Score</span><span className="font-medium text-slate-900">{Number(result.adminScore ?? 0) || 0}/20</span></div>
+                          <div className="flex justify-between"><span className="text-slate-600">Final</span><span className="font-medium text-slate-900">{(Number((result.testScore || 0) + (result.examScore || 0)) + (Number(result.adminScore ?? 0) || 0))}/100 ({calculateGrade((Number((result.testScore || 0) + (result.examScore || 0)) + (Number(result.adminScore ?? 0) || 0)), 100).grade})</span></div>
+                          <div><span className={`px-2 py-1 rounded-full text-[11px] font-medium ${getStatusColor(result.status, result.published)}`}>{getStatusText(result.status, result.published)}</span></div>
+                          <div className="pt-1 flex flex-wrap gap-2">
+                            {activeTab === 'pending' && (
+                              <button onClick={() => handleReviewResult(result)} className="text-blue-600 hover:text-blue-800">Review</button>
+                            )}
+                            {activeTab === 'reviewed' && result.status === 'graded' && (
+                              <button onClick={() => handleReviewResult(result)} className="text-green-700 hover:text-green-900">Edit Review</button>
+                            )}
+                            {(activeTab === 'reviewed' || activeTab === 'published') && (
+                              <button onClick={() => handleReviewResult(result)} className="text-slate-700 hover:text-slate-900">View</button>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
                       <div className="text-sm font-medium text-slate-900">
                         {result.examId ? getExamName(result.examId) : `${result.term || 'Term'} ${result.year || new Date().getFullYear()}`}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
                       <div className="text-sm text-slate-900">
                         {getSubjectName(result.subjectId)}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
                       <div className="text-sm text-slate-900">
                         {originalScore}/{originalMaxScore}
                       </div>
@@ -505,7 +554,7 @@ const AdminReview = () => {
                         {((originalScore / originalMaxScore) * 100).toFixed(1)}%
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
                       <div>
                         <div className="text-sm text-slate-900">
                           {adminScore}/20
@@ -515,12 +564,12 @@ const AdminReview = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(result.status, result.published)}`}>
                         {getStatusText(result.status, result.published)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2 hidden md:table-cell">
                       {activeTab === 'pending' && (
                         <button
                           onClick={() => handleReviewResult(result)}
@@ -545,32 +594,7 @@ const AdminReview = () => {
                           View
                         </button>
                       )}
-                      {activeTab !== 'pending' && result.status === 'graded' && (
-                        <button
-                          onClick={async () => {
-                            try {
-                              const res = await publishStudentTermReport({
-                                studentId: result.studentId,
-                                term: result.term,
-                                academicYear: result.year,
-                              });
-                              if (res?.success && res.url) {
-                                window.open(res.url, '_blank');
-                              } else {
-                                alert(res?.error || 'Failed to generate report');
-                              }
-                            } catch (e) {
-                              console.error('Publish report card error:', e);
-                              alert('Failed to generate report');
-                            }
-                          }}
-                          className="text-purple-600 hover:text-purple-900"
-                          title="Generate & open report card PDF for this student"
-                        >
-                          Generate Report Card
-                        </button>
-                      )}
-                    </td>
+                                          </td>
                   </tr>
                 );
               })}

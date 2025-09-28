@@ -167,12 +167,12 @@ export default function StudentSubjects() {
   const department = classInfo?.category?.toLowerCase() || (classInfo?.level === 'Junior' ? 'junior' : 'general');
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+    <div className="max-w-4xl -mx-3 sm:mx-auto px-2 sm:px-4 py-6 sm:py-8 overflow-x-hidden">
+      <div className="bg-white rounded-none sm:rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
         {/* Header Section */}
         <div className={`bg-gradient-to-r ${getDepartmentColor(department)} text-white`}>
-          <div className="px-8 py-8">
-            <div className="flex items-center justify-between">
+          <div className="px-4 py-3 sm:px-8 sm:py-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-center space-x-4">
                 <div className="p-3 bg-white bg-opacity-20 rounded-xl backdrop-blur-sm">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -180,14 +180,14 @@ export default function StudentSubjects() {
                   </svg>
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold mb-1">My Subjects</h1>
+                  <h1 className="text-3xl font-bold mb-0">My Subjects</h1>
                   <p className="text-white text-opacity-90 text-sm font-medium">
                     {classInfo ? `${classInfo.name} - ${getDepartmentName(department)}` : 'Your Academic Subjects'}
                   </p>
                 </div>
               </div>
-              <div className="bg-white bg-opacity-20 backdrop-blur-sm px-6 py-3 rounded-xl border border-white border-opacity-30">
-                <div className="flex items-center space-x-3">
+              <div className="bg-transparent sm:bg-white sm:bg-opacity-20 sm:backdrop-blur-sm p-0 sm:px-6 sm:py-3 rounded-xl border-0 sm:border sm:border-white sm:border-opacity-30 w-full sm:w-auto text-center sm:text-left">
+                <div className="flex items-center justify-center sm:justify-start space-x-3">
                   <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
                   <span className="text-white font-semibold text-lg">
                     {subjects.length}
@@ -202,7 +202,7 @@ export default function StudentSubjects() {
         </div>
 
         {/* Content Section */}
-        <div className="p-8">
+        <div className="p-4 sm:p-8">
           {/* Student Info Card */}
           {studentInfo && (
             <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-6 mb-8 border border-gray-200">
@@ -252,15 +252,15 @@ export default function StudentSubjects() {
                 </p>
               </div>
             ) : (
-              <div className="grid gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {subjects.map((subject, index) => (
-                  <div key={subject.id || index} className="bg-white p-6 rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all duration-300">
+                  <div key={subject.id || index} className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all duration-300">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <div className="flex items-center space-x-4 mb-3">
-                          <div className="flex items-center space-x-3">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3 min-w-0">
+                          <div className="flex items-center gap-2 min-w-0">
                             <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full shadow-lg"></div>
-                            <h3 className="text-lg font-semibold text-gray-800">{subject.name}</h3>
+                            <h3 className="text-lg font-semibold text-gray-800 truncate">{subject.name}</h3>
                           </div>
                           {subject.code && (
                             <div className="bg-gray-100 px-3 py-1 rounded-full">
@@ -274,7 +274,7 @@ export default function StudentSubjects() {
                           )}
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 text-sm text-gray-600">
                           <div>
                             <span className="font-medium">Department:</span>
                             <p className="text-gray-800">{getDepartmentName(subject.department)}</p>

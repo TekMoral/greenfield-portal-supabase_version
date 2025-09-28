@@ -117,53 +117,44 @@ const Dashboard = () => {
         </p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border-l-4 border-green-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xs sm:text-sm font-medium text-slate-600 uppercase tracking-wide">My Classes</h3>
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 mt-1">
-                {teacherClasses.length}
-              </p>
+      {/* Stats Summary (mobile friendly) */}
+      <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 lg:p-6 border border-slate-200">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="p-2 border-l-4 border-green-500 rounded">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xs sm:text-sm font-medium text-slate-600 uppercase tracking-wide">My Classes</h3>
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 mt-1">{teacherClasses.length}</p>
+              </div>
+              <div className="text-green-600 text-xl sm:text-2xl">📚</div>
             </div>
-            <div className="text-green-600 text-xl sm:text-2xl">📚</div>
           </div>
-        </div>
-
-        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border-l-4 border-slate-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xs sm:text-sm font-medium text-slate-600 uppercase tracking-wide">Total Students</h3>
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 mt-1">
-                {totalStudents}
-              </p>
+          <div className="p-2 border-l-4 border-slate-700 rounded">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xs sm:text-sm font-medium text-slate-600 uppercase tracking-wide">Total Students</h3>
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 mt-1">{totalStudents}</p>
+              </div>
+              <div className="text-slate-700 text-xl sm:text-2xl">👥</div>
             </div>
-            <div className="text-slate-700 text-xl sm:text-2xl">👥</div>
           </div>
-        </div>
-
-        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border-l-4 border-green-600">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xs sm:text-sm font-medium text-slate-600 uppercase tracking-wide">Pending Grades</h3>
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 mt-1">
-                {pendingGrades}
-              </p>
+          <div className="p-2 border-l-4 border-green-600 rounded">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xs sm:text-sm font-medium text-slate-600 uppercase tracking-wide">Pending Grades</h3>
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 mt-1">{pendingGrades}</p>
+              </div>
+              <div className="text-green-600 text-xl sm:text-2xl">📝</div>
             </div>
-            <div className="text-green-600 text-xl sm:text-2xl">📝</div>
           </div>
-        </div>
-
-        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border-l-4 border-slate-600">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xs sm:text-sm font-medium text-slate-600 uppercase tracking-wide">Assignments</h3>
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 mt-1">
-                {assignmentStats.total || 0}
-              </p>
+          <div className="p-2 border-l-4 border-slate-600 rounded">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xs sm:text-sm font-medium text-slate-600 uppercase tracking-wide">Assignments</h3>
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 mt-1">{assignmentStats.total || 0}</p>
+              </div>
+              <div className="text-slate-700 text-xl sm:text-2xl">📋</div>
             </div>
-            <div className="text-slate-700 text-xl sm:text-2xl">📋</div>
           </div>
         </div>
       </div>

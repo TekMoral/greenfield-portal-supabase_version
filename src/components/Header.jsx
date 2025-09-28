@@ -1,4 +1,5 @@
-import React, { useState, useEffect, forwardRef } from 'react';
+import React, { useState, useEffect, useRef, forwardRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { COMPONENT_COLORS } from '../constants/colors';
@@ -11,6 +12,7 @@ const Header = forwardRef((props, ref) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isAcademicsMenuOpen, setIsAcademicsMenuOpen] = useState(false);
+  const localRef = useRef(null);
 
   // Helper function to get dashboard link based on user role
   const getDashboardLink = () => {
@@ -57,6 +59,27 @@ const Header = forwardRef((props, ref) => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Measure header height and expose as CSS var for mobile drawer offset
+  useEffect(() => {
+    const updateHeaderHeight = () => {
+      const h = localRef.current?.offsetHeight || 48;
+      document.documentElement.style.setProperty('--appbar-height', `${h}px`);
+    };
+    updateHeaderHeight();
+    window.addEventListener('resize', updateHeaderHeight);
+    return () => window.removeEventListener('resize', updateHeaderHeight);
+  }, [isScrolled]);
+
+  // Lock body scroll when mobile drawer is open
+  useEffect(() => {
+    if (isMenuOpen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev; };
+    }
+    return undefined;
+  }, [isMenuOpen]);
+
   const handleLogout = async () => {
     try {
       await signOut();
@@ -96,12 +119,17 @@ const Header = forwardRef((props, ref) => {
 
   return (
     <header
-      ref={ref}
+      ref={(el) => {
+        localRef.current = el;
+        if (typeof ref === 'function') ref(el);
+        else if (ref) ref.current = el;
+      }}
       className={`
         fixed top-0 left-0 right-0 z-[9999]
         transition-all duration-200 ease-in-out
-        ${isScrolled ? 'bg-slate-800/95 backdrop-blur-md shadow-lg py-2' : 'bg-slate-800 py-3'}
+        ${isScrolled ? 'bg-slate-800/95 backdrop-blur-md shadow-md' : 'bg-slate-800'}
         text-white
+        py-1 sm:py-2
       `}
       role="banner"
     >
@@ -114,16 +142,12 @@ const Header = forwardRef((props, ref) => {
               <img 
                 src={schoolLogo} 
                 alt="Greenfield College Logo" 
-                className={`transition-all duration-300 ${
-                  isScrolled ? 'w-10 h-10' : 'w-12 h-12'
-                } object-contain rounded-lg bg-white/10 p-1`}
+                className="transition-all duration-300 w-[clamp(28px,8vw,36px)] h-[clamp(28px,8vw,36px)] object-contain rounded-lg bg-white/10 p-0.5"
               />
             </div>
             <Link to="/" className="flex flex-col">
               <h1
-                className={`font-bold transition-all duration-300 select-none ${
-                  isScrolled ? 'text-lg' : 'text-xl'
-                } hover:text-emerald-200`}
+                className="block font-bold transition-all duration-300 select-none text-sm sm:text-base hover:text-emerald-200 whitespace-nowrap max-w-[50vw] sm:max-w-none truncate"
               >
                 Greenfield College
               </h1>
@@ -193,12 +217,13 @@ const Header = forwardRef((props, ref) => {
 
           {/* Primary CTAs */}
           <div className="flex items-center space-x-1 xs:space-x-2 sm:space-x-4">
-            {/* Apply Now Button - Always Visible */}
+            {/* Apply Now Button - hidden on xs, shown on sm+ */}
             <Link
               to="/apply"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white px-2 xs:px-3 sm:px-4 py-2 rounded-lg font-semibold transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-300 shadow-lg text-sm sm:text-base"
+              className="inline-flex items-center bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-md font-semibold transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-300 shadow-lg text-xs sm:text-sm sm:px-3 sm:py-1.5"
             >
-              Apply Now
+              <span className="sm:hidden">Apply</span>
+              <span className="hidden sm:inline">Apply Now</span>
             </Link>
 
             {/* User Section */}
@@ -256,7 +281,7 @@ const Header = forwardRef((props, ref) => {
             ) : (
               <Link
                 to="/login"
-                className="bg-white/10 hover:bg-white/20 text-white px-2 xs:px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white text-sm sm:text-base"
+                className="inline-flex items-center bg-white/10 hover:bg-white/20 text-white px-2.5 py-1 rounded-md font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white text-xs sm:text-sm sm:px-3 sm:py-1.5"
               >
                 Login
               </Link>
@@ -278,102 +303,111 @@ const Header = forwardRef((props, ref) => {
           </div>
         </div>
 
-        {/* Mobile Menu */}
-        {isMenuOpen && (
-          <nav
-            className="lg:hidden mt-4 pb-4 border-t border-white/20"
-            aria-label="Mobile Navigation"
-          >
-            <div className="flex flex-col space-y-3 pt-4">
-              {/* Main Navigation Links - Mobile */}
-              <Link
-                to="/about"
-                className="block py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                About Us
-              </Link>
-              
-              {/* Academics Section - Mobile */}
-              <div className="space-y-2">
-                <div className="py-2 text-emerald-200 font-medium">Academics</div>
-                <div className="pl-4 space-y-2">
-                  {academicsMenuItems.map((item, index) => (
-                    <Link
-                      key={index}
-                      to={item.path}
-                      className="flex items-center space-x-2 py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      <item.Icon className="w-4 h-4" />
-                      <span>{item.label}</span>
-                    </Link>
-                  ))}
+        {/* Mobile Drawer + Overlay rendered via portal to avoid stacking issues */}
+        {createPortal(
+          <>
+            {/* Overlay */}
+            <div
+              className={`lg:hidden fixed inset-0 z-[2147483646] bg-black/50 transition-opacity duration-200 ${isMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+              onClick={() => setIsMenuOpen(false)}
+            />
+            {/* Drawer Panel */}
+            <aside
+              className={`lg:hidden fixed top-0 left-0 z-[2147483647] h-full w-72 max-w-[85vw] bg-slate-800 text-white transform transition-transform duration-300 ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
+              style={{ paddingTop: 'var(--appbar-height, 48px)' }}
+              aria-label="Mobile Navigation"
+            >
+              <div className="h-full overflow-y-auto p-4">
+                <div className="flex flex-col space-y-3">
+                  <Link
+                    to="/about"
+                    className="block py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    About Us
+                  </Link>
+
+                  <div className="space-y-2">
+                    <div className="py-2 text-emerald-200 font-medium">Academics</div>
+                    <div className="pl-4 space-y-2">
+                      {academicsMenuItems.map((item, index) => (
+                        <Link
+                          key={index}
+                          to={item.path}
+                          className="flex items-center space-x-2 py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          <item.Icon className="w-4 h-4" />
+                          <span>{item.label}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+
+                  <Link
+                    to="/admission"
+                    className="block py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Admission
+                  </Link>
+                  <Link
+                    to="/news"
+                    className="block py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    News & Events
+                  </Link>
+                  <Link
+                    to="/contact"
+                    className="block py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Contact
+                  </Link>
+
+                  {user && (
+                    <>
+                      <div className="border-t border-white/20 my-3 pt-3">
+                        <div className="flex items-center space-x-3 mb-3">
+                          <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-white font-medium">
+                            {user.email.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="text-sm">
+                            <div className="font-medium">{user.name || 'User'}</div>
+                            <div className="text-emerald-200 text-xs">{user.email}</div>
+                          </div>
+                        </div>
+                        <Link
+                          to={profilePath}
+                          className="block py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          Profile
+                        </Link>
+                        {dashboardLink && (
+                          <Link
+                            to={dashboardLink.path}
+                            className="block py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
+                            onClick={() => setIsMenuOpen(false)}
+                          >
+                            {dashboardLink.label}
+                          </Link>
+                        )}
+                        <button
+                          onClick={handleLogout}
+                          className="w-full text-left py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
+                        >
+                          Logout
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
-
-              <Link
-                to="/admission"
-                className="block py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Admission
-              </Link>
-              <Link
-                to="/news"
-                className="block py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                News & Events
-              </Link>
-              <Link
-                to="/contact"
-                className="block py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Contact
-              </Link>
-
-              {/* User Menu Items - Mobile (if logged in) */}
-              {user && (
-                <>
-                  <div className="border-t border-white/20 my-3 pt-3">
-                    <div className="flex items-center space-x-3 mb-3">
-                      <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-white font-medium">
-                        {user.email.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="text-sm">
-                        <div className="font-medium">{user.name || 'User'}</div>
-                        <div className="text-emerald-200 text-xs">{user.email}</div>
-                      </div>
-                    </div>
-                    <Link
-                      to={profilePath}
-                      className="block py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      Profile
-                    </Link>
-                    {dashboardLink && (
-                      <Link
-                        to={dashboardLink.path}
-                        className="block py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
-                        onClick={() => setIsMenuOpen(false)}
-                      >
-                        {dashboardLink.label}
-                      </Link>
-                    )}
-                    <button
-                      onClick={handleLogout}
-                      className="w-full text-left py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
-                    >
-                      Logout
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </nav>
+            </aside>
+          </>,
+          document.body
         )}
       </div>
     </header>

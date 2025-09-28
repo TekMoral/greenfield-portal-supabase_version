@@ -9,8 +9,10 @@ import {
   updateResult
 } from "../../services/supabase/studentResultService";
 import { getAllSubjects } from "../../services/supabase/subjectService";
+import useToast from '../../hooks/useToast';
 
 const ExamResults = () => {
+  const { showToast } = useToast();
   // Filters specific to exam results
   const [filters, setFilters] = useState({
     year: "",
@@ -189,7 +191,7 @@ const ExamResults = () => {
         if (upd?.success) {
           setResults((prev) => prev.map((r) => (r.id === row.id ? { ...r, published: false, status: r.status === 'published' ? 'graded' : r.status } : r)));
         } else {
-          alert(upd?.error || 'Failed to unpublish');
+          showToast(upd?.error || 'Failed to unpublish', 'error');
         }
       } else {
         // Publish via RPC (requires identifiers)
@@ -197,12 +199,12 @@ const ExamResults = () => {
         if (pub?.success) {
           setResults((prev) => prev.map((r) => (r.id === row.id ? { ...r, published: true, status: 'published' } : r)));
         } else {
-          alert(pub?.error || 'Failed to publish');
+          showToast(pub?.error || 'Failed to publish', 'error');
         }
       }
     } catch (e) {
       console.error('Error toggling publish state:', e);
-      alert('Error toggling publish state');
+      showToast('Error toggling publish state', 'error');
     }
   };
 

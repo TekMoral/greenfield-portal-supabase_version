@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { publishReportsForClass } from '../../services/reportCardPublisher';
+import { publishReportsForClass, publishStudentTermReport } from '../../services/reportCardPublisher';
 import { getAllClasses, getStudentsInClass } from '../../services/supabase/classService';
 import { getAllStudents } from '../../services/supabase/studentService';
 import { supabase } from '../../lib/supabaseClient';
 import { useSettings } from '../../contexts/SettingsContext';
+import useToast from '../../hooks/useToast';
 
 const AdminReportCards = () => {
   // Reference data
   const [classes, setClasses] = useState([]);
   const { academicYear, currentTerm } = useSettings();
+  const { showToast } = useToast();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [classGroups, setClassGroups] = useState([]);
@@ -37,6 +39,14 @@ const AdminReportCards = () => {
   const [listTotal, setListTotal] = useState(0);
   const [listLoading, setListLoading] = useState(false);
   const [publishedCards, setPublishedCards] = useState([]);
+
+  // Hub tabs and individual generation state
+  const [activeTab, setActiveTab] = useState('bulk'); // 'bulk' | 'individual' | 'published'
+  const [individualStudentQuery, setIndividualStudentQuery] = useState('');
+  const [individualStudentId, setIndividualStudentId] = useState('');
+  const [indivTerm, setIndivTerm] = useState(1);
+  const [indivYear, setIndivYear] = useState(new Date().getFullYear());
+  const [isIndividualGenerating, setIsIndividualGenerating] = useState(false);
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -94,6 +104,8 @@ const AdminReportCards = () => {
       return Number.isFinite(n) ? n : new Date().getFullYear();
     })();
     setBulkYear(yearHead);
+    setIndivTerm(s.includes('2') ? 2 : s.includes('3') ? 3 : 1);
+    setIndivYear(yearHead);
   }, [academicYear, currentTerm]);
 
   // Load students for selected grouped class
@@ -172,12 +184,12 @@ const AdminReportCards = () => {
   const handleBulkGenerateReports = async () => {
     try {
       if (!bulkClassId || !bulkTerm || !bulkYear) {
-        alert('Select Class, Term, and Academic Year');
+        showToast('Select Class, Term, and Academic Year', 'error');
         return;
       }
       const classStudents = groupRoster;
       if (!classStudents || classStudents.length === 0) {
-        alert('No students found in selected class');
+        showToast('No students found in selected class', 'error');
         return;
       }
       if (!window.confirm(`Generate report cards for ${classStudents.length} students?`)) return;
@@ -196,12 +208,37 @@ const AdminReportCards = () => {
 
       const successCount = (results || []).filter(r => r.success).length;
       const failCount = (results || []).length - successCount;
-      alert(`Bulk generation complete.\nSuccessful: ${successCount}\nFailed: ${failCount}`);
+      showToast(`Bulk generation complete. Successful: ${successCount} • Failed: ${failCount}`, successCount > 0 && failCount === 0 ? 'success' : (successCount > 0 ? 'success' : 'error'));
     } catch (e) {
       console.error('Bulk report generation failed:', e);
-      alert(e?.userMessage || e?.message || 'Bulk generation failed');
+      showToast(e?.userMessage || e?.message || 'Bulk generation failed', 'error');
     } finally {
       setIsBulkGenerating(false);
+    }
+  };
+
+  const handleIndividualGenerate = async () => {
+    try {
+      if (!individualStudentId || !indivTerm || !indivYear) {
+        showToast('Select student, term, and academic year', 'error');
+        return;
+      }
+      setIsIndividualGenerating(true);
+      const res = await publishStudentTermReport({
+        studentId: individualStudentId,
+        term: Number(indivTerm),
+        academicYear: String(indivYear),
+      }, { persist: true, bucket: 'report-cards' });
+      if (res?.success) {
+        showToast('Report card generated successfully', 'success');
+      } else {
+        showToast(res?.error || 'Failed to generate report card', 'error');
+      }
+    } catch (e) {
+      console.error('Individual report generation failed:', e);
+      showToast(e?.message || 'Failed to generate report card', 'error');
+    } finally {
+      setIsIndividualGenerating(false);
     }
   };
 
@@ -299,8 +336,32 @@ const AdminReportCards = () => {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="border-b border-slate-200">
+        <nav className="flex gap-6 px-1">
+          <button
+            className={`py-3 text-sm font-medium ${activeTab === 'bulk' ? 'text-purple-700 border-b-2 border-purple-600' : 'text-slate-600 hover:text-slate-800'}`}
+            onClick={() => setActiveTab('bulk')}
+          >
+            Bulk Generate
+          </button>
+          <button
+            className={`py-3 text-sm font-medium ${activeTab === 'individual' ? 'text-purple-700 border-b-2 border-purple-600' : 'text-slate-600 hover:text-slate-800'}`}
+            onClick={() => setActiveTab('individual')}
+          >
+            Individual Generate
+          </button>
+          <button
+            className={`py-3 text-sm font-medium ${activeTab === 'published' ? 'text-purple-700 border-b-2 border-purple-600' : 'text-slate-600 hover:text-slate-800'}`}
+            onClick={() => setActiveTab('published')}
+          >
+            Published
+          </button>
+        </nav>
+      </div>
+
       {/* Bulk Generate Report Cards */}
-      <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
+      <div className={`${activeTab === 'bulk' ? '' : 'hidden'} bg-white rounded-lg shadow-md p-6 border border-slate-200`}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-slate-800">Bulk Generate Report Cards</h2>
           <span className="text-xs text-slate-500 bg-purple-50 px-2 py-1 rounded">PDF</span>
@@ -459,16 +520,183 @@ const AdminReportCards = () => {
             </div>
           </div>
         )}
-
-              </div>
-
-      {/* Generated Report Cards link */}
-      <div className="flex justify-end">
-        <Link to="/dashboard/generated-report-cards" className="inline-flex items-center px-4 py-2 rounded-lg font-medium text-white bg-blue-600 hover:bg-blue-700">
-          View Generated Report Cards
-        </Link>
       </div>
-    </div>
+
+      {/* Individual Generate */}
+      <div className={`${activeTab === 'individual' ? '' : 'hidden'} bg-white rounded-lg shadow-md p-6 border border-slate-200`}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-slate-800">Generate Individual Report Card</h2>
+          <span className="text-xs text-slate-500 bg-purple-50 px-2 py-1 rounded">PDF</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-slate-700 mb-2">Student</label>
+            <input
+              type="text"
+              value={individualStudentQuery}
+              onChange={(e) => setIndividualStudentQuery(e.target.value)}
+              placeholder="Search name or admission"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mb-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <select
+              value={individualStudentId}
+              onChange={(e) => setIndividualStudentId(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Select Student</option>
+              {students
+                .filter(s => {
+                  const q = individualStudentQuery.toLowerCase().trim();
+                  if (!q) return true;
+                  const name = (s.full_name || '').toLowerCase();
+                  const adm = (s.admission_number || '').toLowerCase();
+                  return name.includes(q) || adm.includes(q);
+                })
+                .slice(0, 200)
+                .map(s => (
+                  <option key={s.id} value={s.id}>
+                    {(s.full_name || 'Unknown')} • {s.admission_number || '—'}
+                  </option>
+                ))}
+            </select>
+            <p className="text-xs text-slate-500 mt-1">Showing up to 200 matches.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Term</label>
+            <select
+              value={indivTerm}
+              onChange={(e) => setIndivTerm(Number(e.target.value))}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value={1}>1st Term</option>
+              <option value={2}>2nd Term</option>
+              <option value={3}>3rd Term</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Academic Year</label>
+            <input
+              type="number"
+              value={indivYear}
+              onChange={(e) => setIndivYear(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        </div>
+        <div className="flex items-end mt-4">
+          <button
+            onClick={handleIndividualGenerate}
+            disabled={!individualStudentId || isIndividualGenerating}
+            className={`w-full md:w-auto px-4 py-2 rounded-lg font-medium text-white ${(!individualStudentId || isIndividualGenerating) ? 'bg-purple-600 opacity-50 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'}`}
+          >
+            {isIndividualGenerating ? 'Generating...' : 'Generate for Student'}
+          </button>
+        </div>
+      </div>
+
+      {/* Published */}
+      <div className={`${activeTab === 'published' ? '' : 'hidden'} bg-white rounded-lg shadow-md p-6 border border-slate-200`}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-slate-800">Published Report Cards</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Term</label>
+            <select
+              value={listTerm}
+              onChange={(e) => setListTerm(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">All</option>
+              <option value={1}>1st Term</option>
+              <option value={2}>2nd Term</option>
+              <option value={3}>3rd Term</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Academic Year</label>
+            <input
+              type="text"
+              value={listYear}
+              onChange={(e) => setListYear(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="e.g., 2024"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-slate-700 mb-2">Search Student</label>
+            <input
+              type="text"
+              value={listSearch}
+              onChange={(e) => setListSearch(e.target.value)}
+              placeholder="Name or Admission Number"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="text-left px-3 py-2">Student</th>
+                <th className="text-left px-3 py-2">Admission</th>
+                <th className="text-left px-3 py-2">Term</th>
+                <th className="text-left px-3 py-2">Year</th>
+                <th className="text-left px-3 py-2">Download</th>
+              </tr>
+            </thead>
+            <tbody>
+              {listLoading ? (
+                <tr><td className="px-3 py-4" colSpan={5}>Loading...</td></tr>
+              ) : (publishedCards || []).length === 0 ? (
+                <tr><td className="px-3 py-4 text-slate-500" colSpan={5}>No report cards found</td></tr>
+              ) : (
+                publishedCards.map((card) => {
+                  const student = students.find(s => s.id === card.student_id);
+                  return (
+                    <tr key={card.id} className="border-t">
+                      <td className="px-3 py-2">{student?.full_name || '—'}</td>
+                      <td className="px-3 py-2">{student?.admission_number || '—'}</td>
+                      <td className="px-3 py-2">{card.term}</td>
+                      <td className="px-3 py-2">{card.academic_year}</td>
+                      <td className="px-3 py-2">
+                        {card.file_url ? (
+                          <a href={card.file_url} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:text-purple-800">Open</a>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+        {/* Simple pagination */}
+        {listTotal > listPageSize && (
+          <div className="flex items-center justify-end gap-2 mt-3 text-sm">
+            <button
+              className="px-3 py-1 border rounded disabled:opacity-50"
+              disabled={listPage === 0}
+              onClick={() => setListPage((p) => Math.max(0, p - 1))}
+            >
+              Prev
+            </button>
+            <div>
+              Page {listPage + 1} / {Math.ceil(listTotal / listPageSize)}
+            </div>
+            <button
+              className="px-3 py-1 border rounded disabled:opacity-50"
+              disabled={(listPage + 1) >= Math.ceil(listTotal / listPageSize)}
+              onClick={() => setListPage((p) => p + 1)}
+            >
+              Next
+            </button>
+          </div>
+        )}
+      </div>
+          </div>
   );
 };
 

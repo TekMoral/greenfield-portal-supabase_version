@@ -986,8 +986,8 @@ const Students = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="min-h-screen bg-gray-50 -mx-3 sm:mx-0">
+      <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
@@ -998,173 +998,310 @@ const Students = () => {
               Manage student records, promotions, and status
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-center lg:justify-end gap-2 sm:gap-3 w-full">
-            <select
-              value={selectedClassId}
-              onChange={(e) => setSelectedClassId(e.target.value)}
-              className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-sm"
-            >
-              <option value="">All Classes</option>
-              {classGroups.map((g) => (
-                <option key={g.key} value={g.key}>
-                  {g.label}
-                </option>
-              ))}
-            </select>
-            <CreateButton
-              onClick={handleAddClick}
-              loading={operationLoading.create}
-              disabled={operationLoading.create}
-              className="w-full sm:w-auto"
-            >
-              Add Student
-            </CreateButton>
-            {isAdmin && (
-              <button
-                className="w-full sm:w-auto sm:ml-2 px-4 py-2 rounded-lg bg-blue-600 text-white font-medium disabled:opacity-30"
-                disabled={selectedIds.length === 0}
-                onClick={() => setBulkModalOpen(true)}
-                type="button"
+          <div className="flex flex-col gap-3 w-full">
+            {/* Top Row - Filter and Primary Action */}
+            <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 flex-1">
+                <select
+                  value={selectedClassId}
+                  onChange={(e) => setSelectedClassId(e.target.value)}
+                  className="w-full sm:w-auto min-w-[160px] px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-sm shadow-sm transition-all duration-200 hover:border-gray-400"
+                >
+                  <option value="">All Classes</option>
+                  {classGroups.map((g) => (
+                    <option key={g.key} value={g.key}>
+                      {g.label}
+                    </option>
+                  ))}
+                </select>
+                {isAdmin && (
+                  <div className="flex items-center">
+                    <StudentStatusFilter
+                      className="w-full sm:w-auto"
+                      value={includeGraduated}
+                      onChange={setIncludeGraduated}
+                      label="Include Graduated"
+                      helperText="Show alumni in results"
+                    />
+                  </div>
+                )}
+              </div>
+              <CreateButton
+                onClick={handleAddClick}
+                loading={operationLoading.create}
+                disabled={operationLoading.create}
+                className="w-full sm:w-auto shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200"
               >
-                Promote Selected ({selectedIds.length})
-              </button>
-            )}
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Add Student
+              </CreateButton>
+            </div>
+
+            {/* Bottom Row - Bulk Actions (Admin Only) */}
             {isAdmin && (
-              <button
-                className="w-full sm:w-auto sm:ml-2 px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium disabled:opacity-30"
-                disabled={selectedIds.length === 0}
-                onClick={() => {
-                  const targets = students.filter(s => selectedIds.includes(s.id) && (s.status === 'active' || !s.status));
-                  setGraduateConfirm({ isOpen: true, students: targets });
-                }}
-                type="button"
-                title="Select one or more active students to graduate"
-              >
-                Graduate Selected ({selectedIds.length})
-              </button>
-            )}
-            {isAdmin && (
-              <StudentStatusFilter
-                className="w-full sm:w-auto sm:ml-2"
-                value={includeGraduated}
-                onChange={setIncludeGraduated}
-                label="Include Graduated"
-                helperText="Show alumni in results"
-              />
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                <button
+                  className={`flex-1 sm:flex-none px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center shadow-sm hover:shadow-md transform hover:-translate-y-0.5 ${
+                    selectedIds.length === 0
+                      ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
+                      : "bg-blue-600 text-white hover:bg-blue-700 border border-blue-600"
+                  }`}
+                  disabled={selectedIds.length === 0}
+                  onClick={() => setBulkModalOpen(true)}
+                  type="button"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                  </svg>
+                  Promote Selected ({selectedIds.length})
+                </button>
+                <button
+                  className={`flex-1 sm:flex-none px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center shadow-sm hover:shadow-md transform hover:-translate-y-0.5 ${
+                    selectedIds.length === 0
+                      ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
+                      : "bg-indigo-600 text-white hover:bg-indigo-700 border border-indigo-600"
+                  }`}
+                  disabled={selectedIds.length === 0}
+                  onClick={() => {
+                    const targets = students.filter(s => selectedIds.includes(s.id) && (s.status === 'active' || !s.status));
+                    setGraduateConfirm({ isOpen: true, students: targets });
+                  }}
+                  type="button"
+                  title="Select one or more active students to graduate"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+                  </svg>
+                  Graduate Selected ({selectedIds.length})
+                </button>
+              </div>
             )}
           </div>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <svg
-                  className="w-6 h-6 text-green-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"
-                  />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">
-                  Total Students
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {students.length}
-                </p>
+        <div className="mb-6">
+          {/* Mobile: Single Container */}
+          <div className="block sm:hidden">
+            <div className="bg-white rounded-xl shadow-sm border-2 border-gray-300 p-4">
+              <div className="grid grid-cols-2 gap-4">
+                {/* Total Students */}
+                <div className="text-center">
+                  <div className="p-2 bg-green-100 rounded-lg mx-auto w-fit mb-2">
+                    <svg
+                      className="w-5 h-5 text-green-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"
+                      />
+                    </svg>
+                  </div>
+                  <p className="text-xs font-medium text-gray-600 mb-1">
+                    Total Students
+                  </p>
+                  <p className="text-xl font-bold text-gray-900">
+                    {students.length}
+                  </p>
+                </div>
+
+                {/* Total Classes */}
+                <div className="text-center">
+                  <div className="p-2 bg-blue-100 rounded-lg mx-auto w-fit mb-2">
+                    <svg
+                      className="w-5 h-5 text-blue-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                      />
+                    </svg>
+                  </div>
+                  <p className="text-xs font-medium text-gray-600 mb-1">
+                    Total Classes
+                  </p>
+                  <p className="text-xl font-bold text-gray-900">
+                    {classes.length}
+                  </p>
+                </div>
+
+                {/* Active Students */}
+                <div className="text-center">
+                  <div className="p-2 bg-purple-100 rounded-lg mx-auto w-fit mb-2">
+                    <svg
+                      className="w-5 h-5 text-purple-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                  </div>
+                  <p className="text-xs font-medium text-gray-600 mb-1">
+                    Active Students
+                  </p>
+                  <p className="text-xl font-bold text-gray-900">
+                    {students.filter(s => s.status === 'active' || !s.status).length}
+                  </p>
+                </div>
+
+                {/* Academic Year */}
+                <div className="text-center">
+                  <div className="p-2 bg-orange-100 rounded-lg mx-auto w-fit mb-2">
+                    <svg
+                      className="w-5 h-5 text-orange-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
+                  </div>
+                  <p className="text-xs font-medium text-gray-600 mb-1">
+                    Academic Year
+                  </p>
+                  <p className="text-lg font-bold text-gray-900">
+                    {currentAcademicYear}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <svg
-                  className="w-6 h-6 text-blue-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                  />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">
-                  Total Classes
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {classes.length}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <svg
-                  className="w-6 h-6 text-purple-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">
-                  Active Students
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {students.filter(s => s.status === 'active' || !s.status).length}
-                </p>
+          {/* Desktop: Separate Cards */}
+          <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <svg
+                    className="w-6 h-6 text-green-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"
+                    />
+                  </svg>
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">
+                    Total Students
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {students.length}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <svg
-                  className="w-6 h-6 text-orange-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <svg
+                    className="w-6 h-6 text-blue-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                    />
+                  </svg>
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">
+                    Total Classes
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {classes.length}
+                  </p>
+                </div>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">
-                  Academic Year
-                </p>
-                <p className="text-xl font-bold text-gray-900">
-                  {currentAcademicYear}
-                </p>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <svg
+                    className="w-6 h-6 text-purple-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">
+                    Active Students
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {students.filter(s => s.status === 'active' || !s.status).length}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <svg
+                    className="w-6 h-6 text-orange-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">
+                    Academic Year
+                  </p>
+                  <p className="text-xl font-bold text-gray-900">
+                    {currentAcademicYear}
+                  </p>
+                </div>
               </div>
             </div>
           </div>

@@ -5,6 +5,7 @@ import { classService } from '../../services/supabase/classService'
 import { sendMessageToStudent } from '../../services/supabase/studentManagementService'
 import { useAuth } from '../../hooks/useAuth'
 import { supabase } from '../../lib/supabaseClient'
+import useToast from '../../hooks/useToast'
 
 const fmt = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '')
 const todayISO = fmt(new Date())
@@ -13,6 +14,7 @@ const oneWeekAgoISO = fmt(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000))
 export default function AdminAttendance() {
   const queryClient = useQueryClient()
   const { user } = useAuth()
+  const { showToast } = useToast()
 
   // UI state
   const [activeTab, setActiveTab] = useState('mark') // 'mark' | 'records'
@@ -258,12 +260,12 @@ export default function AdminAttendance() {
   const saveMarkedAttendance = async () => {
     try {
       if (!mark.classId || !mark.date) {
-        alert('Select Class and Date to save attendance')
+        showToast('Select Class and Date to save attendance', 'error')
         return
       }
       const entries = Object.entries(statuses).filter(([_, v]) => v && v.status)
       if (entries.length === 0) {
-        alert('No statuses selected. Set at least one student status before saving.')
+        showToast('No statuses selected. Set at least one student status before saving.', 'error')
         return
       }
       const payload = []
@@ -276,7 +278,7 @@ export default function AdminAttendance() {
         payload.push({ student_id: studentId, class_id: classId, date: mark.date, status: v.status })
       }
       if (payload.length === 0) {
-        alert('All selected entries are finalized and cannot be changed.')
+        showToast('All selected entries are finalized and cannot be changed.', 'error')
         return
       }
       setSaving(true)
@@ -285,13 +287,13 @@ export default function AdminAttendance() {
       await queryClient.invalidateQueries({ queryKey: ['admin','attendance'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard','overview'] })
       setSaving(false)
-      alert(`Saved ${payload.length} record(s).`)
+      showToast(`Saved ${payload.length} record(s).`, 'success')
       // Optionally retain selections for another save; comment out next line to keep
       // setStatuses({})
     } catch (err) {
       console.error('Save attendance failed:', err)
       setSaving(false)
-      alert(err.message || 'Failed to save')
+      showToast(err.message || 'Failed to save', 'error')
     }
   }
 
@@ -344,13 +346,13 @@ export default function AdminAttendance() {
       )
       
       if (result.success) {
-        alert(`Attendance notification sent to ${studentName}`)
+        showToast(`Attendance notification sent to ${studentName}`, 'success')
       } else {
-        alert(`Failed to send notification: ${result.error}`)
+        showToast(`Failed to send notification: ${result.error}`, 'error')
       }
     } catch (error) {
       console.error('Error sending attendance notification:', error)
-      alert('Failed to send notification')
+      showToast('Failed to send notification', 'error')
     } finally {
       setSendingMessage(prev => ({ ...prev, [recordKey]: false }))
     }
@@ -359,7 +361,7 @@ export default function AdminAttendance() {
   // Send bulk attendance notifications to all students in class for a specific date
   const sendBulkAttendanceNotifications = async () => {
     if (classDayRecords.length === 0) {
-      alert('No attendance records to send')
+      showToast('No attendance records to send', 'error')
       return
     }
 
@@ -384,7 +386,7 @@ export default function AdminAttendance() {
       duplicateCount = classDayRecords.length - recordsToSend.length
 
       if (recordsToSend.length === 0) {
-        alert('All students have already been notified for this date.')
+        showToast('All students have already been notified for this date.', 'success')
         setSendingBulk(false)
         return
       }
@@ -434,10 +436,10 @@ export default function AdminAttendance() {
         message = `❌ Failed to send notifications. Please try again.`
       }
       
-      alert(message)
+      showToast(message, successCount > 0 ? 'success' : 'error')
     } catch (error) {
       console.error('Error in bulk send:', error)
-      alert('Failed to send bulk notifications')
+      showToast('Failed to send bulk notifications', 'error')
     } finally {
       setSendingBulk(false)
     }
@@ -603,7 +605,7 @@ export default function AdminAttendance() {
   // Load term records for all students in class
   const loadTermRecords = async () => {
     if (!termSendConfig.classId || !termSendConfig.term || !termSendConfig.academicYear) {
-      alert('Please select class, term, and academic year')
+      showToast('Please select class, term, and academic year', 'error')
       return
     }
 
@@ -651,7 +653,7 @@ export default function AdminAttendance() {
       setShowTermSendModal(true)
     } catch (error) {
       console.error('Error loading term records:', error)
-      alert('Failed to load term attendance records')
+      showToast('Failed to load term attendance records', 'error')
     } finally {
       setLoadingTermRecords(false)
     }
@@ -660,7 +662,7 @@ export default function AdminAttendance() {
   // Send term attendance reports to all students
   const sendTermAttendanceReports = async () => {
     if (termRecords.length === 0) {
-      alert('No term attendance records to send')
+      showToast('No term attendance records to send', 'error')
       return
     }
 
@@ -691,7 +693,7 @@ export default function AdminAttendance() {
       duplicateCount = termRecords.length - studentsToSend.length
 
       if (studentsToSend.length === 0) {
-        alert(`All students have already received their ${termName} Term attendance reports.`)
+        showToast(`All students have already received their ${termName} Term attendance reports.`, 'success')
         setSendingBulk(false)
         return
       }
@@ -741,11 +743,11 @@ export default function AdminAttendance() {
         message = `❌ Failed to send term reports. Please try again.`
       }
       
-      alert(message)
+      showToast(message, successCount > 0 ? 'success' : 'error')
       setShowTermSendModal(false)
     } catch (error) {
       console.error('Error in term report send:', error)
-      alert('Failed to send term attendance reports')
+      showToast('Failed to send term attendance reports', 'error')
     } finally {
       setSendingBulk(false)
     }
@@ -754,7 +756,7 @@ export default function AdminAttendance() {
   // Load bulk records for date range (legacy function)
   const loadBulkRecords = async () => {
     if (!bulkSendRange.classId || !bulkSendRange.startDate || !bulkSendRange.endDate) {
-      alert('Please select class and date range')
+      showToast('Please select class and date range', 'error')
       return
     }
 
@@ -787,7 +789,7 @@ export default function AdminAttendance() {
       setShowBulkSendModal(true)
     } catch (error) {
       console.error('Error loading bulk records:', error)
-      alert('Failed to load attendance records')
+      showToast('Failed to load attendance records', 'error')
     } finally {
       setLoadingBulkRecords(false)
     }
@@ -796,7 +798,7 @@ export default function AdminAttendance() {
   // Send bulk notifications for date range
   const sendBulkRangeNotifications = async () => {
     if (bulkRecords.length === 0) {
-      alert('No attendance records to send')
+      showToast('No attendance records to send', 'error')
       return
     }
 
@@ -825,7 +827,7 @@ export default function AdminAttendance() {
       duplicateCount = bulkRecords.length - recordsToSend.length
 
       if (recordsToSend.length === 0) {
-        alert('All students have already been notified for the selected date range.')
+        showToast('All students have already been notified for the selected date range.', 'success')
         setSendingBulk(false)
         return
       }
@@ -874,11 +876,11 @@ export default function AdminAttendance() {
         message = `❌ Failed to send notifications. Please try again.`
       }
       
-      alert(message)
+      showToast(message, successCount > 0 ? 'success' : 'error')
       setShowBulkSendModal(false)
     } catch (error) {
       console.error('Error in bulk range send:', error)
-      alert('Failed to send bulk notifications')
+      showToast('Failed to send bulk notifications', 'error')
     } finally {
       setSendingBulk(false)
     }

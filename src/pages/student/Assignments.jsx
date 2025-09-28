@@ -4,6 +4,8 @@ import { getAssignmentsForStudent, submitAssignment, submitObjectiveAssignment }
 import ObjectiveAssignmentModal from "./components/ObjectiveAssignmentModal";
 import { getStudentSubjects } from "../../services/supabase/teacherStudentService";
 import { supabase } from "../../lib/supabaseClient";
+import useToast from '../../hooks/useToast';
+import { sendMessageToStudent } from "../../services/supabase/studentManagementService";
 
 const StudentAssignments = () => {
   const { user } = useAuth();
@@ -17,6 +19,7 @@ const StudentAssignments = () => {
   // File upload and type removed; only text submissions are supported
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [theoryQuestions, setTheoryQuestions] = useState([]);
+  const { showToast } = useToast();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -132,13 +135,13 @@ const StudentAssignments = () => {
     // Prevent re-submission if already submitted/graded
     const currentStatus = getAssignmentStatus(submissionModal.assignment);
     if (currentStatus !== 'pending') {
-      alert('You have already submitted this assignment.');
+      showToast('You have already submitted this assignment.', 'error');
       return;
     }
 
     // Validation
     if (!submissionText.trim()) {
-      alert('Please enter your submission text.');
+      showToast('Please enter your submission text.', 'error');
       return;
     }
 
@@ -190,15 +193,25 @@ const StudentAssignments = () => {
       });
 
       setAssignments(updatedAssignments);
+
+      // Create in-app notification for the student (fire-and-forget)
+      try {
+        const title = submissionModal.assignment?.title || 'Assignment';
+        await sendMessageToStudent(
+          user.id,
+          `Your submission for "${title}" was received successfully.`,
+          'assignment_submission'
+        );
+      } catch (_) { /* ignore notification errors */ }
       
       // Reset form
       setSubmissionModal({ isOpen: false, assignment: null });
       setSubmissionText("");
       
-      alert('Assignment submitted successfully!');
+      showToast('Assignment submitted successfully!', 'success');
     } catch (error) {
       console.error('Error submitting assignment:', error);
-      alert('Failed to submit assignment. Please try again.');
+      showToast('Failed to submit assignment. Please try again.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -229,6 +242,11 @@ const StudentAssignments = () => {
     );
   }
 
+  const totalCount = assignments.length;
+  const pendingCount = assignments.filter(a => getAssignmentStatus(a) === 'pending').length;
+  const submittedCount = assignments.filter(a => getAssignmentStatus(a) === 'submitted').length;
+  const gradedCount = assignments.filter(a => getAssignmentStatus(a) === 'graded').length;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -238,28 +256,82 @@ const StudentAssignments = () => {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      {/* Stats - Mobile */}
+      <div className="block sm:hidden">
+        <div className="bg-white rounded-xl shadow-sm border p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-slate-800">Assignment Overview</h3>
+            <span className="text-xs text-slate-500">This term</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {/* Total */}
+            <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200">
+              <div>
+                <div className="text-xs text-slate-500">Total</div>
+                <div className="text-lg font-bold text-slate-800">{totalCount}</div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h18" />
+                </svg>
+              </div>
+            </div>
+            {/* Pending */}
+            <div className="flex items-center justify-between p-3 rounded-lg border border-amber-200 bg-amber-50">
+              <div>
+                <div className="text-xs text-amber-700">Pending</div>
+                <div className="text-lg font-bold text-amber-800">{pendingCount}</div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3" />
+                </svg>
+              </div>
+            </div>
+            {/* Submitted */}
+            <div className="flex items-center justify-between p-3 rounded-lg border border-blue-200 bg-blue-50">
+              <div>
+                <div className="text-xs text-blue-700">Submitted</div>
+                <div className="text-lg font-bold text-blue-800">{submittedCount}</div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            </div>
+            {/* Graded */}
+            <div className="flex items-center justify-between p-3 rounded-lg border border-emerald-200 bg-emerald-50">
+              <div>
+                <div className="text-xs text-emerald-700">Graded</div>
+                <div className="text-lg font-bold text-emerald-800">{gradedCount}</div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats - Desktop */}
+      <div className="hidden sm:grid sm:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-lg shadow border-l-4 border-slate-500">
-          <div className="text-2xl font-bold text-slate-800">{assignments.length}</div>
+          <div className="text-2xl font-bold text-slate-800">{totalCount}</div>
           <div className="text-sm text-slate-600">Total</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow border-l-4 border-yellow-500">
-          <div className="text-2xl font-bold text-slate-800">
-            {assignments.filter(a => getAssignmentStatus(a) === 'pending').length}
-          </div>
+          <div className="text-2xl font-bold text-slate-800">{pendingCount}</div>
           <div className="text-sm text-slate-600">Pending</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow border-l-4 border-blue-500">
-          <div className="text-2xl font-bold text-slate-800">
-            {assignments.filter(a => getAssignmentStatus(a) === 'submitted').length}
-          </div>
+          <div className="text-2xl font-bold text-slate-800">{submittedCount}</div>
           <div className="text-sm text-slate-600">Submitted</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow border-l-4 border-green-500">
-          <div className="text-2xl font-bold text-slate-800">
-            {assignments.filter(a => getAssignmentStatus(a) === 'graded').length}
-          </div>
+          <div className="text-2xl font-bold text-slate-800">{gradedCount}</div>
           <div className="text-sm text-slate-600">Graded</div>
         </div>
       </div>
@@ -385,7 +457,7 @@ const StudentAssignments = () => {
       {/* Submission Modal */}
       {submissionModal.isOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden">
+          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="bg-slate-600 text-white p-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -403,7 +475,7 @@ const StudentAssignments = () => {
               </div>
             </div>
 
-            <div className="p-6">
+            <div className="p-6 flex-1 overflow-y-auto">
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -444,7 +516,7 @@ const StudentAssignments = () => {
                             <div className="flex items-start justify-between gap-3">
                               <div className="font-medium">{q.text}</div>
                               {typeof q.points === 'number' && (
-                                <div className="text-xs text-slate-500">{q.points} pts</div>
+                                <div className="text-xs text-slate-500">{q.points} marks</div>
                               )}
                             </div>
                           </li>
@@ -539,7 +611,7 @@ const StudentAssignments = () => {
           assignment={objectiveModal.assignment}
           studentId={user?.id}
           onClose={() => setObjectiveModal({ isOpen: false, assignment: null })}
-          onSubmitted={({ auto_score, total_score }) => {
+          onSubmitted={async ({ auto_score, total_score }) => {
             const updated = assignments.map((a) => {
               if (a.id !== objectiveModal.assignment.id) return a;
               const submissions = a.submissions || [];
@@ -551,6 +623,15 @@ const StudentAssignments = () => {
               return { ...a, submissions: nextSubs };
             });
             setAssignments(updated);
+            // Notify student of objective submission
+            try {
+              const title = objectiveModal.assignment?.title || 'Assignment';
+              await sendMessageToStudent(
+                user.id,
+                `Your objective submission for "${title}" was received successfully.`,
+                'assignment_submission'
+              );
+            } catch (_) { /* ignore notification errors */ }
           }}
           submitFn={submitObjectiveAssignment}
         />

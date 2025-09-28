@@ -16,8 +16,6 @@ const QuestionRow = ({ q, idx, onChange, onRemove, disabled = false, onlyShortAn
               disabled={disabled}
             >
               <option value="mcq">Multiple Choice</option>
-              <option value="short_answer">Short Answer</option>
-              <option value="true_false">True/False</option>
             </select>
           )}
         </div>
@@ -72,17 +70,7 @@ const QuestionRow = ({ q, idx, onChange, onRemove, disabled = false, onlyShortAn
         </div>
       )}
 
-      {q.type === 'true_false' && (
-        <div className="flex items-center gap-3 text-sm">
-          <label className="flex items-center gap-1">
-            <input type="radio" name={`tf-${idx}`} checked={q.correct_answer === true} onChange={() => onChange({ correct_answer: true })} disabled={disabled} /> True
-          </label>
-          <label className="flex items-center gap-1">
-            <input type="radio" name={`tf-${idx}`} checked={q.correct_answer === false} onChange={() => onChange({ correct_answer: false })} disabled={disabled} /> False
-          </label>
-        </div>
-      )}
-
+      
       <div className="flex items-center gap-3">
         <label className="text-sm text-slate-700">Points</label>
         <input
@@ -157,8 +145,6 @@ const QuestionsEditorModal = ({ open, assignment, state, onAdd, onUpdate, onRemo
             isObjective ? (
               <div className="flex flex-wrap gap-2 pt-2">
                 <button onClick={() => onAdd('mcq')} className="bg-slate-800 text-white px-3 py-2 rounded text-sm hover:bg-slate-700">+ Add MCQ</button>
-                <button onClick={() => onAdd('short_answer')} className="bg-slate-800 text-white px-3 py-2 rounded text-sm hover:bg-slate-700">+ Add Short Answer</button>
-                <button onClick={() => onAdd('true_false')} className="bg-slate-800 text-white px-3 py-2 rounded text-sm hover:bg-slate-700">+ Add True/False</button>
               </div>
             ) : (
               <div className="flex flex-wrap gap-2 pt-2">

@@ -3,6 +3,7 @@ import { createAssignment, updateAssignment, deleteAssignment, createAssignmentW
 import { gradeStudentSubmission } from '@features/assignments/api/submissions';
 import { publishAssignment } from '@features/assignments/api/management';
 import { mapAssignmentRowToUI } from '@features/assignments/api/normalize';
+import useToast from '../../../hooks/useToast';
 
 // Utility to map UI form to API payload (per class)
 const mapCreatePayload = (form, userId, classId, subjectId = null) => ({
@@ -24,6 +25,7 @@ export const useAssignmentMutations = (userId, setAssignments) => {
   const [closing, setClosing] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [grading, setGrading] = useState(false);
+  const { showToast } = useToast();
 
   const create = async (form) => {
     setCreating(true);
@@ -86,12 +88,12 @@ export const useAssignmentMutations = (userId, setAssignments) => {
         maxPoints: updatedRow.maxPoints ?? a.maxPoints,
       } : a)));
 
-      // Simple feedback; replace with toast if available
-      alert('Assignment published successfully!');
+      // Feedback via global toast
+      showToast('Assignment published successfully!', 'success');
       return updatedRow;
     } catch (e) {
       console.error('Failed to publish assignment:', e);
-      alert(`Failed to publish assignment: ${e.message || 'Unknown error'}`);
+      showToast(`Failed to publish assignment: ${e.message || 'Unknown error'}`, 'error');
       throw e;
     } finally {
       setPublishing(false);

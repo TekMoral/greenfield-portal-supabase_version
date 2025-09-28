@@ -4,6 +4,7 @@ import { getAllClasses } from "../../services/supabase/classService";
 import { subjectService } from "../../services/supabase/subjectService";
 import { useSettings } from "../../contexts/SettingsContext";
 import { formatFullClassName, formatClassWithLevel } from "../../utils/classNameFormatter";
+import useToast from '../../hooks/useToast';
 
 // Helper: map day (1-7) <-> label
 const DAY_LABELS = {
@@ -65,6 +66,7 @@ const normalizeRow = (row) => ({
 
 const AdminTimetable = () => {
   const { academicYear: globalAcademicYear, currentTerm } = useSettings();
+  const { showToast } = useToast();
 
   // Filters
   const [academicYear, setAcademicYear] = useState(() => normalizeAcademicYear(globalAcademicYear));
@@ -264,7 +266,7 @@ const AdminTimetable = () => {
       resetDraft();
       await fetchEntries();
     } catch (e2) {
-      alert(e2.message || "Failed to create timetable entry");
+      showToast(e2.message || "Failed to create timetable entry", 'error');
       console.error(e2);
     } finally {
       setCreating(false);
@@ -289,7 +291,7 @@ const AdminTimetable = () => {
       }
       await fetchEntries();
     } catch (e) {
-      alert(e.message || "Failed to delete entry");
+      showToast(e.message || "Failed to delete entry", 'error');
       console.error(e);
     }
   };

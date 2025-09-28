@@ -3,6 +3,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { studentService, classService } from "../../services/supabase";
 import { generateStudentEmail } from "../../utils/emailGenerator";
+import useToast from '../../hooks/useToast';
 
 const StudentForm = ({ onSubmit, onCancel, defaultValues = {}, mode = "add", classes: classesProp = [], imagePreview: imagePreviewProp = null, onImageSelect }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -12,6 +13,7 @@ const StudentForm = ({ onSubmit, onCancel, defaultValues = {}, mode = "add", cla
   const [imagePreview, setImagePreview] = useState(
     defaultValues?.Image || null
   );
+  const { showToast } = useToast();
 
   const {
     register,
@@ -227,19 +229,29 @@ const StudentForm = ({ onSubmit, onCancel, defaultValues = {}, mode = "add", cla
     }
   };
 
+  // Ensure we always capture the file locally even if an external handler is provided
+  const handleImageSelectUnified = (e) => {
+    try {
+      if (typeof onImageSelect === 'function') {
+        onImageSelect(e);
+      }
+    } catch (_) { /* ignore external handler errors but still capture locally */ }
+    handleImageSelect(e);
+  };
+
   // Final submission handler
   const onFormSubmit = async (data) => {
     setIsSubmitting(true);
     setSubmitMessage("");
     try {
       if (!Array.isArray(classes)) {
-        alert("Classes not loaded. Please wait and try again.");
+        showToast("Classes not loaded. Please wait and try again.", 'error');
         return;
       }
 
       const selectedClass = classes.find((cls) => cls.id === data.class_id);
       if (!selectedClass?.id) {
-        alert("Please select a valid class.");
+        showToast("Please select a valid class.", 'error');
         return;
       }
 
@@ -324,109 +336,79 @@ const StudentForm = ({ onSubmit, onCancel, defaultValues = {}, mode = "add", cla
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-8 px-4">
-      <div className="max-w-5xl mx-auto">
-        {/* Header Section */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full mb-4">
-            <svg
-              className="w-8 h-8 text-white"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
-              />
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            {mode === "edit" ? "Update Student Information" : "Add New Student"}
-          </h1>
-          <p className="text-gray-600">
-            {mode === "edit"
-              ? "Update the student details below"
-              : "Fill in the information to register a new student"}
-          </p>
-        </div>
-
-        <form
-          onSubmit={handleSubmit(onFormSubmit)}
-          className="bg-white rounded-2xl shadow-xl overflow-hidden"
-        >
-          {/* Profile Image Section */}
-          <div className="bg-gradient-to-r from-blue-400 to-indigo-500 px-8 py-4">
-            <div className="text-center">
-              <label className="block mb-4 text-lg font-semibold text-white">
-                Profile Picture
-              </label>
-              <div className="relative inline-block">
-                <div className="w-32 h-32 mx-auto border-4 border-white rounded-full flex items-center justify-center overflow-hidden bg-white shadow-lg">
-                  {(imagePreviewProp ?? imagePreview) ? (
-                    <img
-                      src={imagePreviewProp ?? imagePreview}
-                      alt="Profile preview"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="text-center">
-                      <svg
-                        className="w-12 h-12 text-gray-400 mx-auto mb-2"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                        />
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                      </svg>
-                      <span className="text-xs text-gray-500">No photo</span>
-                    </div>
-                  )}
-                </div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={onImageSelect || handleImageSelect}
-                  className="hidden"
-                  id="profile-image"
-                />
-                <label
-                  htmlFor="profile-image"
-                  className="absolute -bottom-2 -right-2 bg-white text-blue-600 p-2 rounded-full shadow-lg hover:bg-gray-50 cursor-pointer transition-colors duration-200"
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                    />
-                  </svg>
-                </label>
-              </div>
-              <p className="text-blue-100 text-sm mt-4">
-                Click the + button to upload a photo
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-2 sm:p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-4 sm:px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center mr-3">
+              <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold text-white">
+                {mode === "edit" ? "Update Student" : "Register Student"}
+              </h1>
+              <p className="text-blue-100 text-xs sm:text-sm">
+                {mode === "edit" ? "Update student details" : "Register a new student"}
               </p>
             </div>
           </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit(onFormSubmit)} className="flex flex-col max-h-[calc(95vh-80px)]">
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto">
+            {/* Profile Image Section */}
+            <div className="bg-gradient-to-r from-blue-400 to-indigo-500 px-4 sm:px-6 py-4">
+              <div className="flex items-center justify-center gap-6">
+                <div className="relative">
+                  <div className="w-28 h-28 sm:w-32 sm:h-32 border-4 border-white rounded-full flex items-center justify-center overflow-hidden bg-white shadow-lg">
+                    {(imagePreviewProp ?? imagePreview) ? (
+                      <img
+                        src={imagePreviewProp ?? imagePreview}
+                        alt="Profile preview"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <svg className="w-12 h-12 sm:w-14 sm:h-14 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageSelectUnified}
+                    className="hidden"
+                    id="profile-image"
+                  />
+                  <label
+                    htmlFor="profile-image"
+                    className="absolute -bottom-2 -right-2 bg-white text-blue-600 p-2 rounded-full shadow-lg hover:bg-gray-50 cursor-pointer transition-colors duration-200"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                  </label>
+                </div>
+                <div className="text-left">
+                  <h3 className="text-white font-semibold text-base sm:text-lg">Profile Picture</h3>
+                  <p className="text-blue-100 text-sm mt-1">Click + to upload photo</p>
+                  <p className="text-blue-200 text-xs mt-1">Max size: 5MB</p>
+                </div>
+              </div>
+            </div>
 
           {/* Form Content */}
           <div className="p-8">
@@ -838,110 +820,69 @@ const StudentForm = ({ onSubmit, onCancel, defaultValues = {}, mode = "add", cla
               </div>
             </div>
 
-            {/* Submit Buttons */}
-            <div className="mt-8 pt-8 border-t border-gray-200">
-              <div className="flex flex-col sm:flex-row gap-4">
-                {/* Cancel Button */}
-                {onCancel && (
-                  <button
-                    type="button"
-                    onClick={onCancel}
-                    disabled={isSubmitting}
-                    className={`flex-1 py-4 px-6 rounded-lg font-semibold text-lg transition-all duration-200 flex items-center justify-center ${
-                      isSubmitting
-                        ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200 border-2 border-gray-300 hover:border-gray-400"
-                    }`}
-                  >
-                    <svg
-                      className="w-5 h-5 mr-2"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                    Cancel
-                  </button>
-                )}
-                
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={isSubmitting || !isValid}
-                  className={`${onCancel ? 'flex-1' : 'w-full'} py-4 px-6 rounded-lg font-semibold text-lg transition-all duration-200 flex items-center justify-center ${
-                    isSubmitting || !isValid
-                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
-                  }`}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <svg
-                        className="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-500"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                      </svg>
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <svg
-                        className="w-5 h-5 mr-2"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                      {mode === "edit" ? "Update Student" : "Add Student"}
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Form validation status */}
-              {!isValid && Object.keys(errors).length > 0 && (
-                <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="text-sm text-amber-800 flex items-center">
-                    <svg
-                      className="w-4 h-4 mr-2"
-                      fill="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm-1 15l-5-5 1.414-1.414L11 14.172l7.586-7.586L20 8l-9 9z" />
-                    </svg>
-                    Please fill in all required fields correctly before
-                    submitting.
-                  </p>
-                </div>
-              )}
             </div>
+          </div>
+
+          {/* Fixed Footer with Submit Buttons */}
+          <div className="border-t border-gray-200 bg-gray-50 px-4 sm:px-6 py-4">
+            <div className="flex flex-row gap-3">
+              {/* Cancel Button */}
+              <button
+                type="button"
+                onClick={onCancel}
+                disabled={isSubmitting}
+                className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center ${
+                  isSubmitting
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 hover:border-gray-400"
+                }`}
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Cancel
+              </button>
+              
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={isSubmitting || !isValid}
+                className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center ${
+                  isSubmitting || !isValid
+                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg"
+                }`}
+              >
+                {isSubmitting ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    {mode === "edit" ? "Update Student" : "Add Student"}
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Form validation status */}
+            {!isValid && Object.keys(errors).length > 0 && (
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm text-amber-800 flex items-center">
+                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm-1 15l-5-5 1.414-1.414L11 14.172l7.586-7.586L20 8l-9 9z" />
+                  </svg>
+                  Please fill in all required fields correctly before submitting.
+                </p>
+              </div>
+            )}
           </div>
         </form>
       </div>

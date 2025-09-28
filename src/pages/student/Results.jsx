@@ -33,26 +33,32 @@ const Results = () => {
           getAllExams()
         ]);
 
-        const subjectsData = subjectsResult.success ? subjectsResult.data : [];
-        const resultsArray = resultsResp?.success ? resultsResp.data : (Array.isArray(resultsResp) ? resultsResp : []);
+        const subjectsData = subjectsResult?.success ? (subjectsResult.data || []) : (Array.isArray(subjectsResult) ? subjectsResult : []);
+        const resultsArray = resultsResp?.success ? (resultsResp.data || []) : (Array.isArray(resultsResp) ? resultsResp : []);
+        const allExamsArray = allExamsData?.success ? (allExamsData.data || []) : (Array.isArray(allExamsData) ? allExamsData : []);
 
         // Helper functions to resolve names
         const getSubjectName = (subjectId) => {
-          const subject = subjectsData.find(s => s.id === subjectId || s.name === subjectId);
-          return subject ? subject.name : subjectId;
+          const sid = subjectId == null ? '' : String(subjectId);
+          if (!sid) return 'Unknown Subject';
+          const subject = subjectsData.find(s => String(s.id) === sid || String(s.name) === sid);
+          return subject ? subject.name : sid;
         };
 
         const getExamName = (examId) => {
-          const exam = allExamsData.find(e => e.id === examId);
-          return exam ? exam.examName || exam.title || 'Exam' : 'Exam';
+          const eid = examId == null ? '' : String(examId);
+          if (!eid) return 'Exam';
+          const exam = allExamsArray.find(e => String(e.id) === eid);
+          return exam ? (exam.examName || exam.title || 'Exam') : 'Exam';
         };
 
         // Transform the data to match ResultCard expectations
         const transformedResults = resultsArray.map(result => {
           const maxScore = 100; // Default max score
-          const percentage = Math.round((result.totalScore / maxScore) * 100);
-          const gradeInfo = calculateGrade(result.totalScore, maxScore);
-          const subjectName = getSubjectName(result.subjectId);
+          const percentage = Math.round(((Number(result.totalScore) || 0) / maxScore) * 100);
+          const gradeInfo = calculateGrade(Number(result.totalScore) || 0, maxScore);
+          const rawSubjectId = result.subjectId ?? result.subject_id;
+          const subjectName = result.subjectName || result.subject_name || getSubjectName(rawSubjectId);
           const examName = result.examId ? getExamName(result.examId) : `Term ${result.term || ''} ${result.year || ''} Exam`.trim();
           
           return {
@@ -84,7 +90,7 @@ const Results = () => {
         setResults(transformedResults);
         setActiveExams(examsData);
         setSubjects(subjectsData);
-        setExams(allExamsData);
+        setExams(allExamsArray);
       } catch (error) {
         console.error("Error fetching results:", error);
         setResults([]);
@@ -171,61 +177,55 @@ const Results = () => {
         </div>
       )}
 
-      {/* Stats Cards */}
+      {/* Stats Summary */}
       {results.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
+              <div className="p-2 bg-blue-100 rounded-lg hidden sm:block">
                 <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                 </svg>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Exams</p>
-                <p className="text-2xl font-bold text-gray-900">{filteredResults.length}</p>
+              <div className="ml-0 sm:ml-4">
+                <p className="text-xs sm:text-sm font-medium text-gray-600">Total Exams</p>
+                <p className="text-xl sm:text-2xl font-bold text-gray-900">{filteredResults.length}</p>
               </div>
             </div>
-          </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
+              <div className="p-2 bg-green-100 rounded-lg hidden sm:block">
                 <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Passed</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.passed}</p>
+              <div className="ml-0 sm:ml-4">
+                <p className="text-xs sm:text-sm font-medium text-gray-600">Passed</p>
+                <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.passed}</p>
               </div>
             </div>
-          </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
-              <div className="p-2 bg-red-100 rounded-lg">
+              <div className="p-2 bg-red-100 rounded-lg hidden sm:block">
                 <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Failed</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.failed}</p>
+              <div className="ml-0 sm:ml-4">
+                <p className="text-xs sm:text-sm font-medium text-gray-600">Failed</p>
+                <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.failed}</p>
               </div>
             </div>
-          </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
-              <div className="p-2 bg-yellow-100 rounded-lg">
+              <div className="p-2 bg-yellow-100 rounded-lg hidden sm:block">
                 <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 00-2 2v6a2 2 0 00-2 2zm6-10V5a2 2 0 00-2-2h-2a2 2 0 00-2 2v4h6z" />
                 </svg>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Average</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.average}%</p>
+              <div className="ml-0 sm:ml-4">
+                <p className="text-xs sm:text-sm font-medium text-gray-600">Average</p>
+                <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.average}%</p>
               </div>
             </div>
           </div>

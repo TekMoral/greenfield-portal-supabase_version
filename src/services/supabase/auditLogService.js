@@ -152,8 +152,8 @@ export const logAdminActivity = async (logData) => {
     } = logData;
 
     // Validate required fields
-    if (!adminId || !adminEmail || !action || !resource) {
-      console.warn('Missing required fields for audit log:', { adminId, adminEmail, action, resource });
+    if (!adminId || !action || !resource) {
+      console.warn('Missing required fields for audit log:', { adminId, action, resource });
       return null;
     }
 
@@ -162,22 +162,18 @@ export const logAdminActivity = async (logData) => {
 
     // Create audit log entry
     const auditEntry = {
-      admin_id: adminId,
-      admin_email: adminEmail,
+      user_id: adminId,
       action,
-      resource,
+      resource_type: resource,
       resource_id: resourceId || null,
-      details,
-      metadata: {
-        ...metadata,
-        userAgent: navigator?.userAgent || 'Unknown',
-        ip: metadata.ip || 'Unknown',
-        timestamp: new Date().toISOString()
+      details: {
+        ...details,
+        created_by: adminEmail || null,
+        description: description || `${action} performed on ${resource}`,
       },
-      description: description || `${action} performed on ${resource}`,
-      risk_level: riskLevel,
-      is_sensitive: riskLevel === RISK_LEVELS.CRITICAL || riskLevel === RISK_LEVELS.HIGH,
-      session_id: metadata.sessionId || null
+      ip_address: (metadata && metadata.ip) || null,
+      user_agent: (metadata && metadata.userAgent) || (typeof navigator !== 'undefined' ? navigator.userAgent : null),
+      created_at: new Date().toISOString()
     };
 
     // Store in Supabase
@@ -224,13 +220,13 @@ export const getAuditLogs = async (filters = {}) => {
 
     // Apply filters
     if (adminId) {
-      query = query.eq('admin_id', adminId);
+      query = query.eq('user_id', adminId);
     }
     if (action) {
       query = query.eq('action', action);
     }
     if (resource) {
-      query = query.eq('resource', resource);
+      query = query.eq('resource_type', resource);
     }
     if (riskLevel) {
       query = query.eq('risk_level', riskLevel);
@@ -290,14 +286,16 @@ export const getAuditLogStats = async (filters = {}) => {
       // Count by action
       stats.byAction[log.action] = (stats.byAction[log.action] || 0) + 1;
       
-      // Count by resource
-      stats.byResource[log.resource] = (stats.byResource[log.resource] || 0) + 1;
+      // Count by resource (resource_type)
+      stats.byResource[log.resource_type] = (stats.byResource[log.resource_type] || 0) + 1;
       
-      // Count by risk level
-      stats.byRiskLevel[log.risk_level] = (stats.byRiskLevel[log.risk_level] || 0) + 1;
+      // Risk level may not exist in current schema; keep if present
+      if (log.risk_level) {
+        stats.byRiskLevel[log.risk_level] = (stats.byRiskLevel[log.risk_level] || 0) + 1;
+      }
       
-      // Count by admin
-      stats.byAdmin[log.admin_email] = (stats.byAdmin[log.admin_email] || 0) + 1;
+      // Count by admin (by user_id)
+      stats.byAdmin[log.user_id] = (stats.byAdmin[log.user_id] || 0) + 1;
     });
 
     return { success: true, data: stats };
@@ -352,11 +350,10 @@ export const exportAuditLogs = async (filters = {}) => {
     
     const csvHeaders = [
       'Timestamp',
-      'Admin Email',
+      'Actor',
       'Action',
-      'Resource',
+      'Resource Type',
       'Resource ID',
-      'Risk Level',
       'Description',
       'IP Address',
       'User Agent'
@@ -364,14 +361,13 @@ export const exportAuditLogs = async (filters = {}) => {
     
     const csvRows = logs.map(log => [
       log.created_at || '',
-      log.admin_email || '',
+      (log.details?.created_by || log.user_id || ''),
       log.action || '',
-      log.resource || '',
+      log.resource_type || '',
       log.resource_id || '',
-      log.risk_level || '',
-      log.description || '',
-      log.metadata?.ip || '',
-      log.metadata?.userAgent || ''
+      (log.details?.description || ''),
+      (log.ip_address || ''),
+      (log.user_agent || '')
     ]);
     
     const csvContent = [

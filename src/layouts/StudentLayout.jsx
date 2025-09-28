@@ -29,13 +29,13 @@ const StudentLayout = () => {
       {/* Mobile Toggle Button */}
       <button
         onClick={toggleMobileMenu}
-        className="md:hidden fixed top-[var(--mobile-header-height,84px)] left-4 z-[1000] bg-teal-800 text-white px-3 py-2 rounded-md shadow-lg"
+        className="md:hidden fixed top-[var(--appbar-height,56px)] left-4 z-[1000] bg-teal-800 text-white px-2 py-1 rounded-md shadow-lg"
         aria-label="Toggle menu"
       >
         {isMobileMenuOpen ? (
-          <X className="w-6 h-6" />
+          <X className="w-4 h-4" />
         ) : (
-          <Menu className="w-6 h-6" />
+          <Menu className="w-4 h-4" />
         )}
       </button>
 
@@ -49,7 +49,7 @@ const StudentLayout = () => {
 
       {/* Mobile Sidebar */}
       <aside
-        className={`md:hidden fixed top-[var(--mobile-header-height,74px)] left-0 z-[1001] w-64 h-[calc(100vh-var(--mobile-header-height,64px))] bg-gradient-to-b from-teal-700 to-teal-800 text-white transform transition-transform duration-300 ease-in-out ${
+        className={`md:hidden fixed top-[var(--appbar-height,56px)] left-0 z-[1001] w-64 h-[calc(100vh-var(--appbar-height,56px))] bg-gradient-to-b from-teal-700 to-teal-800 text-white transform transition-transform duration-300 ease-in-out ${
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

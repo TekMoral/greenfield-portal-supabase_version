@@ -2,12 +2,14 @@ import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import PasswordInput from "../ui/PasswordInput";
 import { getSubjects } from "../../services/supabase/subjectService";
+import useToast from '../../hooks/useToast';
 
 const TeacherForm = ({ onSubmit, onCancel, error, loading = false, mode = 'add', defaultValues = {} }) => {
   const [imagePreview, setImagePreview] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
   const [subjects, setSubjects] = useState([]);
   const [subjectsLoading, setSubjectsLoading] = useState(true);
+  const { showToast } = useToast();
 
   // Predefined qualifications list
   const qualifications = [
@@ -53,12 +55,12 @@ const TeacherForm = ({ onSubmit, onCancel, error, loading = false, mode = 'add',
     const file = e.target.files[0];
     if (file) {
       if (!file.type.startsWith("image/")) {
-        alert("Please select a valid image file");
+        showToast("Please select a valid image file", 'error');
         return;
       }
 
       if (file.size > 5 * 1024 * 1024) {
-        alert("File size must be less than 5MB");
+        showToast("File size must be less than 5MB", 'error');
         return;
       }
 

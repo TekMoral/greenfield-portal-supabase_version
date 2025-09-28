@@ -301,7 +301,7 @@ const Attendance = () => {
   }
 
   return (
-    <div className="p-4 space-y-4 max-w-7xl mx-auto">
+    <div className="-mx-3 sm:mx-auto px-2 sm:px-4 space-y-4 max-w-7xl">
       {/* Header - Mobile First */}
       <div className="space-y-2">
         <h1 className="text-xl font-bold text-slate-800 sm:text-2xl lg:text-3xl">

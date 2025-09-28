@@ -5,10 +5,12 @@ import { useAuth } from "../../../hooks/useAuth";
 import { getTeacherByUid, updateTeacher } from "../../../services/supabase/teacherService";
 import useAuditLog from "../../../hooks/useAuditLog";
 import ProfileImage from "../../../components/common/ProfileImage";
+import useToast from '../../../hooks/useToast';
 
 const Profile = () => {
   const { user } = useAuth();
   const { logTeacherAction, AUDIT_ACTIONS } = useAuditLog();
+  const { showToast } = useToast();
   const [profile, setProfile] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
@@ -86,7 +88,7 @@ const Profile = () => {
       console.log("Profile updated successfully");
     } catch (error) {
       console.error('Error updating profile:', error);
-      alert('Failed to update profile. Please try again.');
+      showToast('Failed to update profile. Please try again.', 'error');
     }
   };
 
@@ -147,14 +149,6 @@ const Profile = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">My Profile</h1>
-        {!isEditing && (
-          <button
-            onClick={() => setIsEditing(true)}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
-          >
-            Edit Profile
-          </button>
-        )}
       </div>
 
       <div className="bg-white rounded-lg shadow-md overflow-hidden border border-slate-200">
@@ -177,7 +171,7 @@ const Profile = () => {
 
         {/* Profile Content */}
         <div className="p-6">
-          {isEditing ? (
+          {false ? (
             <form onSubmit={handleSave} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>

@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabaseClient';
 import edgeFunctionsService from './edgeFunctions';
 
+
 // Simple validation (moved here to remove Cloudinary dependency)
 function validateFile(file, { maxSize, allowedTypes }) {
   const errors = [];
@@ -79,7 +80,7 @@ async function compressImageFile(file, options = {}) {
  */
 export const uploadStudentImage = async (file, admissionNumber, studentId = null) => {
   try {
-    // Validate the image file
+        // Validate the image file
     const validation = validateFile(file, {
       maxSize: 5 * 1024 * 1024, // 5MB max for profile images
       allowedTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
@@ -117,27 +118,21 @@ export const uploadStudentImage = async (file, admissionNumber, studentId = null
     const { data: publicData } = supabase.storage
       .from('profile-images')
       .getPublicUrl(filePath);
-
     const publicUrl = publicData?.publicUrl || null;
     if (!publicUrl) {
       console.error('❌ Failed to obtain public URL for profile image');
       return null;
     }
 
-    // Optionally update the student's profile if studentId is provided
+    // Optionally update the student's profile if studentId is provided (via Edge Function to bypass RLS)
     if (studentId) {
-      const { error: updateError } = await supabase
-        .from('user_profiles')
-        .update({
-          profile_image: publicUrl,
-          profile_image_public_id: filePath, // store storage path as public_id analogue
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', studentId)
-        .eq('role', 'student');
-
-      if (updateError) {
-        console.error('❌ Error updating student profile with image URL:', updateError);
+      try {
+        await edgeFunctionsService.updateUser(studentId, 'student', {
+          profile_image: publicUrl
+          // profile_image_public_id not supported by update-user yet
+        });
+      } catch (e) {
+        console.error('❌ Error updating student profile via Edge Function:', e);
         // Still return the URL so caller can use it in subsequent update flows
       }
     }

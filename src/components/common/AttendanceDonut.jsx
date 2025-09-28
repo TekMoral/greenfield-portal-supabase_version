@@ -7,12 +7,15 @@ const AttendanceDonut = ({ percent = 0, size = 120, strokeWidth = 12, className 
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - p / 100);
+  
+  // Generate unique gradient ID to avoid conflicts when multiple donuts are rendered
+  const gradientId = `attendanceGradient-${Math.random().toString(36).substr(2, 9)}`;
 
   return (
     <div className={`inline-flex items-center justify-center ${className}`} style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <defs>
-          <linearGradient id="attendanceGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="#34d399" />
             <stop offset="100%" stopColor="#10b981" />
           </linearGradient>
@@ -31,7 +34,7 @@ const AttendanceDonut = ({ percent = 0, size = 120, strokeWidth = 12, className 
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="url(#attendanceGradient)"
+          stroke={`url(#${gradientId})`}
           strokeWidth={strokeWidth}
           fill="none"
           strokeLinecap="round"

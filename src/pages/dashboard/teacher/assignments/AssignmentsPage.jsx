@@ -4,6 +4,7 @@ import { useAssignmentsData, useAssignmentMutations, useAssignmentQuestions } fr
 import { CreateAssignmentModal } from '../components/StudentsUI';
 import { AssignmentStats, AssignmentFilters, AssignmentList, GradingModal, QuestionsEditorModal } from '@features/assignments/components';
 import ConfirmDialog from '../../../../components/ui/ConfirmDialog';
+import useToast from '../../../../hooks/useToast';
 
 const getAssignmentStatus = (assignment) => {
   const now = new Date();
@@ -16,6 +17,7 @@ const getAssignmentStatus = (assignment) => {
 
 const AssignmentsPage = () => {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const {
     loading,
     subjects,
@@ -118,10 +120,10 @@ const AssignmentsPage = () => {
             setCreateForm({ title: '', classId: '', dueDate: '', totalMarks: 100, description: '', type: 'theory' });
             
             // Show success feedback
-            alert('Assignment created successfully!');
+            showToast('Assignment created successfully!', 'success');
           } catch (error) {
             console.error('Failed to create assignment:', error);
-            alert(`Failed to create assignment: ${error.message || 'Unknown error'}`);
+            showToast(`Failed to create assignment: ${error.message || 'Unknown error'}`,'error');
           }
         }}
         onClose={() => setShowCreate(false)}
@@ -151,7 +153,7 @@ const AssignmentsPage = () => {
         onConfirm={async () => {
           await mutations.publish(publishConfirm.assignmentId);
           setPublishConfirm({ isOpen: false, assignmentId: null });
-          alert('Assignment published. Note: Published assignments cannot be edited. You may still delete or close the assignment.');
+          showToast('Assignment published. Note: Published assignments cannot be edited. You may still delete or close the assignment.', 'success');
         }}
         title="Publish Assignment"
         message={"Once published, this assignment cannot be edited. You will still be able to view questions and delete or close the assignment if needed. Do you wish to continue?"}

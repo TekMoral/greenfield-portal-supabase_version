@@ -35,11 +35,11 @@ export const AuthProvider = ({ children }) => {
   const realtimeChannelRef = React.useRef(null)
   const accountStateHandledRef = React.useRef(false)
   const refreshTimerRef = React.useRef(null)
-
+  
   useEffect(() => {
-    let isMounted = true
-
-    const cancelProfileFetch = () => {
+  let isMounted = true
+  
+  const cancelProfileFetch = () => {
       if (profileAbortControllerRef.current) {
         profileAbortControllerRef.current.abort()
         profileAbortControllerRef.current = null
@@ -61,6 +61,7 @@ export const AuthProvider = ({ children }) => {
         try {
           const res = await cookieAuth.refresh()
           if (res?.success && isMounted) {
+            try { if (res?.access_token) { supabase.auth.setAuth(res.access_token) } } catch (_) {}
             await applySession()
             // res contains expires_in
             scheduleRefresh(res.expires_in || 3600)
@@ -235,6 +236,7 @@ export const AuthProvider = ({ children }) => {
         // Attempt to exchange HttpOnly cookie for an access token
         const res = await cookieAuth.refresh()
         if (res?.success) {
+          try { if (res?.access_token) { supabase.auth.setAuth(res.access_token) } } catch (_) {}
           const u = await applySession()
           if (u) {
             scheduleRefresh(res.expires_in || 3600)
@@ -609,6 +611,7 @@ export const AuthProvider = ({ children }) => {
       if (!res?.success) {
         return { success: false, error: res?.error || 'Failed to refresh session' }
       }
+      try { if (res?.access_token) { supabase.auth.setAuth(res.access_token) } } catch (_) {}
       const { data: { user: authUser } } = await supabase.auth.getUser(res?.access_token || (getAccessToken && getAccessToken()))
       if (authUser) {
         await fetchUserProfile(authUser.id)

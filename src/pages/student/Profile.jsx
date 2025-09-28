@@ -92,8 +92,8 @@ const Profile = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 py-6 sm:py-8">
+      <div className="max-w-4xl -mx-3 sm:mx-auto px-2 sm:px-4 lg:px-8">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
@@ -101,9 +101,9 @@ const Profile = () => {
         </div>
 
         {/* Profile Card */}
-        <div className="bg-white shadow-xl rounded-2xl overflow-hidden">
+        <div className="bg-white shadow-xl rounded-none sm:rounded-2xl overflow-hidden">
           {/* Header Section */}
-          <div className="bg-gradient-to-r from-green-600 to-green-700 px-8 py-12">
+          <div className="bg-gradient-to-r from-green-600 to-green-700 px-4 py-6 sm:px-8 sm:py-10">
             <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6">
               <div className="relative">
                 <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-lg p-1">
@@ -133,7 +133,7 @@ const Profile = () => {
           </div>
 
           {/* Content Section */}
-          <div className="p-8">
+          <div className="p-4 sm:p-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Personal Information */}
               <div className="space-y-6">

@@ -10,6 +10,7 @@ import { reportService } from "../../../services/supabase/reportService";
 import { supabase } from "../../../lib/supabaseClient";
 import { useSearchParams } from "react-router-dom";
 import { studentService } from "../../../services/supabase/studentService";
+import useToast from '../../../hooks/useToast';
 
 const Reports = () => {
   const { user } = useAuth();
@@ -78,6 +79,7 @@ const Reports = () => {
   const [searchParams] = useSearchParams();
   const [rejectedReports, setRejectedReports] = useState([]);
   const [rejectedIndex, setRejectedIndex] = useState(0);
+  const { showToast } = useToast();
 
   // Event handlers
   const handleClassChange = (classId) => {
@@ -244,13 +246,13 @@ const Reports = () => {
         rows = await fetchRejectedReports();
       }
       if (!rows || rows.length === 0) {
-        alert('No rejected reports found.');
+        showToast('No rejected reports found.', 'success');
         return;
       }
       await openRejectedAt(0);
     } catch (e) {
       console.error('Failed to open first rejected report:', e);
-      alert('Unable to open a rejected report. Please try again.');
+      showToast('Unable to open a rejected report. Please try again.', 'error');
     } finally {
       setRejectedLoading(false);
     }

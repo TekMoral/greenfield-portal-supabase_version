@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getAssignmentQuestions, upsertAssignmentQuestions, deleteAssignmentQuestion } from '@features/assignments/api/questions';
+import useToast from '../../../hooks/useToast';
 
 const emptyQuestion = () => ({ id: undefined, type: 'mcq', text: '', options: ['', '', '', ''], correct_answer: 0, points: 1 });
 
@@ -10,6 +11,7 @@ const useAssignmentQuestions = (assignment) => {
   const [saving, setSaving] = useState(false);
   const [questions, setQuestions] = useState([]);
   const [error, setError] = useState(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     let mounted = true;
@@ -101,15 +103,14 @@ const useAssignmentQuestions = (assignment) => {
           : saved;
         setQuestions(coercedSaved);
         console.log('Questions saved successfully:', saved.length, 'questions');
-        // You can add a toast notification here if you have a toast system
-        //toast.success(`${saved.length} questions saved successfully`);
+        showToast(`${saved.length} question(s) saved successfully`, 'success');
       } else {
         console.error('Failed to save questions:', res?.error);
-        alert(`Failed to save questions: ${res?.error || 'Unknown error'}`);
+        showToast(`Failed to save questions: ${res?.error || 'Unknown error'}`, 'error');
       }
     } catch (error) {
       console.error('Error saving questions:', error);
-      alert(`Error saving questions: ${error.message || 'Unknown error'}`);
+      showToast(`Error saving questions: ${error.message || 'Unknown error'}`, 'error');
     } finally {
       setSaving(false);
     }

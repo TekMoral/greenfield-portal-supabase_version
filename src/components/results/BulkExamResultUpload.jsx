@@ -320,11 +320,11 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
       {bulkResults.length > 0 && (
         <div className="space-y-4">
           <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+            <div className="max-h-[60vh] overflow-auto">
+              <table className="min-w-full table-fixed divide-y divide-gray-200">
+                <thead className="bg-gray-50 sticky top-0 z-20">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 z-30 bg-gray-50 w-64">
                       Student
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -350,7 +350,7 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {bulkResults.map((result, index) => (
                     <tr key={result.student_id}>
-                      <td className="px-4 py-4 text-sm font-medium text-gray-900">
+                      <td className="px-4 py-4 text-sm font-medium text-gray-900 sticky left-0 z-20 bg-white w-64">
                         {result.studentName}
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-500">

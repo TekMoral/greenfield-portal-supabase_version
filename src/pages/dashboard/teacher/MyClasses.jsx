@@ -114,7 +114,7 @@ const MyClasses = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-green-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-green-50 -mx-4 sm:mx-0">
       {isFetching && (
         <div className="pointer-events-none fixed top-3 right-3 z-50">
           <div className="animate-spin h-8 w-8 border-2 border-green-500 border-t-transparent rounded-full"></div>
@@ -122,7 +122,7 @@ const MyClasses = () => {
       )}
       {/* Header Section */}
       <div className="bg-white border-b border-slate-200 shadow-sm">
-        <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+        <div className="px-2 sm:px-6 lg:px-8 py-3 sm:py-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">My Classes</h1>
@@ -151,7 +151,7 @@ const MyClasses = () => {
       />
 
       {/* Main Content */}
-      <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <div className="px-2 sm:px-6 lg:px-8 py-6 sm:py-8">
         {classes.length === 0 ? (
           <div className="text-center py-12 sm:py-16">
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 sm:p-12 max-w-md mx-auto">

@@ -31,15 +31,6 @@ export const examService = {
             id,
             name,
             description
-          ),
-          teachers (
-            id,
-            employee_id,
-            user_profiles (
-              id,
-              full_name,
-              email
-            )
           )
         `)
         .single();
@@ -69,15 +60,6 @@ export const examService = {
             id,
             name,
             description
-          ),
-          teachers (
-            id,
-            employee_id,
-            user_profiles (
-              id,
-              full_name,
-              email
-            )
           )
         `)
         .order('exam_date', { ascending: false });
@@ -107,15 +89,6 @@ export const examService = {
             id,
             name,
             description
-          ),
-          teachers (
-            id,
-            employee_id,
-            user_profiles (
-              id,
-              full_name,
-              email
-            )
           )
         `)
         .eq('id', examId)
@@ -171,15 +144,6 @@ export const examService = {
             name,
             code,
             department
-          ),
-          teachers (
-            id,
-            employee_id,
-            user_profiles (
-              id,
-              full_name,
-              email
-            )
           )
         `)
         .eq('class_id', classId)
@@ -204,15 +168,6 @@ export const examService = {
             id,
             name,
             description
-          ),
-          teachers (
-            id,
-            employee_id,
-            user_profiles (
-              id,
-              full_name,
-              email
-            )
           )
         `)
         .eq('subject_id', subjectId)
@@ -248,15 +203,6 @@ export const examService = {
             id,
             name,
             description
-          ),
-          teachers (
-            id,
-            employee_id,
-            user_profiles (
-              id,
-              full_name,
-              email
-            )
           )
         `)
         .single();
@@ -304,12 +250,6 @@ export const examService = {
           classes (
             id,
             name
-          ),
-          teachers (
-            id,
-            user_profiles (
-              full_name
-            )
           )
         `)
         .gte('exam_date', today)
@@ -342,12 +282,6 @@ export const examService = {
           classes (
             id,
             name
-          ),
-          teachers (
-            id,
-            user_profiles (
-              full_name
-            )
           )
         `)
         .lt('exam_date', today)
@@ -422,12 +356,6 @@ export const examService = {
           classes (
             id,
             name
-          ),
-          teachers (
-            id,
-            user_profiles (
-              full_name
-            )
           )
         `)
         .or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`)

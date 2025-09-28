@@ -1,26 +1,49 @@
 // src/services/supabase/userService.js
 import { supabase } from '../../lib/supabaseClient'
+import { cookieAuth, getAccessToken } from '../../lib/cookieAuthClient'
 
 // ✅ Get current user role from Supabase
 export const getUserRole = async () => {
   try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    
+    // Use current in-memory token first
+    const token = getAccessToken && getAccessToken()
+    let { data: { user }, error: userError } = await supabase.auth.getUser(token)
+
     if (userError || !user) {
-      console.log('[getUserRole] No authenticated user')
-      return null
+      // One-time cookie-based refresh fallback
+      const res = await cookieAuth.refresh().catch(() => null)
+      if (!res?.success) {
+        console.log('[getUserRole] No authenticated user')
+        return null
+      }
+      try { if (res?.access_token) { supabase.auth.setAuth(res.access_token) } } catch (_) {}
+      const r = await supabase.auth.getUser(res?.access_token || (getAccessToken && getAccessToken()))
+      user = r?.data?.user || null
+      if (!user) {
+        console.log('[getUserRole] No authenticated user after refresh')
+        return null
+      }
     }
 
-    // Get user profile from user_profiles table
-    const { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
+    // Prefer SECURITY DEFINER RPC for profile (RLS-aware)
+    let profile = null
+    try {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('rpc_get_current_profile')
+      if (!rpcErr && rpcData) profile = rpcData
+    } catch (_) { /* ignore RPC errors and fallback */ }
 
-    if (profileError) {
-      console.error('[getUserRole] Error fetching profile:', profileError)
-      return null
+    if (!profile) {
+      // Fallback to direct select if RPC unavailable
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+      if (error) {
+        console.error('[getUserRole] Error fetching profile:', error)
+        return null
+      }
+      profile = data
     }
 
     return {
@@ -28,7 +51,7 @@ export const getUserRole = async () => {
       isSuperAdmin: profile.role === 'super_admin' || profile.is_super_admin,
       uid: user.id,
       email: user.email,
-      profile: profile
+      profile
     }
   } catch (error) {
     console.error('[getUserRole] Error:', error)

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getAllTeachers } from '../services/supabase/migrationWrapper';
 import { getSubjects } from '../services/supabase/subjectService';
 import { supabase } from '../lib/supabaseClient';
+import useToast from '../hooks/useToast';
 
 const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
   const [teachers, setTeachers] = useState([]);
@@ -9,6 +10,7 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
   const [classSubjects, setClassSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { showToast } = useToast();
   
   // New subject form state
   const [newSubject, setNewSubject] = useState({
@@ -89,7 +91,7 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
 
   const addSubject = async () => {
     if (!newSubject.subjectName || !newSubject.teacherId) {
-      alert('Please select both subject and teacher');
+      showToast('Please select both subject and teacher', 'error');
       return;
     }
 
@@ -97,7 +99,7 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
       // Find the subject ID from the subject name
       const selectedSubject = availableSubjects.find(s => s.name === newSubject.subjectName);
       if (!selectedSubject) {
-        alert('Selected subject not found');
+        showToast('Selected subject not found', 'error');
         return;
       }
 
@@ -112,7 +114,7 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
 
       if (error) {
         console.error('❌ Error checking existing assignments:', error);
-        alert('Error checking existing assignments. Please try again.');
+        showToast('Error checking existing assignments. Please try again.', 'error');
         return;
       }
 
@@ -131,7 +133,7 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
       if (!teacherAlreadyAssigned && uniqueTeachers.size >= 2) {
         const currentTeachers = Array.from(uniqueTeachers);
         console.log(`❌ LIMIT REACHED: Subject "${newSubject.subjectName}" already has 2 teachers:`, currentTeachers);
-        alert(`Subject "${newSubject.subjectName}" already has the maximum number of teachers (2) assigned across all classes.\n\nCurrent teachers: ${currentTeachers.length}`);
+        showToast(`Subject "${newSubject.subjectName}" already has the maximum number of teachers (2) assigned across all classes.`, 'error');
         return;
       }
       
@@ -142,7 +144,7 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
         subject => subject.subjectName === newSubject.subjectName && subject.teacherId === newSubject.teacherId
       );
       if (duplicatePair) {
-        alert('This teacher is already assigned to this subject in this class.');
+        showToast('This teacher is already assigned to this subject in this class.', 'error');
         return;
       }
 
@@ -156,7 +158,7 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
       });
     } catch (error) {
       console.error('Error adding subject:', error);
-      alert('Error adding subject. Please try again.');
+      showToast('Error adding subject. Please try again.', 'error');
     }
   };
 

@@ -25,7 +25,7 @@ const SettingsContext = createContext(null);
 
 export const SettingsProvider = ({ children }) => {
   const [settings, setSettings] = useState({
-    schoolName: 'Victory International College',
+    schoolName: 'Greenfield College',
     schoolAddress: '',
     schoolPhone: '',
     schoolEmail: '',

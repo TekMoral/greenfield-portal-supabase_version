@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@lib/supabaseClient';
+import useToast from '../../../hooks/useToast';
 
 const Option = ({ letter, label, checked, onChange }) => (
   <label className="flex items-center gap-3 text-sm p-2 rounded border border-slate-200 hover:bg-slate-50 cursor-pointer">
@@ -17,6 +18,7 @@ const ObjectiveAssignmentModal = ({ open, assignment, studentId, onClose, onSubm
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState([]);
   const [error, setError] = useState(null);
+  const { showToast } = useToast();
 
   // Normalize options to an array of strings for MCQ rendering
   const normalizeOptions = (opts) => {
@@ -94,7 +96,7 @@ const ObjectiveAssignmentModal = ({ open, assignment, studentId, onClose, onSubm
     if (!assignment?.id || !studentId) return;
     // Simple validation: ensure no null answers
     if ((answers || []).some((a) => a === null || a === undefined)) {
-      alert('Please answer all questions before submitting.');
+      showToast('Please answer all questions before submitting.', 'error');
       return;
     }
     setSaving(true);
@@ -105,11 +107,11 @@ const ObjectiveAssignmentModal = ({ open, assignment, studentId, onClose, onSubm
         onSubmitted?.({ auto_score, total_score });
         onClose?.();
       } else {
-        alert(resp?.error || 'Failed to submit.');
+        showToast(resp?.error || 'Failed to submit.', 'error');
       }
     } catch (e) {
       console.error(e);
-      alert('Failed to submit.');
+      showToast('Failed to submit.', 'error');
     } finally {
       setSaving(false);
     }
@@ -119,7 +121,7 @@ const ObjectiveAssignmentModal = ({ open, assignment, studentId, onClose, onSubm
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
-      <div className="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
         <div className="bg-emerald-600 text-white p-4 sm:p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -134,7 +136,7 @@ const ObjectiveAssignmentModal = ({ open, assignment, studentId, onClose, onSubm
           </div>
         </div>
 
-        <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+        <div className="p-4 sm:p-6 flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>

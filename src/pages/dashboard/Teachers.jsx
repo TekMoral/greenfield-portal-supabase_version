@@ -348,9 +348,9 @@ const Teachers = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="py-6 space-y-6">
       {/* Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Teacher Management</h1>
           <p className="text-gray-600 mt-1">Manage your school's teaching staff</p>
@@ -368,7 +368,7 @@ const Teachers = () => {
 
       {/* Error Display */}
       {(error || rqError) && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+        <div className="mx-6 p-4 bg-red-50 border border-red-200 rounded-lg">
           <div className="flex items-center">
             <div className="text-red-600 mr-2">❌</div>
             <div className="text-red-800 font-medium">Error:</div>
@@ -379,7 +379,7 @@ const Teachers = () => {
 
       {/* Teacher Form */}
       {showForm && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="mx-6 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
             <h2 className="text-xl font-semibold text-gray-900">
               {editTeacher ? 'Edit Teacher' : 'Add New Teacher'}

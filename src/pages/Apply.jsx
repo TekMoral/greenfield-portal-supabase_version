@@ -10,10 +10,12 @@ import {
   formDownload
 } from "../data/applicationData";
 import { COMPONENT_COLORS, getButtonClasses, getHeadingClasses, getBadgeClasses } from "../constants/colors";
+import useToast from '../hooks/useToast';
 
 const Apply = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [scrollY, setScrollY] = useState(0);
+  const { showToast } = useToast();
 
   useEffect(() => {
     setIsVisible(true);
@@ -30,7 +32,7 @@ const Apply = () => {
 
   const handleDownloadForm = () => {
     // In a real application, this would trigger a PDF download
-    alert("PDF download would be triggered here. For now, please visit our campus to collect the form.");
+    showToast("PDF download would be triggered here. For now, please visit our campus to collect the form.", 'success');
   };
 
   return (

@@ -459,11 +459,13 @@ const ExamResults = () => {
   }
 
   const stats = getResultsStats();
+  const pending = Math.max(0, (stats.total || 0) - (stats.submitted || 0));
+  const completionRate = stats.total ? Math.round(((stats.submitted || 0) / stats.total) * 100) : 0;
 
   const selectedClassData = getSelectedClassData();
 
   return (
-    <div className="space-y-6">
+    <div className="-mx-4 sm:mx-0 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
@@ -473,7 +475,7 @@ const ExamResults = () => {
       </div>
 
       {/* Important Notice */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div className="bg-blue-50 border border-blue-200 rounded-none sm:rounded-lg p-4">
         <div className="flex items-center">
           <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -490,7 +492,7 @@ const ExamResults = () => {
 
 
       {/* Class and Subject Selection */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-none sm:rounded-lg shadow p-4 sm:p-6">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Select Class and Subject</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -571,69 +573,140 @@ const ExamResults = () => {
 
       {/* Stats Cards */}
       {selectedClass && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                </svg>
+        <>
+          {/* Mobile: Single consolidated stats card */}
+          <div className="md:hidden">
+            <div className="bg-white rounded-lg shadow p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base font-semibold text-gray-900">Results Overview</h3>
+                <span className="text-xs text-gray-500" aria-label={`Completion ${completionRate}%`}>{completionRate}% complete</span>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Students</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center p-3 rounded-lg border border-gray-100">
+                  <div className="p-2 bg-blue-50 rounded-lg">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-xs text-gray-500">Total</p>
+                    <p className="text-lg font-semibold text-gray-900">{stats.total}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center p-3 rounded-lg border border-gray-100">
+                  <div className="p-2 bg-yellow-50 rounded-lg">
+                    <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-xs text-gray-500">Submitted</p>
+                    <p className="text-lg font-semibold text-gray-900">{stats.submitted}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center p-3 rounded-lg border border-gray-100">
+                  <div className="p-2 bg-green-50 rounded-lg">
+                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-xs text-gray-500">Graded</p>
+                    <p className="text-lg font-semibold text-gray-900">{stats.graded}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center p-3 rounded-lg border border-gray-100">
+                  <div className="p-2 bg-purple-50 rounded-lg">
+                    <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-xs text-gray-500">Pending</p>
+                    <p className="text-lg font-semibold text-gray-900">{pending}</p>
+                  </div>
+                </div>
               </div>
+
+              <div className="mt-4" aria-hidden="true">
+                <div className="h-2 bg-gray-100 rounded">
+                  <div className="h-2 bg-blue-600 rounded" style={{ width: `${completionRate}%` }} />
+                </div>
+              </div>
+
+              <p className="mt-2 text-xs text-gray-500">Showing current class/subject stats</p>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-yellow-100 rounded-lg">
-                <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Submitted</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.submitted}</p>
+          {/* Desktop/Tablet: original 4-card grid */}
+          <div className="hidden md:grid grid-cols-4 gap-4 sm:gap-6">
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                  </svg>
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Total Students</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Graded</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.graded}</p>
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-yellow-100 rounded-lg">
+                  <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Submitted</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.submitted}</p>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                </svg>
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Graded</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.graded}</p>
+                </div>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Submissions</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.submitted}</p>
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                  </svg>
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Total Submissions</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.submitted}</p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Tabs */}
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-white rounded-none sm:rounded-lg shadow">
         <div className="border-b border-gray-200">
-          <nav className="flex space-x-8 px-6">
+          <nav className="flex flex-wrap gap-x-6 gap-y-2 px-4 sm:px-6">
             <button
               onClick={() => setActiveTab('individual')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
@@ -658,15 +731,15 @@ const ExamResults = () => {
           </nav>
         </div>
 
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {activeTab === 'individual' && selectedClass && (
             <div className="space-y-6">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                 <h3 className="text-lg font-medium text-gray-900">Individual Result Entry</h3>
                 <button
                   onClick={() => setShowEntryForm(true)}
                   disabled={!selectedSubject}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                   Submit to Admin
                   </button>
@@ -684,7 +757,7 @@ const ExamResults = () => {
                   return (
                     <div
                       key={student.id}
-                      className={`flex items-center justify-between p-4 border rounded-lg transition-colors ${rowBorderBg}`}
+                      className={`flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-4 border rounded-lg transition-colors ${rowBorderBg}`}
                     >
                       <div className="flex items-center space-x-4">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${avatarBg}`}>
@@ -698,9 +771,9 @@ const ExamResults = () => {
                           <p className="text-xs text-gray-500">{student.className}</p>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-4">
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:space-x-4 w-full sm:w-auto">
                         {isSubmitted ? (
-                          <div className="text-right">
+                          <div className="text-left sm:text-right">
                             {existingResultsMap[String(student.id)]?.status === 'graded' ? (
                               <>
                                 <p className="font-medium text-green-700">Graded by Admin</p>
@@ -722,7 +795,7 @@ const ExamResults = () => {
                             setShowEntryForm(true);
                           }}
                           disabled={!selectedSubject}
-                          className={`px-3 py-1 rounded text-sm transition-colors ${
+                          className={`w-full sm:w-auto px-3 py-1 rounded text-sm transition-colors ${
                             isSubmitted
                               ? (isGraded ? 'bg-green-100 text-green-700 cursor-default' : 'bg-yellow-100 text-yellow-700 cursor-default')
                               : 'bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed'

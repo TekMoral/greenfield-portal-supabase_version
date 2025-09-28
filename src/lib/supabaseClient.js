@@ -34,8 +34,9 @@ async function authFetch(input, init) {
   let headers = new Headers(req.headers)
   let token = getAccessToken && getAccessToken()
 
-  // Attach Authorization if missing and we have a token available
-  if (isPostgrest && !headers.has('Authorization') && token) {
+  // Always prefer the current user access token for PostgREST requests.
+  // supabase-js may set Authorization with the anon key; override with user token if available.
+  if (isPostgrest && token) {
     headers.set('Authorization', `Bearer ${token}`)
   }
 

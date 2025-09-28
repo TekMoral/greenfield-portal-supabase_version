@@ -712,7 +712,7 @@ export const CreateAssignmentModal = ({ open, subjectName, subjects = [], classO
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
-      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <div className="bg-green-600 text-white p-4 sm:p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -725,10 +725,10 @@ export const CreateAssignmentModal = ({ open, subjectName, subjects = [], classO
               </svg>
             </button>
           </div>
-        </div>
-
-        <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-          <Form onSubmit={handleCreateSubmit} className="space-y-4">
+          </div>
+          
+          <div className="p-4 sm:p-6 flex-1 overflow-y-auto">
+          <form id="create-assignment-form" onSubmit={handleCreateSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">Title</label>
               <input
@@ -834,22 +834,37 @@ export const CreateAssignmentModal = ({ open, subjectName, subjects = [], classO
                   Objective
                 </label>
               </div>
-              <p className="text-xs text-slate-500 mt-1">Objective total marks are derived from question points.</p>
+              <p className="text-xs text-slate-500 mt-1">Set total marks (maximum 50). You can clear and type your own value.</p>
             </div>
 
-            {(form.type || 'theory') !== 'objective' && (
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Total Marks</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={form.totalMarks ?? 100}
-                  onChange={(e) => onFormChange?.({ ...form, totalMarks: Number(e.target.value) })}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  required
-                />
-              </div>
-            )}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Total Marks</label>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                placeholder="e.g., 20 (max 50)"
+                value={(form.totalMarks === '' || form.totalMarks === undefined || form.totalMarks === null) ? '' : form.totalMarks}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '') {
+                    onFormChange?.({ ...form, totalMarks: '' });
+                  } else {
+                    let n = Number(val);
+                    if (!Number.isFinite(n)) {
+                      onFormChange?.({ ...form, totalMarks: '' });
+                    } else {
+                      if (n > 50) n = 50;
+                      if (n < 1) n = 1;
+                      onFormChange?.({ ...form, totalMarks: n });
+                    }
+                  }
+                }}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                required
+              />
+              <p className="text-xs text-slate-500 mt-1">Highest allowed is 50.</p>
+            </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">Description</label>
@@ -863,23 +878,26 @@ export const CreateAssignmentModal = ({ open, subjectName, subjects = [], classO
               />
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 pt-2">
-              <button
-                type="submit"
-                disabled={creating}
-                className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {creating ? 'Creating...' : 'Create Assignment'}
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors font-medium text-sm"
-              >
-                Cancel
-              </button>
-            </div>
-          </Form>
+            </form>
+        </div>
+        <div className="bg-slate-50 px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors font-medium text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="create-assignment-form"
+              disabled={creating}
+              className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {creating ? 'Creating...' : 'Create Assignment'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

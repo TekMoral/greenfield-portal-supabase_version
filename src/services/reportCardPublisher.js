@@ -162,10 +162,21 @@ export async function publishReportsForClass({ studentIds, term, academicYear },
       /* eslint-disable no-await-in-loop */
       const res = await publishStudentTermReport({ studentId: id, term, academicYear }, options);
       results.push({ studentId: id, ...res });
+      // Optional progress callback without breaking existing callers
+      try {
+        if (options && typeof options.onProgress === 'function') {
+          options.onProgress({ completed: i + 1, total: studentIds.length, result: res, index: i });
+        }
+      } catch (_) { /* noop */ }
       await new Promise(r => setTimeout(r, 150));
       /* eslint-enable no-await-in-loop */
     } catch (e) {
       results.push({ studentId: id, success: false, error: e?.message || String(e) });
+      try {
+        if (options && typeof options.onProgress === 'function') {
+          options.onProgress({ completed: i + 1, total: studentIds.length, result: { success: false, error: e?.message || String(e) }, index: i });
+        }
+      } catch (_) { /* noop */ }
     }
   }
   return results;

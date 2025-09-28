@@ -146,10 +146,13 @@ const Header = forwardRef((props, ref) => {
               />
             </div>
             <Link to="/" className="flex flex-col">
-              <h1
-                className="block font-bold transition-all duration-300 select-none text-sm sm:text-base hover:text-emerald-200 whitespace-nowrap max-w-[50vw] sm:max-w-none truncate"
-              >
-                Greenfield College
+              <h1 className="block font-bold transition-all duration-300 select-none text-sm sm:text-base hover:text-emerald-200">
+                <span className="block sm:hidden leading-tight">
+                  Greenfield<br />College
+                </span>
+                <span className="hidden sm:block whitespace-nowrap">
+                  Greenfield College
+                </span>
               </h1>
             </Link>
           </div>

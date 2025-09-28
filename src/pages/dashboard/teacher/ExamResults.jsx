@@ -736,13 +736,6 @@ const ExamResults = () => {
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                 <h3 className="text-lg font-medium text-gray-900">Individual Result Entry</h3>
-                <button
-                  onClick={() => setShowEntryForm(true)}
-                  disabled={!selectedSubject}
-                  className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                  Submit to Admin
-                  </button>
               </div>
 
               <div className="grid gap-4">

@@ -5,6 +5,9 @@
 import { createServiceClient, createUserClient } from '../_shared/auth.ts';
 import { handleCors, getResponseCorsHeaders } from '../_shared/cors-hardened.ts';
 
+// Bump this when deploying to verify the active version in debug responses
+const FUNCTION_VERSION = 'get-report-url@2025-09-18';
+
 interface GetReportUrlBody {
   document_id?: string; // preferred
   bucket?: string;      // optional if document_id provided

@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useSettings } from '../../contexts/SettingsContext';
 
 const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
-  const [uploadMethod, setUploadMethod] = useState('manual');
-  const [bulkResults, setBulkResults] = useState([]);
-  const [csvFile, setCsvFile] = useState(null);
-  const [errors, setErrors] = useState({});
-  const [examType, setExamType] = useState('midterm');
+    const [bulkResults, setBulkResults] = useState([]);
+    const [errors, setErrors] = useState({});
+  const examType = 'final';
   const [session, setSession] = useState(new Date().getFullYear().toString());
   const [term, setTerm] = useState('1st Term');
+  // Mobile quick-entry state
+  const [openStudentId, setOpenStudentId] = useState(null);
+  const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
 
   const { academicYear, currentTerm } = useSettings();
   const normalizeTermLabel = (t) => {
@@ -26,13 +27,8 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
     setTerm(normalizeTermLabel(currentTerm || term));
   }, [academicYear, currentTerm]);
 
-  const examTypes = [
-    { value: 'midterm', label: 'Mid-term Exam' },
-    { value: 'final', label: 'Final Exam' },
-  ];
-
-  const terms = ['1st Term', '2nd Term', '3rd Term'];
-
+  
+  
   // Helper function to get student full name (consistent with Assignment component)
   const getStudentName = (student) => {
     if (!student) return 'Unknown Student';
@@ -67,8 +63,7 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
       admissionNumber: student.admissionNumber,
       exam_score: '',
       test_score: '',
-      remark: '',
-      examType: examType,
+            examType: examType,
       session: session,
       term: term
     }));
@@ -86,26 +81,26 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
     let hasErrors = false;
 
     bulkResults.forEach((result, index) => {
-      // Validate exam score
-      if (!result.exam_score) {
+      // Validate exam score (whole number)
+      if (!result.exam_score && result.exam_score !== 0) {
         newErrors[`exam_score_${index}`] = 'Exam score is required';
         hasErrors = true;
       } else {
-        const score = parseFloat(result.exam_score);
-        if (isNaN(score) || score < 0 || score > 50) {
-          newErrors[`exam_score_${index}`] = 'Exam score must be between 0 and 50';
+        const num = Number(result.exam_score);
+        if (!Number.isInteger(num) || num < 0 || num > 50) {
+          newErrors[`exam_score_${index}`] = 'Exam score must be a whole number between 0 and 50';
           hasErrors = true;
         }
       }
 
-      // Validate test score
-      if (!result.test_score) {
+      // Validate test score (whole number)
+      if (!result.test_score && result.test_score !== 0) {
         newErrors[`test_score_${index}`] = 'Test score is required';
         hasErrors = true;
       } else {
-        const score = parseFloat(result.test_score);
-        if (isNaN(score) || score < 0 || score > 30) {
-          newErrors[`test_score_${index}`] = 'Test score must be between 0 and 30';
+        const num = Number(result.test_score);
+        if (!Number.isInteger(num) || num < 0 || num > 30) {
+          newErrors[`test_score_${index}`] = 'Test score must be a whole number between 0 and 30';
           hasErrors = true;
         }
       }
@@ -121,12 +116,12 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
     }
 
     const validResults = bulkResults
-      .filter(result => result.exam_score && result.test_score)
+      .filter(result => result.exam_score !== '' && result.test_score !== '' && Number.isInteger(Number(result.exam_score)) && Number.isInteger(Number(result.test_score)))
       .map(result => ({
         ...result,
-        exam_score: parseFloat(result.exam_score),
-        test_score: parseFloat(result.test_score),
-        totalTeacherScore: parseFloat(result.exam_score) + parseFloat(result.test_score),
+        exam_score: parseInt(result.exam_score, 10),
+        test_score: parseInt(result.test_score, 10),
+        totalTeacherScore: parseInt(result.exam_score, 10) + parseInt(result.test_score, 10),
         maxExamScore: 50,
         maxTestScore: 30,
         maxTeacherScore: 80
@@ -135,56 +130,7 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
     onSubmit(validResults);
   };
 
-  const handleCsvUpload = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    setCsvFile(file);
-    const reader = new FileReader();
-    
-    reader.onload = (e) => {
-      try {
-        const csv = e.target.result;
-        const lines = csv.split('\n');
-        const headers = lines[0].split(',').map(h => h.trim());
-        
-        // Expected headers: Admission Number, Exam Score, Test Score
-        const results = [];
-        
-        for (let i = 1; i < lines.length; i++) {
-          const values = lines[i].split(',').map(v => v.trim());
-          if (values.length < 3) continue;
-          
-          const admissionNumber = values[0];
-          const examScore = values[1];
-          const testScore = values[2];
-          
-          const student = students.find(s => s.admissionNumber === admissionNumber);
-          if (student && examScore && testScore) {
-            results.push({
-              studentId: student.id,
-              studentName: getStudentName(student),
-              admissionNumber: student.admissionNumber,
-              examScore: examScore,
-              testScore: testScore,
-              examType: examType,
-              session: session,
-              term: term
-            });
-          }
-        }
-        
-        setBulkResults(results);
-        setUploadMethod('csv');
-      } catch (error) {
-        console.error('Error parsing CSV:', error);
-        alert('Error parsing CSV file. Please check the format.');
-      }
-    };
-    
-    reader.readAsText(file);
-  };
-
+  
   const downloadTemplate = () => {
     const headers = ['Admission Number', 'Exam Score (0-50)', 'Test Score (0-30)'];
     const csvContent = [
@@ -202,12 +148,50 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
   };
 
   const getTotalScore = (examScore, testScore) => {
-    return (parseFloat(examScore) || 0) + (parseFloat(testScore) || 0);
+    return (parseInt(examScore, 10) || 0) + (parseInt(testScore, 10) || 0);
   };
 
   const getPercentage = (examScore, testScore) => {
     const total = getTotalScore(examScore, testScore);
     return Math.round((total / 80) * 100);
+  };
+
+  // Completion helpers
+  const isComplete = (r) => {
+    const e = parseFloat(r.exam_score);
+    const t = parseFloat(r.test_score);
+    const eOk = Number.isFinite(e) && e >= 0 && e <= 50;
+    const tOk = Number.isFinite(t) && t >= 0 && t <= 30;
+    return eOk && tOk;
+  };
+  const incompleteCount = bulkResults.filter((r) => !isComplete(r)).length;
+  const nextIncompleteIndex = (from = 0) => {
+    for (let i = Math.max(0, from); i < bulkResults.length; i++) {
+      if (!isComplete(bulkResults[i])) return i;
+    }
+    return -1;
+  };
+
+  const validateRow = (idx) => {
+    const r = bulkResults[idx];
+    const newErrors = { ...errors };
+    let ok = true;
+    const e = Number(r.exam_score);
+    if (!Number.isInteger(e) || e < 0 || e > 50) {
+      newErrors[`exam_score_${idx}`] = 'Exam score must be a whole number between 0 and 50';
+      ok = false;
+    } else {
+      delete newErrors[`exam_score_${idx}`];
+    }
+    const t = Number(r.test_score);
+    if (!Number.isInteger(t) || t < 0 || t > 30) {
+      newErrors[`test_score_${idx}`] = 'Test score must be a whole number between 0 and 30';
+      ok = false;
+    } else {
+      delete newErrors[`test_score_${idx}`];
+    }
+    setErrors(newErrors);
+    return ok;
   };
 
   return (
@@ -230,17 +214,9 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Exam Type</label>
-            <select
-              value={examType}
-              onChange={(e) => setExamType(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {examTypes.map(type => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
+            <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700">
+              Final Exam
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Session</label>
@@ -257,69 +233,22 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
         </div>
       </div>
 
-      {/* Upload Method Selection */}
-      <div className="bg-gray-50 rounded-lg p-4">
-        <h4 className="font-medium text-gray-900 mb-3">Choose Upload Method</h4>
-        <div className="flex space-x-4">
-          <label className="flex items-center">
-            <input
-              type="radio"
-              name="uploadMethod"
-              value="manual"
-              checked={uploadMethod === 'manual'}
-              onChange={(e) => setUploadMethod(e.target.value)}
-              className="mr-2"
-            />
-            <span className="text-sm text-gray-700">Manual Entry</span>
-          </label>
-          <label className="flex items-center">
-            <input
-              type="radio"
-              name="uploadMethod"
-              value="csv"
-              checked={uploadMethod === 'csv'}
-              onChange={(e) => setUploadMethod(e.target.value)}
-              className="mr-2"
-            />
-            <span className="text-sm text-gray-700">CSV Upload</span>
-          </label>
-        </div>
+      
+      
+      <div className="space-y-4">
+        <button
+          onClick={initializeBulkResults}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+        >
+          Initialize Manual Entry
+        </button>
       </div>
-
-      {uploadMethod === 'csv' && (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Upload CSV File
-            </label>
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleCsvUpload}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <p className="text-sm text-gray-500 mt-1">
-              CSV format: Admission Number, Exam Score (0-50), Test Score (0-30)
-            </p>
-          </div>
-        </div>
-      )}
-
-      {uploadMethod === 'manual' && (
-        <div className="space-y-4">
-          <button
-            onClick={initializeBulkResults}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
-          >
-            Initialize Manual Entry
-          </button>
-        </div>
-      )}
 
       {/* Results Table */}
       {bulkResults.length > 0 && (
         <div className="space-y-4">
-          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          {/* Desktop/Tablet table */}
+          <div className="hidden md:block bg-white border border-gray-200 rounded-lg overflow-hidden">
             <div className="max-h-[60vh] overflow-auto">
               <table className="min-w-full table-fixed divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-20">
@@ -336,10 +265,7 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Test Score (0-30)
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Remark
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Total (80)
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -390,17 +316,7 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
                           <p className="text-red-500 text-xs mt-1">{errors[`test_score_${index}`]}</p>
                         )}
                       </td>
-                      <td className="px-4 py-4">
-                        <input
-                          type="text"
-                          value={result.remark}
-                          onChange={(e) => handleScoreChange(index, 'remark', e.target.value)}
-                          maxLength={100}
-                          className="w-32 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Optional remark..."
-                        />
-                      </td>
-                      <td className="px-4 py-4 text-sm font-medium text-gray-900">
+                                            <td className="px-4 py-4 text-sm font-medium text-gray-900">
                         {getTotalScore(result.exam_score, result.test_score)}/80
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-900">
@@ -411,6 +327,94 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* Mobile quick entry cards */}
+          <div className="md:hidden space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-700">Remaining: <span className="font-medium">{incompleteCount}</span> / {bulkResults.length}</div>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={showIncompleteOnly} onChange={(e)=>setShowIncompleteOnly(e.target.checked)} />
+                Show incomplete only
+              </label>
+            </div>
+            {(showIncompleteOnly ? bulkResults.map((r, i)=>({r,i})).filter(x=>!isComplete(x.r)) : bulkResults.map((r,i)=>({r,i}))).map(({r,i}) => {
+              const open = openStudentId === r.student_id;
+              const complete = isComplete(r);
+              return (
+                <div key={r.student_id} className={`border rounded-lg ${complete ? 'border-green-200 bg-green-50' : 'border-yellow-200 bg-yellow-50'}`}>
+                  <div className="p-4 flex items-center justify-between">
+                    <div>
+                      <div className="font-medium text-gray-900">{r.studentName}</div>
+                      <div className="text-xs text-gray-600">{r.admissionNumber}</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs px-2 py-1 rounded ${complete ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{complete ? 'Complete' : 'Incomplete'}</span>
+                      <button
+                        className="text-blue-600 text-sm"
+                        onClick={() => setOpenStudentId(open ? null : r.student_id)}
+                      >
+                        {open ? 'Close' : 'Enter Scores'}
+                      </button>
+                    </div>
+                  </div>
+                  {open && (
+                    <div className="px-4 pb-4 space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-700 mb-1">Exam (0-50)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="50"
+                            step="0.5"
+                            value={r.exam_score}
+                            onChange={(e)=>handleScoreChange(i,'exam_score', e.target.value)}
+                            className={`w-full px-3 py-2 border rounded text-sm ${errors[`exam_score_${i}`] ? 'border-red-500' : 'border-gray-300'}`}
+                            placeholder="0"
+                          />
+                          {errors[`exam_score_${i}`] && <p className="text-xs text-red-500 mt-1">{errors[`exam_score_${i}`]}</p>}
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-700 mb-1">Test (0-30)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="30"
+                            step="0.5"
+                            value={r.test_score}
+                            onChange={(e)=>handleScoreChange(i,'test_score', e.target.value)}
+                            className={`w-full px-3 py-2 border rounded text-sm ${errors[`test_score_${i}`] ? 'border-red-500' : 'border-gray-300'}`}
+                            placeholder="0"
+                          />
+                          {errors[`test_score_${i}`] && <p className="text-xs text-red-500 mt-1">{errors[`test_score_${i}`]}</p>}
+                        </div>
+                      </div>
+                                            <div className="flex items-center justify-between">
+                        <div className="text-sm text-gray-700">Total: <span className="font-medium">{getTotalScore(r.exam_score, r.test_score)}</span>/80 • {getPercentage(r.exam_score, r.test_score)}%</div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              if (validateRow(i)) setOpenStudentId(null);
+                            }}
+                            className="px-3 py-2 bg-gray-100 text-gray-800 rounded text-sm"
+                          >Save</button>
+                          <button
+                            onClick={() => {
+                              if (!validateRow(i)) return;
+                              const nextIdx = nextIncompleteIndex(i + 1);
+                              if (nextIdx === -1) { setOpenStudentId(null); return; }
+                              setOpenStudentId(bulkResults[nextIdx].student_id);
+                            }}
+                            className="px-3 py-2 bg-blue-600 text-white rounded text-sm"
+                          >Save & Next</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Summary */}
@@ -445,6 +449,27 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
             </div>
             <div className="mt-3 p-2 bg-yellow-100 rounded text-xs text-yellow-800">
               <strong>Note:</strong> These scores represent 80% of the total grade. Admin will add Assignment (15%) + Attendance (5%) scores.
+            </div>
+            <div className="mt-3">
+              {incompleteCount > 0 ? (
+                <details className="text-sm text-blue-900">
+                  <summary className="cursor-pointer select-none">View {incompleteCount} incomplete student(s)</summary>
+                  <ul className="mt-2 list-disc pl-6">
+                    {bulkResults.map((r)=>!isComplete(r) && (
+                      <li key={r.student_id} className="py-0.5">
+                        <button
+                          className="text-blue-700 underline"
+                          onClick={() => setOpenStudentId(r.student_id)}
+                        >
+                          {r.studentName} ({r.admissionNumber})
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : (
+                <div className="text-green-700">All students have valid scores.</div>
+              )}
             </div>
           </div>
 

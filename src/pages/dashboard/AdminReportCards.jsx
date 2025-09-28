@@ -6,6 +6,8 @@ import { getAllStudents } from '../../services/supabase/studentService';
 import { supabase } from '../../lib/supabaseClient';
 import { useSettings } from '../../contexts/SettingsContext';
 import useToast from '../../hooks/useToast';
+import GeneratedReportCards from './GeneratedReportCards';
+import { callFunction } from '../../services/supabase/edgeFunctions';
 
 const AdminReportCards = () => {
   // Reference data
@@ -22,6 +24,7 @@ const AdminReportCards = () => {
   const [bulkYear, setBulkYear] = useState(new Date().getFullYear());
   const [isBulkGenerating, setIsBulkGenerating] = useState(false);
   const [bulkOutcomes, setBulkOutcomes] = useState([]); // [{ studentId, success, url?, error? }]
+  const [bulkProgress, setBulkProgress] = useState({ completed: 0, total: 0, percent: 0 });
   const [groupRoster, setGroupRoster] = useState([]);
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterQuery, setRosterQuery] = useState('');
@@ -40,6 +43,7 @@ const AdminReportCards = () => {
   const [listLoading, setListLoading] = useState(false);
   const [publishedCards, setPublishedCards] = useState([]);
 
+  
   // Hub tabs and individual generation state
   const [activeTab, setActiveTab] = useState('bulk'); // 'bulk' | 'individual' | 'published'
   const [individualStudentQuery, setIndividualStudentQuery] = useState('');
@@ -196,13 +200,22 @@ const AdminReportCards = () => {
 
       setIsBulkGenerating(true);
       setBulkOutcomes([]);
+      setBulkProgress({ completed: 0, total: classStudents.length, percent: 0 });
 
       const studentIds = classStudents.map(s => s.id);
       const results = await publishReportsForClass({
         studentIds,
         term: Number(bulkTerm),
         academicYear: String(bulkYear),
-      }, { persist: true, status: 'generated', bucket: 'report-cards' });
+      }, {
+        persist: true,
+        status: 'generated',
+        bucket: 'report-cards',
+        onProgress: ({ completed, total }) => {
+          const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+          setBulkProgress({ completed, total, percent: pct });
+        }
+      });
 
       setBulkOutcomes(results || []);
 
@@ -214,6 +227,7 @@ const AdminReportCards = () => {
       showToast(e?.userMessage || e?.message || 'Bulk generation failed', 'error');
     } finally {
       setIsBulkGenerating(false);
+      setTimeout(() => setBulkProgress({ completed: 0, total: 0, percent: 0 }), 1500);
     }
   };
 
@@ -352,6 +366,12 @@ const AdminReportCards = () => {
             Individual Generate
           </button>
           <button
+            className={`py-3 text-sm font-medium ${activeTab === 'finalize' ? 'text-purple-700 border-b-2 border-purple-600' : 'text-slate-600 hover:text-slate-800'}`}
+            onClick={() => setActiveTab('finalize')}
+          >
+            Finalize
+          </button>
+          <button
             className={`py-3 text-sm font-medium ${activeTab === 'published' ? 'text-purple-700 border-b-2 border-purple-600' : 'text-slate-600 hover:text-slate-800'}`}
             onClick={() => setActiveTab('published')}
           >
@@ -418,7 +438,18 @@ const AdminReportCards = () => {
             {rosterLoading ? (
               <div>Loading students...</div>
             ) : (
-              <div>{groupRoster.length} student(s) in selected class group.</div>
+              <div className="flex items-center gap-4">
+                <span>{groupRoster.length} student(s) in selected class group.</span>
+                {isBulkGenerating && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-40 h-2 bg-slate-200 rounded">
+                      <div className="h-2 bg-emerald-600 rounded" style={{ width: `${bulkProgress.percent}%` }} />
+                    </div>
+                    <span className="text-slate-700">{bulkProgress.percent}%</span>
+                    <span className="text-slate-500">({bulkProgress.completed}/{bulkProgress.total})</span>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -507,7 +538,37 @@ const AdminReportCards = () => {
                         </td>
                         <td className="px-4 py-2">
                           {r.success && r.url ? (
-                            <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:text-purple-800">Open PDF</a>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const derivePathFromUrl = (u) => {
+                                    try {
+                                      const marker = '/storage/v1/object/public/report-cards/';
+                                      const ix = String(u || '').indexOf(marker);
+                                      if (ix !== -1) {
+                                        return decodeURIComponent(String(u).slice(ix + marker.length));
+                                      }
+                                      return null;
+                                    } catch {
+                                      return null;
+                                    }
+                                  };
+                                  const path = derivePathFromUrl(r.url);
+                                  if (!path) { showToast('Unable to derive storage path for signing', 'error'); return; }
+                                  const res = await callFunction('get-report-url', { bucket: 'report-cards', path, expires_in: 600 });
+                                  if (res?.success && res?.url) {
+                                    window.open(res.url, '_blank', 'noopener');
+                                  } else {
+                                    showToast('Failed to get signed link', 'error');
+                                  }
+                                } catch (e) {
+                                  showToast(e?.userMessage || e?.message || 'Failed to open report', 'error');
+                                }
+                              }}
+                              className="text-purple-600 hover:text-purple-800"
+                            >
+                              Open PDF
+                            </button>
                           ) : (
                             <span className="text-slate-400">—</span>
                           )}
@@ -594,6 +655,11 @@ const AdminReportCards = () => {
         </div>
       </div>
 
+      {/* Finalize (Generated) */}
+      <div className={`${activeTab === 'finalize' ? '' : 'hidden'} bg-white rounded-lg shadow-md p-6 border border-slate-200`}>
+        <GeneratedReportCards />
+      </div>
+
       {/* Published */}
       <div className={`${activeTab === 'published' ? '' : 'hidden'} bg-white rounded-lg shadow-md p-6 border border-slate-200`}>
         <div className="flex items-center justify-between mb-4">
@@ -660,11 +726,23 @@ const AdminReportCards = () => {
                       <td className="px-3 py-2">{card.term}</td>
                       <td className="px-3 py-2">{card.academic_year}</td>
                       <td className="px-3 py-2">
-                        {card.file_url ? (
-                          <a href={card.file_url} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:text-purple-800">Open</a>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
+                        <button
+                          onClick={async () => {
+                            try {
+                              const res = await callFunction('get-report-url', { document_id: card.id, expires_in: 600 });
+                              if (res?.success && res?.url) {
+                                window.open(res.url, '_blank', 'noopener');
+                              } else {
+                                showToast('Failed to get link', 'error');
+                              }
+                            } catch (e) {
+                              showToast(e?.userMessage || e?.message || 'Failed to get link', 'error');
+                            }
+                          }}
+                          className="text-purple-600 hover:text-purple-800"
+                        >
+                          Open
+                        </button>
                       </td>
                     </tr>
                   );

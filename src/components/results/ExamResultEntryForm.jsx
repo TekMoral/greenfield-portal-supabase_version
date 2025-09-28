@@ -35,18 +35,13 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
     admissionNumber: student?.admissionNumber || '',
     exam_score: '',
     test_score: '',
-    remark: '',
-    examType: 'midterm',
+        examType: 'final',
     session: new Date().getFullYear().toString(),
     term: '1st Term'
   });
   const [errors, setErrors] = useState({});
 
-  const examTypes = [
-    { value: 'midterm', label: 'Mid-term Exam' },
-    { value: 'final', label: 'Final Exam' },
-  ];
-
+  
   const terms = ['1st Term', '2nd Term', '3rd Term'];
 
   const normalizeTermLabel = (t) => {
@@ -91,8 +86,7 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
       ...prev,
       exam_score: existingResult.examScore ?? existingResult.exam_score ?? '',
       test_score: existingResult.testScore ?? existingResult.test_score ?? '',
-      remark: existingResult.remark ?? existingResult.remarks ?? '',
-      session: String(existingResult.year ?? existingResult.session ?? prev.session),
+            session: String(existingResult.year ?? existingResult.session ?? prev.session),
       term: toTermString(existingResult.term ?? prev.term)
     }));
   }, [existingResult]);
@@ -113,21 +107,21 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.exam_score) {
+    if (formData.exam_score === '' || formData.exam_score === null || formData.exam_score === undefined) {
       newErrors.exam_score = 'Exam score is required';
     } else {
-      const score = parseFloat(formData.exam_score);
-      if (isNaN(score) || score < 0 || score > 50) {
-        newErrors.exam_score = 'Exam score must be between 0 and 50';
+      const score = Number(formData.exam_score);
+      if (!Number.isInteger(score) || score < 0 || score > 50) {
+        newErrors.exam_score = 'Exam score must be a whole number between 0 and 50';
       }
     }
 
-    if (!formData.test_score) {
+    if (formData.test_score === '' || formData.test_score === null || formData.test_score === undefined) {
       newErrors.test_score = 'Test score is required';
     } else {
-      const score = parseFloat(formData.test_score);
-      if (isNaN(score) || score < 0 || score > 30) {
-        newErrors.test_score = 'Test score must be between 0 and 30';
+      const score = Number(formData.test_score);
+      if (!Number.isInteger(score) || score < 0 || score > 30) {
+        newErrors.test_score = 'Test score must be a whole number between 0 and 30';
       }
     }
 
@@ -152,9 +146,9 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
 
     const resultData = {
       ...formData,
-      exam_score: parseFloat(formData.exam_score),
-      test_score: parseFloat(formData.test_score),
-      totalTeacherScore: parseFloat(formData.exam_score) + parseFloat(formData.test_score),
+      exam_score: parseInt(formData.exam_score, 10),
+      test_score: parseInt(formData.test_score, 10),
+      totalTeacherScore: parseInt(formData.exam_score, 10) + parseInt(formData.test_score, 10),
       maxExamScore: 50,
       maxTestScore: 30,
       maxTeacherScore: 80
@@ -164,8 +158,8 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
   };
 
   const getTotalScore = () => {
-    const examScore = parseFloat(formData.exam_score) || 0;
-    const testScore = parseFloat(formData.test_score) || 0;
+    const examScore = parseInt(formData.exam_score, 10) || 0;
+    const testScore = parseInt(formData.test_score, 10) || 0;
     return examScore + testScore;
   };
 
@@ -276,21 +270,9 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Exam Type
               </label>
-              <select
-                name="examType"
-                value={formData.examType}
-                onChange={handleChange}
-                disabled={isReadOnly}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  isReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''
-                }`}
-              >
-                {examTypes.map(type => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
+              <div className={`w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 ${isReadOnly ? '' : ''}`}>
+                Final Exam
+              </div>
             </div>
 
             {/* Scores */}
@@ -338,28 +320,7 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
               </div>
             </div>
 
-            {/* Remark */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Teacher's Remark (Optional)
-              </label>
-              <textarea
-                name="remark"
-                value={formData.remark}
-                onChange={handleChange}
-                rows={3}
-                maxLength={200}
-                disabled={isReadOnly}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
-                  isReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''
-                }`}
-                placeholder="Add your comments about the student's performance..."
-              />
-              <div className="text-right text-xs text-gray-500 mt-1">
-                {formData.remark.length}/200 characters
-              </div>
-            </div>
-
+            
             {/* Score Summary */}
             {(formData.exam_score || formData.test_score) && (
               <div className="bg-green-50 rounded-lg p-4">

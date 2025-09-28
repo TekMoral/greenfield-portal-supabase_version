@@ -34,6 +34,8 @@ const AdminReview = () => {
   const [classes, setClasses] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [students, setStudents] = useState([]);
+  const [classGroups, setClassGroups] = useState([]);
+  const [classGroupKey, setClassGroupKey] = useState('');
 
   // Filter states
   const [filters, setFilters] = useState({
@@ -48,7 +50,7 @@ const AdminReview = () => {
 
   useEffect(() => {
     fetchResults();
-  }, [activeTab, filters]);
+  }, [activeTab, filters, classGroupKey]);
 
   const fetchInitialData = async () => {
     try {
@@ -69,6 +71,30 @@ const AdminReview = () => {
       setClasses(classesData);
       setSubjects(subjectsData);
       setStudents(studentsData);
+      // Build grouped classes with categories (Science/Arts/etc.)
+      try {
+        const baseNormalize = (name) => {
+          if (!name) return { key: '', label: '', category: '' };
+          let n = String(name).trim();
+          const catMatch = n.match(/\s+(Science|Sciences|Arts|Commercial|Commerce|Management|Technical|Tech|Business|Social|Humanities|Option\s*[A-Z])$/i);
+          const category = catMatch ? catMatch[1] : '';
+          n = n.replace(/\s+(Science|Sciences|Arts|Commercial|Commerce|Management|Technical|Tech|Business|Social|Humanities|Option\s*[A-Z])$/i, '');
+          n = n.replace(/([A-Za-z]+)\s*([0-9]+)/g, '$1 $2');
+          const label = n.replace(/\s+/g, ' ').trim();
+          const key = label.toLowerCase();
+          return { key, label, category };
+        };
+        const groupsMap = new Map();
+        for (const c of (classesData || [])) {
+          const { key, label, category } = baseNormalize(c.name);
+          const entry = groupsMap.get(key) || { key, label, classIds: [], categories: new Set() };
+          entry.classIds.push(c.id);
+          if (category) entry.categories.add(category);
+          groupsMap.set(key, entry);
+        }
+        const groups = Array.from(groupsMap.values()).map(g => ({ ...g, categories: Array.from(g.categories) })).sort((a,b)=>a.label.localeCompare(b.label));
+        setClassGroups(groups);
+      } catch (_) { setClassGroups([]); }
     } catch (error) {
       console.error('Error fetching initial data:', error);
     }
@@ -83,6 +109,7 @@ const AdminReview = () => {
         const res = await getSubmittedResults(filters);
         results = res?.success ? (res.data || []) : [];
         console.log('Fetched pending results:', results); // Debug log
+        results = applyClassFilters(results);
         setPendingResults(results);
       } else {
         if (activeTab === 'reviewed') {
@@ -102,6 +129,7 @@ const AdminReview = () => {
           // Filter for published graded results
           results = results.filter(r => r.published);
         }
+        results = applyClassFilters(results);
         setReviewedResults(results);
       }
     } catch (error) {
@@ -265,6 +293,28 @@ const AdminReview = () => {
   const isEligibleForPublish = (r) => r?.status === 'graded' && r?.adminScore !== null && r?.adminScore !== undefined;
 
   
+  // Filter results by class or class group using students -> class_id
+  const applyClassFilters = (rows) => {
+    let out = Array.isArray(rows) ? rows.slice() : [];
+    const byId = new Map((students || []).map(s => [String(s.id), s]));
+    if (filters.classId) {
+      out = out.filter(r => {
+        const st = byId.get(String(r.studentId));
+        return st && String(st.class_id) === String(filters.classId);
+      });
+    } else if (classGroupKey) {
+      const grp = (classGroups || []).find(g => g.key === classGroupKey);
+      const ids = grp ? new Set(grp.classIds) : null;
+      if (ids && ids.size) {
+        out = out.filter(r => {
+          const st = byId.get(String(r.studentId));
+          return st && ids.has(st.class_id);
+        });
+      }
+    }
+    return out;
+  };
+
   const currentResults = activeTab === 'pending' ? pendingResults : reviewedResults;
 
   if (loading) {
@@ -359,7 +409,7 @@ const AdminReview = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Exam</label>
             <select
@@ -389,16 +439,38 @@ const AdminReview = () => {
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Class Group</label>
+            <select
+              value={classGroupKey}
+              onChange={(e) => { setClassGroupKey(e.target.value); handleFilterChange('classId', ''); }}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">All Groups</option>
+              {classGroups.map(g => (
+                <option key={g.key} value={g.key}>
+                  {g.label}{g.categories && g.categories.length ? ` — ${g.categories.join('/')}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Class</label>
             <select
               value={filters.classId}
-              onChange={(e) => handleFilterChange('classId', e.target.value)}
+              onChange={(e) => { setClassGroupKey(''); handleFilterChange('classId', e.target.value); }}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">All Classes</option>
-              {classes.map(classData => (
-                <option key={classData.id} value={classData.id}>{classData.name}</option>
-              ))}
+              {classes.map(classData => {
+                const name = String(classData.name || '');
+                const m = name.match(/\s+(Science|Sciences|Arts|Commercial|Commerce|Management|Technical|Tech|Business|Social|Humanities|Option\s*[A-Z])$/i);
+                const cat = m ? m[1] : '';
+                return (
+                  <option key={classData.id} value={classData.id}>
+                    {name}{cat ? ` — ${cat}` : ''}
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>

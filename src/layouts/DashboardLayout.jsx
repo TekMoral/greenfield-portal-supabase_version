@@ -61,20 +61,16 @@ const DashboardLayout = () => {
         {/* Toggle Button */}
         <button
           onClick={toggleMobileMenu}
-          className="fixed top-[calc(var(--appbar-height,56px)+8px)] left-4 z-[10000] bg-teal-800 text-white px-2 py-1 rounded-md shadow-lg"
+          className="fixed top-[calc(var(--appbar-height,56px)+8px)] left-4 z-[900] bg-teal-800 text-white px-2 py-1 rounded-md shadow-lg"
           aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
         >
-          {isMobileMenuOpen ? (
-            <X className="w-4 h-4" />
-          ) : (
-            <Menu className="w-4 h-4" />
-          )}
+          <Menu className="w-4 h-4" />
         </button>
 
         {/* Sidebar Overlay */}
         {isMobileMenuOpen && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-[900]"
+            className="fixed inset-0 bg-black bg-opacity-50 z-[1000]"
             onClick={closeMobileMenu}
           />
         )}

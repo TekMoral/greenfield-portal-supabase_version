@@ -46,6 +46,7 @@ const ExamResults = () => {
   const [submitting, setSubmitting] = useState(false);
   const [coreSubjectNames, setCoreSubjectNames] = useState([]);
   const [existingResultsMap, setExistingResultsMap] = useState({});
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Helper function to get student full name
   const getStudentName = (student) => {
@@ -467,10 +468,35 @@ const ExamResults = () => {
   return (
     <div className="-mx-4 sm:mx-0 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* Header */}
-      <div className="flex justify-between items-start">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-900">Submit Exam Results to Admin</h2>
-          <p className="text-gray-600 mt-1">Submit exam and test scores for admin review and final grading</p>
+      <div className="rounded-xl overflow-hidden border border-emerald-600/20 shadow-sm bg-gradient-to-r from-emerald-600 to-blue-600 p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-white/15 flex items-center justify-center">
+                <svg className="w-5 h-5 text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 12h6m-6 4h6" />
+                </svg>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold text-white">Results Management</h2>
+            </div>
+            <p className="text-white/90 mt-1 text-xs sm:text-sm">Submit exam and test scores for admin review and final grading</p>
+          </div>
+          <div className="hidden md:flex items-center gap-2">
+            {selectedSubject && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 text-white border border-white/20">Subject: {selectedSubject}</span>
+            )}
+            {selectedClassData && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 text-white border border-white/20">Class: {selectedClassData.name}{selectedClassData.level ? ` • ${selectedClassData.level}` : ''}</span>
+            )}
+          </div>
+        </div>
+        <div className="mt-3 md:hidden flex flex-wrap gap-2">
+          {selectedSubject && (
+            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 text-white border border-white/20">Subject: {selectedSubject}</span>
+          )}
+          {selectedClassData && (
+            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 text-white border border-white/20">Class: {selectedClassData.name}{selectedClassData.level ? ` • ${selectedClassData.level}` : ''}</span>
+          )}
         </div>
       </div>
 
@@ -492,15 +518,27 @@ const ExamResults = () => {
 
 
       {/* Class and Subject Selection */}
-      <div className="bg-white rounded-none sm:rounded-lg shadow p-4 sm:p-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Select Class and Subject</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="bg-white rounded-none sm:rounded-lg shadow p-3 sm:p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900">Class & Subject</h3>
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((o) => !o)}
+            className="md:hidden inline-flex items-center gap-1 px-2 py-1 rounded border border-slate-300 text-slate-700 text-xs hover:bg-slate-50"
+            aria-expanded={filtersOpen}
+            aria-controls="filters-panel"
+          >
+            {filtersOpen ? 'Hide' : 'Filters'}
+          </button>
+        </div>
+
+        <div id="filters-panel" className={`${filtersOpen ? 'grid' : 'hidden'} md:grid grid-cols-2 md:grid-cols-2 gap-2 sm:gap-4`}>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Class</label>
+            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1 md:mb-2">Class</label>
             <select
               value={selectedClass}
               onChange={(e) => handleClassChange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-2.5 py-1.5 md:px-3 md:py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             >
               <option value="">Select a class</option>
               {(selectedSubjectId || selectedSubject ? getClassesForSubject(selectedSubject, selectedSubjectId) : teacherClasses).map(cls => (
@@ -514,7 +552,7 @@ const ExamResults = () => {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
+            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1 md:mb-2">Subject</label>
             <select
               value={selectedSubjectId || selectedSubject}
               onChange={(e) => {
@@ -532,7 +570,7 @@ const ExamResults = () => {
                 setSubmittedResults(new Set());
                 setExistingResultsMap({});
               }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-2.5 py-1.5 md:px-3 md:py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             >
               <option value="">Select a subject</option>
               {getAvailableSubjects().map(subject => (
@@ -546,9 +584,9 @@ const ExamResults = () => {
 
         {/* Class Info */}
         {selectedClassData && (
-          <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+          <div className="mt-3 sm:mt-4 p-3 bg-gray-50 rounded-lg">
             <h4 className="text-sm font-medium text-gray-900 mb-2">Class Information</h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 text-xs sm:text-sm text-gray-600">
               <div>
                 <span className="font-medium">Type:</span> {selectedClassData.isGrouped ? 'Grouped Classes' : 'Individual Class'}
               </div>
@@ -560,9 +598,9 @@ const ExamResults = () => {
               </div>
             </div>
             {selectedClassData.isGrouped && selectedClassData.individualClasses && (
-              <div className="mt-2">
-                <span className="text-sm font-medium text-gray-700">Includes classes: </span>
-                <span className="text-sm text-gray-600">
+              <div className="mt-2 text-xs sm:text-sm">
+                <span className="font-medium text-gray-700">Includes classes: </span>
+                <span className="text-gray-600">
                   {selectedClassData.individualClasses.map(c => c.name).join(', ')}
                 </span>
               </div>

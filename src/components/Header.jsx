@@ -236,18 +236,18 @@ const Header = forwardRef((props, ref) => {
                 {/* User Menu Button */}
                 <button
                   onClick={toggleUserMenu}
-                  className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white"
+                  className="flex items-center space-x-1.5 bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white text-xs sm:text-sm sm:px-3 sm:py-1.5"
                   aria-label="User menu"
                   aria-expanded={isUserMenuOpen}
                 >
-                  <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-white font-medium">
+                  <div className="w-6 h-6 sm:w-7 sm:h-7 bg-white/20 rounded-full flex items-center justify-center text-white font-medium">
                     {user.email.charAt(0).toUpperCase()}
                   </div>
-                  <span className="hidden sm:block font-medium">
+                  <span className="hidden md:block font-medium truncate max-w-[10ch] sm:max-w-[16ch]">
                     {user.name || 'User'}
                   </span>
                   <ChevronDown
-                    className={`w-4 h-4 transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : ''}`}
+                    className={`w-3 h-3 sm:w-4 sm:h-4 transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : ''}`}
                   />
                 </button>
 

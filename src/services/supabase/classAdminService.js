@@ -1,5 +1,6 @@
 // src/services/supabase/classAdminService.js
 import { supabase } from '../../lib/supabaseClient'
+import { getAccessToken, cookieAuth } from '../../lib/cookieAuthClient'
 
 const extractFnError = (error) => {
   try {
@@ -39,9 +40,25 @@ const extractFnError = (error) => {
 // Create class via Edge Function
 export const createClass = async (classData) => {
   try {
-    const { data, error } = await supabase.functions.invoke('create-class', {
-      body: JSON.stringify(classData)
+    let token = getAccessToken && getAccessToken();
+    let headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+    let { data, error } = await supabase.functions.invoke('create-class', {
+      body: JSON.stringify(classData),
+      headers
     });
+
+    if ((error || data?.error) && !token) {
+      try {
+        const refreshed = await cookieAuth.refresh();
+        if (refreshed?.success) {
+          token = getAccessToken && getAccessToken();
+          headers = token ? { Authorization: `Bearer ${token}` } : {};
+          ({ data, error } = await supabase.functions.invoke('create-class', { body: JSON.stringify(classData), headers }));
+        }
+      } catch (_) { /* ignore */ }
+    }
+
     if (error) {
       const msg = extractFnError(error);
       console.error('❌ [createClass] Edge Function error:', msg);
@@ -64,12 +81,28 @@ export const updateClass = async (classId, updates) => {
     if (!classId) {
       return { success: false, error: 'Missing classId for update' };
     }
-    // Prevent accidental id override in updates
     const { id: _ignore, ...rest } = updates || {};
     const payload = { id: classId, ...rest };
-    const { data, error } = await supabase.functions.invoke('update-class', {
-      body: JSON.stringify(payload)
+
+    let token = getAccessToken && getAccessToken();
+    let headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+    let { data, error } = await supabase.functions.invoke('update-class', {
+      body: JSON.stringify(payload),
+      headers
     });
+
+    if ((error || data?.error) && !token) {
+      try {
+        const refreshed = await cookieAuth.refresh();
+        if (refreshed?.success) {
+          token = getAccessToken && getAccessToken();
+          headers = token ? { Authorization: `Bearer ${token}` } : {};
+          ({ data, error } = await supabase.functions.invoke('update-class', { body: JSON.stringify(payload), headers }));
+        }
+      } catch (_) { /* ignore */ }
+    }
+
     if (error) {
       const msg = extractFnError(error);
       console.error('❌ [updateClass] Edge Function error:', msg);
@@ -90,9 +123,25 @@ export const updateClass = async (classId, updates) => {
 export const deleteClass = async (classId) => {
   try {
     const payload = { id: classId };
-    const { data, error } = await supabase.functions.invoke('delete-class', {
-      body: JSON.stringify(payload)
+    let token = getAccessToken && getAccessToken();
+    let headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+    let { data, error } = await supabase.functions.invoke('delete-class', {
+      body: JSON.stringify(payload),
+      headers
     });
+
+    if ((error || data?.error) && !token) {
+      try {
+        const refreshed = await cookieAuth.refresh();
+        if (refreshed?.success) {
+          token = getAccessToken && getAccessToken();
+          headers = token ? { Authorization: `Bearer ${token}` } : {};
+          ({ data, error } = await supabase.functions.invoke('delete-class', { body: JSON.stringify(payload), headers }));
+        }
+      } catch (_) { /* ignore */ }
+    }
+
     if (error) {
       const msg = extractFnError(error);
       console.error('❌ [deleteClass] Edge Function error:', msg);

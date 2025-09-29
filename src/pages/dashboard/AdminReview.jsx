@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import {
   getSubmittedResults,
@@ -10,7 +10,8 @@ import { getAllExams } from '../../services/supabase/examService';
 import { getAllClasses } from '../../services/supabase/classService';
 import { getSubjects } from '../../services/supabase/subjectService';
 import { getAllStudents } from '../../services/supabase/studentService';
-import AdminReviewModal from '../../components/examResults/AdminReviewModal';
+import AdminReviewInline from '../../components/examResults/AdminReviewInline';
+import MobileAdminScoreForm from '../../components/examResults/MobileAdminScoreForm';
 import useToast from '../../hooks/useToast';
 
 const AdminReview = () => {
@@ -18,12 +19,14 @@ const AdminReview = () => {
   const { showToast } = useToast();
   const [pendingResults, setPendingResults] = useState([]);
   const [reviewedResults, setReviewedResults] = useState([]);
+  const [publishedResults, setPublishedResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('pending'); // pending, reviewed, published
   const [selectedResults, setSelectedResults] = useState([]);
-  const [showReviewModal, setShowReviewModal] = useState(false);
   const [selectedResult, setSelectedResult] = useState(null);
   const [expanded, setExpanded] = useState({});
+  const [draftAdminScores, setDraftAdminScores] = useState({});
+  const inlineRef = useRef(null);
   const toggleExpand = (id) => {
     setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
   };
@@ -40,8 +43,7 @@ const AdminReview = () => {
   // Filter states
   const [filters, setFilters] = useState({
     examId: '',
-    subjectId: '',
-    classId: ''
+    subjectId: ''
   });
 
   useEffect(() => {
@@ -103,35 +105,23 @@ const AdminReview = () => {
   const fetchResults = async () => {
     setLoading(true);
     try {
-      let results = [];
+      const [pendingRes, gradedRes] = await Promise.all([
+        getSubmittedResults({ ...filters, status: 'submitted' }),
+        getSubmittedResults({ ...filters, status: 'graded' })
+      ]);
 
-      if (activeTab === 'pending') {
-        const res = await getSubmittedResults(filters);
-        results = res?.success ? (res.data || []) : [];
-        console.log('Fetched pending results:', results); // Debug log
-        results = applyClassFilters(results);
-        setPendingResults(results);
-      } else {
-        if (activeTab === 'reviewed') {
-          const res = await getSubmittedResults({
-            ...filters,
-            status: 'graded'
-          });
-          results = res?.success ? (res.data || []) : [];
-          // Filter for non-published graded results
-          results = results.filter(r => !r.published);
-        } else { // published
-          const res = await getSubmittedResults({
-            ...filters,
-            status: 'graded'
-          });
-          results = res?.success ? (res.data || []) : [];
-          // Filter for published graded results
-          results = results.filter(r => r.published);
-        }
-        results = applyClassFilters(results);
-        setReviewedResults(results);
-      }
+      let pending = pendingRes?.success ? (pendingRes.data || []) : [];
+      let graded = gradedRes?.success ? (gradedRes.data || []) : [];
+
+      pending = applyClassFilters(pending);
+      graded = applyClassFilters(graded);
+
+      const published = graded.filter(r => r.published === true || r.is_published === true);
+      const reviewed = graded.filter(r => !(r.published === true || r.is_published === true));
+
+      setPendingResults(pending);
+      setReviewedResults(reviewed);
+      setPublishedResults(published);
     } catch (error) {
       console.error('Error fetching results:', error);
     } finally {
@@ -149,9 +139,9 @@ const AdminReview = () => {
   const clearFilters = () => {
     setFilters({
       examId: '',
-      subjectId: '',
-      classId: ''
+      subjectId: ''
     });
+    setClassGroupKey('');
   };
 
   const handleSelectResult = (resultId) => {
@@ -165,8 +155,8 @@ const AdminReview = () => {
   };
 
   const handleSelectAll = () => {
-    const currentResultsList = activeTab === 'pending' ? pendingResults : reviewedResults;
-    const eligibleIds = currentResultsList.filter(isEligibleForPublish).map(r => r.id);
+    const list = activeTab === 'pending' ? pendingResults : activeTab === 'reviewed' ? reviewedResults : publishedResults;
+    const eligibleIds = list.filter(isEligibleForPublish).map(r => r.id);
     if (selectedResults.length === eligibleIds.length) {
       setSelectedResults([]);
     } else {
@@ -176,28 +166,64 @@ const AdminReview = () => {
 
   const handleReviewResult = (result) => {
     setSelectedResult(result);
-    setShowReviewModal(true);
   };
+
+  // Ensure desktop inline review is brought into view when opened
+  useEffect(() => {
+    if (selectedResult && inlineRef.current) {
+      inlineRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [selectedResult]);
 
   const handleSubmitReview = async (reviewData) => {
     try {
+      // For mobile form, we need to determine which result to update
+      const targetResult = selectedResult || reviewData.result;
+      if (!targetResult) {
+        throw new Error('No result selected for review');
+      }
+
       const res = await gradeResultByAdmin({
-        studentId: selectedResult.studentId,
-        subjectId: selectedResult.subjectId,
-        term: selectedResult.term,
-        year: selectedResult.year,
+        studentId: targetResult.studentId,
+        subjectId: targetResult.subjectId,
+        term: targetResult.term,
+        year: targetResult.year,
         adminScore: reviewData.adminScore,
         teacherScore: reviewData.teacherScore
       });
       if (!res?.success) throw new Error(res?.error || 'Failed to submit review');
-      setShowReviewModal(false);
-      setSelectedResult(null);
+      
+      // Clear selected result if it was set
+      if (selectedResult) {
+        setSelectedResult(null);
+      }
+      
       await fetchResults();
-      showToast('Review submitted successfully!', 'success');
+      showToast('Admin score saved successfully!', 'success');
     } catch (error) {
       console.error('Error submitting review:', error);
-      showToast('Error submitting review. Please try again.', 'error');
+      showToast('Error saving admin score. Please try again.', 'error');
     }
+  };
+
+  // Compact mobile inline admin save handler
+  const handleInlineAdminSave = async (e, resObj) => {
+    e.preventDefault();
+    const input = e.target.elements[`adminScore_${resObj.id}`];
+    const value = parseFloat(input?.value);
+    const max = 20;
+    if (Number.isNaN(value) || value < 0 || value > max) {
+      showToast(`Enter a valid admin score between 0 and ${max}`, 'error');
+      return;
+    }
+    const teacherSubtotal = Number((resObj.testScore || 0) + (resObj.examScore || 0)) || Number(resObj.score ?? 0) || 0;
+    await handleSubmitReview({ adminScore: value, teacherScore: teacherSubtotal, result: resObj });
+    // Clear draft value for this row after successful save
+    setDraftAdminScores((prev) => {
+      const next = { ...prev };
+      delete next[resObj.id];
+      return next;
+    });
   };
 
   const handleBulkPublish = async () => {
@@ -297,12 +323,7 @@ const AdminReview = () => {
   const applyClassFilters = (rows) => {
     let out = Array.isArray(rows) ? rows.slice() : [];
     const byId = new Map((students || []).map(s => [String(s.id), s]));
-    if (filters.classId) {
-      out = out.filter(r => {
-        const st = byId.get(String(r.studentId));
-        return st && String(st.class_id) === String(filters.classId);
-      });
-    } else if (classGroupKey) {
+    if (classGroupKey) {
       const grp = (classGroups || []).find(g => g.key === classGroupKey);
       const ids = grp ? new Set(grp.classIds) : null;
       if (ids && ids.size) {
@@ -315,7 +336,7 @@ const AdminReview = () => {
     return out;
   };
 
-  const currentResults = activeTab === 'pending' ? pendingResults : reviewedResults;
+  const currentResults = activeTab === 'pending' ? pendingResults : activeTab === 'reviewed' ? reviewedResults : publishedResults;
 
   if (loading) {
     return (
@@ -382,7 +403,7 @@ const AdminReview = () => {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            Reviewed ({reviewedResults.filter(r => r.status === 'graded' && !r.published).length})
+            Reviewed ({reviewedResults.length})
           </button>
           <button
             onClick={() => setActiveTab('published')}
@@ -392,7 +413,7 @@ const AdminReview = () => {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            Published ({reviewedResults.filter(r => r.status === 'graded' && r.published).length})
+            Published ({publishedResults.length})
           </button>
         </nav>
       </div>
@@ -441,9 +462,9 @@ const AdminReview = () => {
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Class Group</label>
             <select
-              value={classGroupKey}
-              onChange={(e) => { setClassGroupKey(e.target.value); handleFilterChange('classId', ''); }}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            value={classGroupKey}
+            onChange={(e) => { setClassGroupKey(e.target.value); }}
+            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">All Groups</option>
               {classGroups.map(g => (
@@ -453,27 +474,7 @@ const AdminReview = () => {
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Class</label>
-            <select
-              value={filters.classId}
-              onChange={(e) => { setClassGroupKey(''); handleFilterChange('classId', e.target.value); }}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">All Classes</option>
-              {classes.map(classData => {
-                const name = String(classData.name || '');
-                const m = name.match(/\s+(Science|Sciences|Arts|Commercial|Commerce|Management|Technical|Tech|Business|Social|Humanities|Option\s*[A-Z])$/i);
-                const cat = m ? m[1] : '';
-                return (
-                  <option key={classData.id} value={classData.id}>
-                    {name}{cat ? ` — ${cat}` : ''}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-        </div>
+                  </div>
       </div>
 
       {/* Results Table */}
@@ -504,7 +505,7 @@ const AdminReview = () => {
           </div>
         </div>
 
-        <div className="overflow-x-hidden md:overflow-x-auto">
+        <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
@@ -536,6 +537,7 @@ const AdminReview = () => {
             </thead>
             <tbody className="bg-white divide-y divide-slate-200">
               {currentResults.map((result) => {
+                const isPublished = result.published === true || result.is_published === true;
                 console.log('Rendering result:', result); // Debug log
                 const teacherScore = Number((result.testScore || 0) + (result.examScore || 0)) || Number(result.score ?? 0) || 0;
                 const originalScore = teacherScore; // out of 80
@@ -556,7 +558,7 @@ const AdminReview = () => {
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-normal break-words md:whitespace-nowrap">
                       <div className="flex items-center gap-2 w-full">
                         {/* Mobile inline checkbox */}
                         <label className="inline-flex items-center md:hidden">
@@ -569,7 +571,7 @@ const AdminReview = () => {
                             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                           />
                         </label>
-                        <div className="text-sm font-medium text-slate-900">
+                        <div className="text-sm font-medium text-slate-900 break-words">
                           {getStudentName(result.studentId)}
                         </div>
                         {/* Mobile Open/Close toggle */}
@@ -581,29 +583,77 @@ const AdminReview = () => {
                           {expanded[result.id] ? 'Close' : 'Open'}
                         </button>
                       </div>
-                      <div className="text-sm text-slate-500">
-                        ID: {getStudentAdmissionNumber(result.studentId)}
+                      <div className="text-sm text-slate-500 break-words">
+                        Adm No: {getStudentAdmissionNumber(result.studentId)}
                       </div>
 
-                      {/* Mobile details panel */}
+                      {/* Mobile details panel compact container */}
                       {expanded[result.id] && (
-                        <div className="md:hidden mt-3 p-3 rounded-lg border border-emerald-200 bg-emerald-50 text-sm space-y-2 shadow-sm">
-                          <div className="flex justify-between"><span className="text-slate-600">Exam</span><span className="font-medium text-slate-900">{result.examId ? getExamName(result.examId) : `${result.term || 'Term'} ${result.year || new Date().getFullYear()}`}</span></div>
-                          <div className="flex justify-between"><span className="text-slate-600">Subject</span><span className="font-medium text-slate-900">{getSubjectName(result.subjectId)}</span></div>
-                          <div className="flex justify-between"><span className="text-slate-600">Current Score</span><span className="font-medium text-slate-900">{(Number((result.testScore || 0) + (result.examScore || 0)) || Number(result.score ?? 0) || 0)}/80</span></div>
-                          <div className="flex justify-between"><span className="text-slate-600">Admin Score</span><span className="font-medium text-slate-900">{Number(result.adminScore ?? 0) || 0}/20</span></div>
-                          <div className="flex justify-between"><span className="text-slate-600">Final</span><span className="font-medium text-slate-900">{(Number((result.testScore || 0) + (result.examScore || 0)) + (Number(result.adminScore ?? 0) || 0))}/100 ({calculateGrade((Number((result.testScore || 0) + (result.examScore || 0)) + (Number(result.adminScore ?? 0) || 0)), 100).grade})</span></div>
-                          <div><span className={`px-2 py-1 rounded-full text-[11px] font-medium ${getStatusColor(result.status, result.published)}`}>{getStatusText(result.status, result.published)}</span></div>
-                          <div className="pt-1 flex flex-wrap gap-2">
-                            {activeTab === 'pending' && (
-                              <button onClick={() => handleReviewResult(result)} className="text-blue-600 hover:text-blue-800">Review</button>
-                            )}
-                            {activeTab === 'reviewed' && result.status === 'graded' && (
-                              <button onClick={() => handleReviewResult(result)} className="text-green-700 hover:text-green-900">Edit Review</button>
-                            )}
-                            {(activeTab === 'reviewed' || activeTab === 'published') && (
-                              <button onClick={() => handleReviewResult(result)} className="text-slate-700 hover:text-slate-900">View</button>
-                            )}
+                        <div className="md:hidden mt-3 w-full max-w-full overflow-hidden">
+                          <div className="w-full p-3 rounded-lg border border-emerald-200 bg-emerald-50 text-sm shadow-sm">
+                            <div className="grid grid-cols-[auto,1fr] gap-x-2 gap-y-1 items-center">
+                              <span className="text-slate-600">Exam:</span>
+                              <span className="font-medium text-slate-900 break-words">{result.examId ? getExamName(result.examId) : `${result.term || 'Term'} ${result.year || new Date().getFullYear()}`}</span>
+
+                              <span className="text-slate-600">Subject:</span>
+                              <span className="font-medium text-slate-900 break-words">{getSubjectName(result.subjectId)}</span>
+
+                              <div className="col-span-2 flex items-center gap-2">
+                                <span className="text-slate-600">Status:</span>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(result.status, isPublished)} whitespace-nowrap`}>{getStatusText(result.status, isPublished)}</span>
+                              </div>
+
+                              {result.testScore != null && (
+                                <>
+                                  <span className="text-slate-600">Test score:</span>
+                                  <span className="font-medium text-slate-900">{result.testScore}/30</span>
+                                </>
+                              )}
+
+                              {result.examScore != null && (
+                                <>
+                                  <span className="text-slate-600">Exam score:</span>
+                                  <span className="font-medium text-slate-900">{result.examScore}/50</span>
+                                </>
+                              )}
+
+                              {/* Admin score row: input on pending/reviewed, value on published */}
+                              <span className="text-slate-600">Admin score:</span>
+                              {activeTab === 'published' ? (
+                                <span className="font-medium text-slate-900">{Number(result.adminScore ?? 0) || 0}/20</span>
+                              ) : (
+                                <form onSubmit={(e) => handleInlineAdminSave(e, result)} className="flex items-center gap-2 whitespace-nowrap">
+                                  <input
+                                    name={`adminScore_${result.id}`}
+                                    type="number"
+                                    value={(draftAdminScores[result.id] ?? (result.adminScore ?? ''))}
+                                    onChange={(e) => setDraftAdminScores((prev) => ({ ...prev, [result.id]: e.target.value }))}
+                                    min={0}
+                                    max={20}
+                                    step={0.5}
+                                    className="w-16 px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shrink-0"
+                                    placeholder="0-20"
+                                  />
+                                  <button
+                                    type="submit"
+                                    className="px-2 py-1 bg-emerald-600 text-white text-xs rounded hover:bg-emerald-700 shrink-0"
+                                  >
+                                    Save
+                                  </button>
+                                </form>
+                              )}
+
+                              <span className="text-slate-600">Total score:</span>
+                              <span className="font-semibold text-slate-900">{
+                                (
+                                  (Number((result.testScore || 0) + (result.examScore || 0)) || Number(result.score ?? 0) || 0)
+                                  + (activeTab === 'published'
+                                      ? (Number(result.adminScore ?? 0) || 0)
+                                      : (Number(draftAdminScores[result.id] ?? result.adminScore ?? 0) || 0)
+                                    )
+                                )
+                              }/100</span>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -637,8 +687,8 @@ const AdminReview = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(result.status, result.published)}`}>
-                        {getStatusText(result.status, result.published)}
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(result.status, isPublished)}`}>
+                        {getStatusText(result.status, isPublished)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2 hidden md:table-cell">
@@ -692,21 +742,23 @@ const AdminReview = () => {
         )}
       </div>
 
-      {/* Admin Review Modal */}
-      <AdminReviewModal
-        isOpen={showReviewModal}
-        onClose={() => {
-          setShowReviewModal(false);
-          setSelectedResult(null);
-        }}
-        result={selectedResult}
-        onSubmit={handleSubmitReview}
-        exams={exams}
-        classes={classes}
-        subjects={subjects}
-        students={students}
-        isReadOnly={activeTab === 'published'}
-      />
+      {/* Admin Review Inline - Desktop Only */}
+      {selectedResult && (
+        <div ref={inlineRef} className="hidden md:block">
+          <AdminReviewInline
+            result={selectedResult}
+            onClose={() => {
+              setSelectedResult(null);
+            }}
+            onSubmit={handleSubmitReview}
+            exams={exams}
+            classes={classes}
+            subjects={subjects}
+            students={students}
+            isReadOnly={activeTab === 'published'}
+          />
+        </div>
+      )}
     </div>
   );
 };

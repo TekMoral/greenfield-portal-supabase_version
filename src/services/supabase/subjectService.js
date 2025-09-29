@@ -1,5 +1,6 @@
 // src/services/supabase/subjectService.js
 import { supabase } from '../../lib/supabaseClient'
+import { getAccessToken, cookieAuth } from '../../lib/cookieAuthClient'
 
 // ✅ Get all subjects
 export const getSubjects = async () => {
@@ -46,11 +47,29 @@ export const getSubjectById = async (subjectId) => {
 // ✅ Create new subject (via Edge Function)
 export const createSubject = async (subjectData) => {
   try {
-    const { data, error } = await supabase.functions.invoke('create-subject', {
-      body: JSON.stringify(subjectData)
+    // Include Authorization bearer for functions (HttpOnly cookie flow does not auto-attach here)
+    let token = getAccessToken && getAccessToken();
+    let headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+    let { data, error } = await supabase.functions.invoke('create-subject', {
+      body: JSON.stringify(subjectData),
+      headers
     });
+
+    // If we failed without a token, try a cookie refresh once and retry
+    if ((error || data?.error) && !token) {
+      try {
+        const refreshed = await cookieAuth.refresh();
+        if (refreshed?.success) {
+          token = getAccessToken && getAccessToken();
+          headers = token ? { Authorization: `Bearer ${token}` } : {};
+          ({ data, error } = await supabase.functions.invoke('create-subject', { body: JSON.stringify(subjectData), headers }));
+        }
+      } catch (_) { /* ignore */ }
+    }
+
     if (error) {
-      console.error('❌ [createSubject] Edge Function error:', error.message);
+      console.error('❌ [createSubject] Edge Function error:', error.message || error);
       throw error;
     }
     if (data?.error) {
@@ -58,7 +77,7 @@ export const createSubject = async (subjectData) => {
     }
     return data?.data || null;
   } catch (error) {
-    console.error('❌ [createSubject] Failed:', error.message);
+    console.error('❌ [createSubject] Failed:', error.message || error);
     throw error;
   }
 }
@@ -67,11 +86,27 @@ export const createSubject = async (subjectData) => {
 export const updateSubject = async (subjectId, updates) => {
   try {
     const payload = { id: subjectId, ...updates };
-    const { data, error } = await supabase.functions.invoke('update-subject', {
-      body: JSON.stringify(payload)
+    let token = getAccessToken && getAccessToken();
+    let headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+    let { data, error } = await supabase.functions.invoke('update-subject', {
+      body: JSON.stringify(payload),
+      headers
     });
+
+    if ((error || data?.error) && !token) {
+      try {
+        const refreshed = await cookieAuth.refresh();
+        if (refreshed?.success) {
+          token = getAccessToken && getAccessToken();
+          headers = token ? { Authorization: `Bearer ${token}` } : {};
+          ({ data, error } = await supabase.functions.invoke('update-subject', { body: JSON.stringify(payload), headers }));
+        }
+      } catch (_) { /* ignore */ }
+    }
+
     if (error) {
-      console.error('[updateSubject] Edge Function error:', error.message);
+      console.error('[updateSubject] Edge Function error:', error.message || error);
       throw error;
     }
     if (data?.error) {
@@ -79,7 +114,7 @@ export const updateSubject = async (subjectId, updates) => {
     }
     return data?.data || null;
   } catch (error) {
-    console.error('[updateSubject] Error updating subject:', error);
+    console.error('[updateSubject] Error updating subject:', error.message || error);
     throw error;
   }
 }
@@ -88,11 +123,27 @@ export const updateSubject = async (subjectId, updates) => {
 export const deleteSubject = async (subjectId) => {
   try {
     const payload = { id: subjectId };
-    const { data, error } = await supabase.functions.invoke('delete-subject', {
-      body: JSON.stringify(payload)
+    let token = getAccessToken && getAccessToken();
+    let headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+    let { data, error } = await supabase.functions.invoke('delete-subject', {
+      body: JSON.stringify(payload),
+      headers
     });
+
+    if ((error || data?.error) && !token) {
+      try {
+        const refreshed = await cookieAuth.refresh();
+        if (refreshed?.success) {
+          token = getAccessToken && getAccessToken();
+          headers = token ? { Authorization: `Bearer ${token}` } : {};
+          ({ data, error } = await supabase.functions.invoke('delete-subject', { body: JSON.stringify(payload), headers }));
+        }
+      } catch (_) { /* ignore */ }
+    }
+
     if (error) {
-      console.error('[deleteSubject] Edge Function error:', error.message);
+      console.error('[deleteSubject] Edge Function error:', error.message || error);
       throw error;
     }
     if (data?.error) {
@@ -100,7 +151,7 @@ export const deleteSubject = async (subjectId) => {
     }
     return data || null;
   } catch (error) {
-    console.error('[deleteSubject] Error deleting subject:', error);
+    console.error('[deleteSubject] Error deleting subject:', error.message || error);
     throw error;
   }
 }

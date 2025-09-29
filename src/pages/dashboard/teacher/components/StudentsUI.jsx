@@ -97,7 +97,7 @@ export const StudentsFilters = ({
 };
 
 // Students list - Desktop table
-export const StudentsTable = ({ students = [], selectedSubject, onOpenStudent }) => {
+export const StudentsTable = ({ students = [], selectedSubject, onOpenStudent, onOpenImage }) => {
   return (
     <div className="hidden lg:block overflow-x-auto">
       <table className="w-full">
@@ -116,17 +116,22 @@ export const StudentsTable = ({ students = [], selectedSubject, onOpenStudent })
             <tr key={student.id} className="hover:bg-slate-50">
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="flex items-center">
-                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-4">
+                  <button
+                    type="button"
+                    onClick={() => onOpenImage?.(student)}
+                    title="View profile picture"
+                    className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-4 overflow-hidden ring-1 ring-green-200 hover:ring-2 hover:ring-green-300 transition"
+                  >
                     {student.profileImageUrl ? (
                       <img
                         src={student.profileImageUrl}
                         alt={getFullName(student)}
-                        className="w-10 h-10 rounded-full object-cover"
+                        className="w-full h-full object-cover"
                       />
                     ) : (
-                      <span className="text-green-600 font-semibold">{getInitials(student)}</span>
+                      <span className="text-green-600 font-semibold text-sm">{getInitials(student)}</span>
                     )}
-                  </div>
+                  </button>
                   <div>
                     <div className="text-sm font-medium text-slate-900">{getFullName(student)}</div>
                     <div className="text-sm text-slate-500">{student.admissionNumber}</div>
@@ -194,24 +199,29 @@ export const StudentsTable = ({ students = [], selectedSubject, onOpenStudent })
 };
 
 // Students list - Mobile cards
-export const StudentsMobileCards = ({ students = [], onOpenStudent }) => {
+export const StudentsMobileCards = ({ students = [], onOpenStudent, onOpenImage }) => {
   return (
     <div className="block lg:hidden">
       <div className="divide-y divide-slate-200">
         {students.map((student) => (
           <div key={student.id} className="p-4 hover:bg-slate-50">
             <div className="flex items-start space-x-3">
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => onOpenImage?.(student)}
+                title="View profile picture"
+                className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden ring-1 ring-green-200 hover:ring-2 hover:ring-green-300 transition"
+              >
                 {student.profileImageUrl ? (
                   <img
                     src={student.profileImageUrl}
                     alt={getFullName(student)}
-                    className="w-12 h-12 rounded-full object-cover"
+                    className="w-full h-full object-cover"
                   />
                 ) : (
                   <span className="text-green-600 font-semibold text-sm">{getInitials(student)}</span>
                 )}
-              </div>
+              </button>
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">

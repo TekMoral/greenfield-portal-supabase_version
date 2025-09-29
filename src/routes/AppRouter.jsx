@@ -79,6 +79,7 @@ const ClassStudents = lazyWithRetry(() => import("../pages/dashboard/ClassStuden
 
 const Admins = lazyWithRetry(() => import("../pages/dashboard/Admins"));
 const Settings = lazyWithRetry(() => import("../pages/dashboard/Settings"));
+const AdminProfile = lazyWithRetry(() => import("../pages/dashboard/AdminProfile"));
 const AdminSubjects = lazyWithRetry(() => import("../pages/dashboard/Subjects"));
 const AdminReports = lazyWithRetry(() => import("../pages/dashboard/Reports"));
 const AdminStudentReports = lazyWithRetry(() => import("../pages/dashboard/AdminStudentReports"));
@@ -277,6 +278,16 @@ const AppRouter = () => (
           <RoleBasedRoute allowedRoles={["super_admin"]}>
             <Suspense fallback={<LoadingFallback />}>
               <Settings />
+            </Suspense>
+          </RoleBasedRoute>
+        }
+      />
+      <Route
+        path="profile"
+        element={
+          <RoleBasedRoute allowedRoles={["admin", "super_admin"]}>
+            <Suspense fallback={<LoadingFallback />}>
+              <AdminProfile />
             </Suspense>
           </RoleBasedRoute>
         }

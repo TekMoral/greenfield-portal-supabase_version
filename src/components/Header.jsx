@@ -40,7 +40,7 @@ const Header = forwardRef((props, ref) => {
         return "/student/profile";
       case "admin":
       case "super_admin":
-        return "/dashboard/settings"; // adjust if you add an admin profile page
+        return "/dashboard/profile"; // Admin personal profile page
       default:
         return "/login";
     }

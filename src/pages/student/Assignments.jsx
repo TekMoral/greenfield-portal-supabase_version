@@ -250,7 +250,7 @@ const StudentAssignments = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">My Assignments</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 ml-9">My Assignments</h1>
         <div className="text-sm text-slate-600">
           {filteredAssignments.length} Assignment{filteredAssignments.length !== 1 ? 's' : ''}
         </div>

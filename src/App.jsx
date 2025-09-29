@@ -8,6 +8,7 @@ import { SettingsProvider } from "./contexts/SettingsContext";
 import { AuthProvider } from "./contexts/SupabaseAuthContext";
 import { Toaster } from "react-hot-toast"; // ✅ Toast system
 import ErrorBoundary from "./components/ErrorBoundary";
+import { isProd } from './utils/errorUtils';
 
 import "./App.css";
 
@@ -46,6 +47,16 @@ function App() {
       window.removeEventListener("resize", updateHeight);
     };
   }, []);
+
+  // Global production safety: quiet noisy console in production
+  if (isProd) {
+    try {
+      const silent = () => {};
+      // Preserve info logs lightly
+      console.debug = silent;
+      console.trace = silent;
+    } catch (_) {}
+  }
 
   return (
     <AuthProvider>

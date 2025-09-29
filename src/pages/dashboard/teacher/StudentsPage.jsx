@@ -13,6 +13,7 @@ import {
 import useStudentsData from './hooks/useStudentsData';
 import useStudentAcademics from './hooks/useStudentAcademics';
 import useStudentMessaging from './hooks/useStudentMessaging';
+import ImageModal from '../../../components/common/ImageModal';
 
 const StudentsPage = () => {
   const navigate = useNavigate();
@@ -91,12 +92,17 @@ const StudentsPage = () => {
     );
   }
 
+  const [imageOpen, setImageOpen] = React.useState(false);
+  const [imageStudent, setImageStudent] = React.useState(null);
+  const openImage = (st) => { setImageStudent(st); setImageOpen(true); };
+  const closeImage = () => { setImageOpen(false); setImageStudent(null); };
+
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800 ml-3 sm:ml-6">
             {urlClassName ? `${decodeURIComponent(urlClassName)} Students` : 'My Students'}
           </h1>
           {urlClassName && (
@@ -112,11 +118,14 @@ const StudentsPage = () => {
           )}
         </div>
         {selectedSubject && (
-          <div className="text-sm text-slate-600 bg-slate-100 px-3 py-1 rounded-lg">
-            {`${filteredStudents?.length || 0} of ${students?.length || 0} students`}
+          <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-3 py-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span className="text-sm">{`${filteredStudents?.length || 0} of ${students?.length || 0} students`}</span>
           </div>
         )}
       </div>
+
+      <div className="h-1.5 bg-gradient-to-r from-emerald-400 via-teal-500 to-cyan-500 rounded-full"></div>
 
       {/* Subject Selection */}
       <SubjectSelector
@@ -138,9 +147,9 @@ const StudentsPage = () => {
 
           {/* Students List */}
           <div className="bg-white rounded-lg shadow-md border border-slate-200 overflow-hidden">
-            <div className="bg-slate-50 px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200">
-              <h3 className="text-base sm:text-lg font-semibold text-slate-800">{selectedSubject} Students</h3>
-              <p className="text-sm text-slate-600 mt-1">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+              <h3 className="text-base sm:text-lg font-semibold">{selectedSubject} Students</h3>
+              <p className="text-sm text-emerald-50/90 mt-1">
                 {`${filteredStudents?.length || 0} student${(filteredStudents?.length || 0) !== 1 ? 's' : ''} found`}
               </p>
             </div>
@@ -162,10 +171,10 @@ const StudentsPage = () => {
             ) : (
               <>
                 {/* Mobile Card View */}
-                <StudentsMobileCards students={filteredStudents} onOpenStudent={openStudentDetails} />
+                <StudentsMobileCards students={filteredStudents} onOpenStudent={openStudentDetails} onOpenImage={openImage} />
 
                 {/* Desktop Table View */}
-                <StudentsTable students={filteredStudents} selectedSubject={selectedSubject} onOpenStudent={openStudentDetails} />
+                <StudentsTable students={filteredStudents} selectedSubject={selectedSubject} onOpenStudent={openStudentDetails} onOpenImage={openImage} />
               </>
             )}
           </div>
@@ -216,6 +225,7 @@ const StudentsPage = () => {
         onSend={sendMessage}
         onClose={closeMessageModal}
       />
+    <ImageModal isOpen={imageOpen} onClose={closeImage} student={imageStudent} />
     </div>
   );
 };

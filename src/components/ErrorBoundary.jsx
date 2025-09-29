@@ -85,13 +85,13 @@ class ErrorBoundary extends React.Component {
             </p>
           )}
 
-          {isDev && error?.message && (
+          {isDev && error?.message ? (
             <div className="text-left bg-gray-50 border border-gray-200 rounded-md p-3 mb-4 overflow-auto max-h-40">
               <div className="text-xs text-gray-800 font-mono whitespace-pre-wrap">
                 {String(error.message)}
               </div>
             </div>
-          )}
+          ) : null}
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             {!isChunkError && (

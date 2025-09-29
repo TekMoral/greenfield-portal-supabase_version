@@ -13,11 +13,23 @@ const ToastProvider = ({ children }) => {
   });
 
   const showToast = useCallback((message, type = 'success', duration = 3000) => {
-    console.log('🍞 Toast called:', { message, type, duration });
-    setToast({ isVisible: true, message, type });
-    setTimeout(() => {
-      setToast(prev => ({ ...prev, isVisible: false }));
-    }, duration);
+    try {
+      const isDev = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV;
+      const { sanitizePublicMessage } = require('../utils/errorUtils');
+      const safe = sanitizePublicMessage(message);
+      if (isDev) {
+        console.log('🍞 Toast called:', { message: safe, type, duration });
+      }
+      setToast({ isVisible: true, message: safe, type });
+      setTimeout(() => {
+        setToast(prev => ({ ...prev, isVisible: false }));
+      }, duration);
+    } catch (_) {
+      setToast({ isVisible: true, message: String(message || 'Notice'), type });
+      setTimeout(() => {
+        setToast(prev => ({ ...prev, isVisible: false }));
+      }, duration);
+    }
   }, []);
 
   const onClose = () => setToast(prev => ({ ...prev, isVisible: false }));

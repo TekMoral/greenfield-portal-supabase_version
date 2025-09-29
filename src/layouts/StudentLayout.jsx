@@ -24,7 +24,7 @@ const StudentLayout = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-gray-100">
+    <div className="flex flex-col md:flex-row bg-gray-100 overflow-hidden h-[calc(100dvh-var(--header-height,90px))]">
       
       {/* Mobile Toggle Button */}
       <button
@@ -118,7 +118,10 @@ const StudentLayout = () => {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-h-0 md:ml-48 lg:ml-60">
         {/* Page Content */}
-        <main className="flex-1 p-3 sm:p-4 lg:p-6 overflow-auto pt-24 md:pt-0">
+        <main
+          className="flex-1 p-3 sm:p-4 lg:p-6 overflow-auto"
+          style={{ overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch' }}
+        >
           <Outlet />
         </main>
       </div>

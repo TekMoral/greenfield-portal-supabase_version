@@ -25,7 +25,7 @@ export const createAdmin = async (adminData) => {
     const { data: profileData, error: profileError } = await supabase
       .from('user_profiles')
       .insert({
-        user_id: authData.user.id,
+        id: authData.user.id,
         email: adminData.email,
         full_name: adminData.name,
         role: 'admin',
@@ -90,7 +90,7 @@ export const updateAdmin = async (adminId, updateData) => {
         ...updateData,
         updated_at: new Date().toISOString()
       })
-      .eq('user_id', adminId)
+      .eq('id', adminId)
       .select()
       .single();
 
@@ -133,7 +133,7 @@ export const updateAdminStatus = async (adminId, isActive) => {
         is_active: isActive,
         updated_at: new Date().toISOString()
       })
-      .eq('user_id', adminId)
+      .eq('id', adminId)
       .select()
       .single();
 
@@ -182,7 +182,7 @@ export const deleteAdmin = async (adminId) => {
     const { error: profileError } = await supabase
       .from('user_profiles')
       .delete()
-      .eq('user_id', adminId);
+      .eq('id', adminId);
 
     if (profileError) {
       console.error('Supabase error deleting admin profile:', profileError);
@@ -215,7 +215,7 @@ export const getAdminProfile = async (adminId) => {
     const { data, error } = await supabase
       .from('user_profiles')
       .select('*')
-      .eq('user_id', adminId)
+      .eq('id', adminId)
       .in('role', ['admin', 'super_admin'])
       .single();
 
@@ -242,7 +242,7 @@ export const isUserAdmin = async (userId) => {
     const { data, error } = await supabase
       .from('user_profiles')
       .select('role, is_super_admin')
-      .eq('user_id', userId)
+      .eq('id', userId)
       .single();
 
     if (error) {
@@ -315,7 +315,7 @@ export const promoteToAdmin = async (userId, adminLevel = 'admin') => {
         is_super_admin: adminLevel === 'super_admin',
         updated_at: new Date().toISOString()
       })
-      .eq('user_id', userId)
+      .eq('id', userId)
       .select()
       .single();
 
@@ -356,7 +356,7 @@ export const demoteAdmin = async (adminId, newRole = 'user') => {
         is_super_admin: false,
         updated_at: new Date().toISOString()
       })
-      .eq('user_id', adminId)
+      .eq('id', adminId)
       .select()
       .single();
 

@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import ProfileImage from "../common/ProfileImage";
-import ImageModal from "../common/ImageModal";
 import { EditButton, DeleteButton, SuspendButton, ReactivateButton } from "../ui/ActionButtons";
 
 const TeacherTable = ({
@@ -33,8 +32,7 @@ const TeacherTable = ({
   onToggleAll = () => {},
 }) => {
   const { userRole, isSuperAdmin } = useAuth();
-  const [selectedTeacher, setSelectedTeacher] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [imagePreviewModal, setImagePreviewModal] = useState({ open: false, src: '', alt: '' });
   const [viewMode, setViewMode] = useState("auto");
   const [searchFocused, setSearchFocused] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -58,19 +56,11 @@ const TeacherTable = ({
   }, []);
 
   // Handle image click - only for admins/super admins
-  const handleImageClick = useCallback(
-    (teacher) => {
-      if ((userRole === "admin" || isSuperAdmin) && teacher?.profileImageUrl) {
-        setSelectedTeacher(teacher);
-        setIsModalOpen(true);
-      }
-    },
-    [userRole, isSuperAdmin]
-  );
-
-  const closeModal = useCallback(() => {
-    setIsModalOpen(false);
-    setSelectedTeacher(null);
+  const openImage = useCallback((src, alt) => {
+    setImagePreviewModal({ open: true, src: src || '', alt: alt || 'Teacher' });
+  }, []);
+  const closeImage = useCallback(() => {
+    setImagePreviewModal({ open: false, src: '', alt: '' });
   }, []);
 
   // Clear search with animation
@@ -302,17 +292,14 @@ const TeacherTable = ({
       <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-100">
         <div className="flex items-center space-x-3">
           <div
-            className={`flex-shrink-0 ${
-              (userRole === "admin" || isSuperAdmin) && teacher?.profileImageUrl
-                ? "cursor-pointer hover:opacity-80 transition-opacity"
-                : ""
-            }`}
-            onClick={() => handleImageClick(teacher)}
+            className={`flex-shrink-0 ${teacher?.profileImageUrl ? 'cursor-zoom-in hover:opacity-90 transition' : ''}`}
+            onClick={() => openImage(teacher?.profileImageUrl || '', teacher?.name || 'Teacher')}
           >
             <ProfileImage
               src={teacher?.profileImageUrl}
               alt={teacher?.name || "Teacher"}
-              size="md"
+              size="lg"
+              className="hover:ring-2 hover:ring-blue-400"
               fallbackName={teacher?.name || ""}
             />
           </div>
@@ -720,12 +707,25 @@ const TeacherTable = ({
         </div>
       )}
 
-      {/* Image Modal */}
-      <ImageModal
-        isOpen={isModalOpen}
-        onClose={closeModal}
-        student={selectedTeacher}
-      />
+      {/* Image Preview Overlay */}
+      {imagePreviewModal.open && (
+        <div className="fixed inset-0 bg-black/70 z-[2000] flex items-center justify-center p-4" onClick={closeImage}>
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={imagePreviewModal.src || `https://ui-avatars.com/api/?name=${encodeURIComponent(imagePreviewModal.alt || 'Teacher')}&size=512&background=random&color=fff&bold=true&format=png`}
+              alt={imagePreviewModal.alt}
+              className="max-h-[80vh] max-w-[90vw] rounded-xl shadow-2xl"
+            />
+            <button
+              onClick={closeImage}
+              className="absolute -top-3 -right-3 bg-white text-gray-700 rounded-full p-2 shadow-lg hover:bg-gray-100"
+              aria-label="Close"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

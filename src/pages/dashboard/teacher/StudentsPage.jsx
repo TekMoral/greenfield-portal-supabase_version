@@ -65,6 +65,12 @@ const StudentsPage = () => {
     sendMessage,
   } = useStudentMessaging({ selectedSubject, selectedStudent });
 
+  // Image preview state (must be before any returns to preserve hook order)
+  const [imageOpen, setImageOpen] = React.useState(false);
+  const [imageStudent, setImageStudent] = React.useState(null);
+  const openImage = (st) => { setImageStudent(st); setImageOpen(true); };
+  const closeImage = () => { setImageOpen(false); setImageStudent(null); };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -91,11 +97,6 @@ const StudentsPage = () => {
       </div>
     );
   }
-
-  const [imageOpen, setImageOpen] = React.useState(false);
-  const [imageStudent, setImageStudent] = React.useState(null);
-  const openImage = (st) => { setImageStudent(st); setImageOpen(true); };
-  const closeImage = () => { setImageOpen(false); setImageStudent(null); };
 
   return (
     <div className="space-y-4 sm:space-y-6">

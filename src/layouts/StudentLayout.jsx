@@ -29,7 +29,8 @@ const StudentLayout = () => {
       {/* Mobile Toggle Button */}
       <button
         onClick={toggleMobileMenu}
-        className="md:hidden fixed top-[var(--appbar-height,56px)] left-4 z-[1000] bg-teal-800 text-white px-2 py-1 rounded-md shadow-lg"
+        className="md:hidden fixed left-4 z-[1000] bg-teal-800 text-white px-2 py-1 rounded-md shadow-lg"
+        style={{ top: 'calc(var(--appbar-height, 56px) + 2px)' }}
         aria-label="Toggle menu"
       >
         {isMobileMenuOpen ? (

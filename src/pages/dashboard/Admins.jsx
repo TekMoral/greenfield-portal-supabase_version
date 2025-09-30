@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { toast } from 'react-hot-toast';
 import { EditButton, DeleteButton, SuspendButton, ReactivateButton, CreateButton } from '../../components/ui/ActionButtons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { uploadAdminImage } from '../../services/supabase/uploadService';
 
 const Admins = () => {
   const { isSuperAdmin, user, role } = useAuth();
@@ -35,16 +36,22 @@ const Admins = () => {
     name: '', 
     email: '', 
     password: '', 
+    confirmPassword: '',
     phoneNumber: '', 
-    department: '', 
-    position: '' 
+    position: '',
+    gender: '',
+    profileImageFile: null
   });
   const [error, setError] = useState('');
+  const [formErrors, setFormErrors] = useState({});
+  const [imagePreview, setImagePreview] = useState('');
+  const [editImagePreview, setEditImagePreview] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [editAdmin, setEditAdmin] = useState(null);
   const [showEditForm, setShowEditForm] = useState(false);
   const [suspendConfirm, setSuspendConfirm] = useState({ isOpen: false, admin: null });
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, admin: null });
+  const [imagePreviewModal, setImagePreviewModal] = useState({ open: false, src: '', alt: '' });
   const [loadingStates, setLoadingStates] = useState({
     creating: false,
     updating: false,
@@ -57,27 +64,106 @@ const Admins = () => {
     fetchAdmins();
   }, []);
 
+  // Build preview for selected image or URL
+  useEffect(() => {
+    let objUrl;
+    if (formData.profileImageFile) {
+      objUrl = URL.createObjectURL(formData.profileImageFile);
+      setImagePreview(objUrl);
+    } else {
+      setImagePreview('');
+    }
+    return () => {
+      if (objUrl) URL.revokeObjectURL(objUrl);
+    };
+  }, [formData.profileImageFile]);
+
+  // Initialize edit image preview when selecting an admin to edit
+  useEffect(() => {
+    if (editAdmin) {
+      setEditImagePreview(editAdmin.profileImageUrl || '');
+    } else {
+      setEditImagePreview('');
+    }
+  }, [editAdmin]);
+
   const fetchAdmins = async () => {
     await queryClient.invalidateQueries({ queryKey: ['admins'] });
+  };
+
+  // Simple client-side validation
+  const validateForm = () => {
+    const errs = {};
+    if (!formData.name.trim()) errs.name = 'Name is required';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errs.email = 'Valid email is required';
+    if (!formData.password || formData.password.length < 8) errs.password = 'Password must be at least 8 characters';
+    if (formData.confirmPassword !== formData.password) errs.confirmPassword = 'Passwords do not match';
+    if (formData.phoneNumber && formData.phoneNumber.replace(/\D/g, '').length < 7) errs.phoneNumber = 'Phone number looks too short';
+    if (!formData.gender) errs.gender = 'Gender is required';
+    return errs;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setFormErrors({});
     setLoadingStates(prev => ({ ...prev, creating: true }));
     
     try {
-      const payload = { ...formData, role: 'admin' };
+      const errs = validateForm();
+      if (Object.keys(errs).length) {
+        setFormErrors(errs);
+        return;
+      }
+
+      // Upload profile image first if provided
+      let uploadedUrl = '';
+      if (formData.profileImageFile) {
+        const res = await uploadAdminImage(formData.profileImageFile);
+        if (res?.success && res.data?.url) {
+          uploadedUrl = res.data.url;
+        } else if (res?.error) {
+          toast.error(`Image upload failed: ${res.error}`);
+        }
+      }
+
+      const payload = { 
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        phoneNumber: formData.phoneNumber,
+        position: formData.position,
+        gender: formData.gender,
+        role: 'admin',
+        profileImageUrl: uploadedUrl || undefined
+      };
+
       const result = await edgeFunctionsService.createAdmin(payload);
       if (result.success) {
+        const newAdminId = result?.data?.id || result?.data?.uid;
+        if (newAdminId) {
+          const updatePayload = {};
+          if (uploadedUrl) updatePayload.profile_image = uploadedUrl;
+          if (formData.gender) updatePayload.gender = formData.gender;
+          if (Object.keys(updatePayload).length) {
+            try {
+              await edgeFunctionsService.updateUser(newAdminId, 'admin', updatePayload);
+            } catch (e) {
+              console.error('⚠️ Failed to update admin after creation:', e);
+            }
+          }
+        }
         setFormData({ 
           name: '', 
           email: '', 
           password: '', 
+          confirmPassword: '',
           phoneNumber: '', 
-          department: '', 
-          position: '' 
+          position: '',
+          profileImageFile: null
         });
+        setFormErrors({});
+        setImagePreview('');
         setShowForm(false);
         await fetchAdmins();
         toast.success('Admin created successfully!');
@@ -154,8 +240,9 @@ const Admins = () => {
       name: admin.name || admin.full_name,
       email: admin.email,
       phoneNumber: admin.phone_number || '',
-      department: admin.department || '',
-      position: admin.position || ''
+      position: admin.position || '',
+      gender: admin.gender || '',
+      profileImageUrl: admin.profile_image || admin.profileImageUrl || ''
     });
     setShowEditForm(true);
   };
@@ -170,10 +257,19 @@ const Admins = () => {
         full_name: editAdmin.name,
         email: editAdmin.email,
         phone_number: editAdmin.phoneNumber,
-        department: editAdmin.department,
-        position: editAdmin.position
+        position: editAdmin.position,
+        gender: editAdmin.gender
       };
 
+      // Upload profile image if a new one was selected
+      if (editAdmin.profileImageFile) {
+        try {
+          await uploadAdminImage(editAdmin.profileImageFile, editAdmin.id);
+        } catch (e) {
+          console.error('❌ Error uploading admin image:', e);
+          toast.error('Image upload failed, but other changes will be saved');
+        }
+      }
       const result = await edgeFunctionsService.updateUser(editAdmin.id, 'admin', updateData);
 
       if (result && result.success) {
@@ -279,10 +375,15 @@ const Admins = () => {
     }
   };
 
-  if (adminsLoading) return <div className="p-6">Loading...</div>;
+  const openImage = (src, alt) => {
+    setImagePreviewModal({ open: true, src: src || '', alt: alt || 'Admin' });
+  };
+  const closeImage = () => setImagePreviewModal({ open: false, src: '', alt: '' });
+
+  if (adminsLoading) return <div className="p-0">Loading...</div>;
 
   return (
-    <div className="p-6">
+    <div className="p-0">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Admin Management</h1>
         {isSuperAdmin && (
@@ -310,6 +411,7 @@ const Admins = () => {
               className="border rounded px-3 py-2"
               required
             />
+            {formErrors.name && <p className="text-xs text-red-600 mt-1">{formErrors.name}</p>}
             <input
               type="email"
               placeholder="Email"
@@ -318,6 +420,7 @@ const Admins = () => {
               className="border rounded px-3 py-2"
               required
             />
+            {formErrors.email && <p className="text-xs text-red-600 mt-1">{formErrors.email}</p>}
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
@@ -344,6 +447,16 @@ const Admins = () => {
                 )}
               </button>
             </div>
+            {formErrors.password && <p className="text-xs text-red-600 mt-1">{formErrors.password}</p>}
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Confirm Password"
+              value={formData.confirmPassword}
+              onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+              className="border rounded px-3 py-2 w-full"
+              required
+            />
+            {formErrors.confirmPassword && <p className="text-xs text-red-600 mt-1">{formErrors.confirmPassword}</p>}
             <input
               type="text"
               placeholder="Phone Number"
@@ -351,20 +464,83 @@ const Admins = () => {
               onChange={(e) => setFormData({...formData, phoneNumber: e.target.value})}
               className="border rounded px-3 py-2"
             />
-            <input
-              type="text"
-              placeholder="Department"
-              value={formData.department}
-              onChange={(e) => setFormData({...formData, department: e.target.value})}
-              className="border rounded px-3 py-2"
-            />
-            <input
+            {formErrors.phoneNumber && <p className="text-xs text-red-600 mt-1">{formErrors.phoneNumber}</p>}
+                        <input
               type="text"
               placeholder="Position"
               value={formData.position}
               onChange={(e) => setFormData({...formData, position: e.target.value})}
               className="border rounded px-3 py-2"
             />
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+              <div className="flex gap-4">
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="gender"
+                    value="male"
+                    checked={formData.gender === 'male'}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                    className="text-teal-600"
+                  />
+                  <span>Male</span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="gender"
+                    value="female"
+                    checked={formData.gender === 'female'}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                    className="text-teal-600"
+                  />
+                  <span>Female</span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="gender"
+                    value="other"
+                    checked={formData.gender === 'other'}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                    className="text-teal-600"
+                  />
+                  <span>Other</span>
+                </label>
+              </div>
+              {formErrors.gender && <p className="text-xs text-red-600 mt-1">{formErrors.gender}</p>}
+            </div>
+                        <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Profile Image (optional)</label>
+                <input
+                  id="admin-image-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setFormData({ ...formData, profileImageFile: e.target.files?.[0] || null })}
+                  className="hidden"
+                />
+                <label htmlFor="admin-image-upload" className="flex items-center justify-center border-2 border-dashed rounded-lg p-4 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">
+                  <span>Click to upload</span>
+                </label>
+              </div>
+              {imagePreview && (
+                <div className="md:col-span-2 flex items-center gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Preview</label>
+                    <img src={imagePreview} alt="Preview" className="h-24 w-24 rounded-full object-cover border" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, profileImageFile: null })}
+                    className="px-3 py-2 border rounded text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           <div className="mt-4">
             <button 
@@ -420,20 +596,91 @@ const Admins = () => {
               onChange={(e) => setEditAdmin({...editAdmin, phoneNumber: e.target.value})}
               className="border rounded px-3 py-2"
             />
-            <input
-              type="text"
-              placeholder="Department"
-              value={editAdmin.department}
-              onChange={(e) => setEditAdmin({...editAdmin, department: e.target.value})}
-              className="border rounded px-3 py-2"
-            />
-            <input
+                        <input
               type="text"
               placeholder="Position"
               value={editAdmin.position}
               onChange={(e) => setEditAdmin({...editAdmin, position: e.target.value})}
               className="border rounded px-3 py-2"
             />
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+              <div className="flex gap-4">
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="editGender"
+                    value="male"
+                    checked={editAdmin.gender === 'male'}
+                    onChange={(e) => setEditAdmin({ ...editAdmin, gender: e.target.value })}
+                    className="text-teal-600"
+                  />
+                  <span>Male</span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="editGender"
+                    value="female"
+                    checked={editAdmin.gender === 'female'}
+                    onChange={(e) => setEditAdmin({ ...editAdmin, gender: e.target.value })}
+                    className="text-teal-600"
+                  />
+                  <span>Female</span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="editGender"
+                    value="other"
+                    checked={editAdmin.gender === 'other'}
+                    onChange={(e) => setEditAdmin({ ...editAdmin, gender: e.target.value })}
+                    className="text-teal-600"
+                  />
+                  <span>Other</span>
+                </label>
+              </div>
+            </div>
+            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Profile Image</label>
+                <input
+                  id="admin-edit-image-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setEditAdmin(prev => ({ ...prev, profileImageFile: file }));
+                    if (file) {
+                      const objUrl = URL.createObjectURL(file);
+                      setEditImagePreview(objUrl);
+                    }
+                  }}
+                  className="hidden"
+                />
+                <label htmlFor="admin-edit-image-upload" className="flex items-center justify-center border-2 border-dashed rounded-lg p-4 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">
+                  <span>Click to upload</span>
+                </label>
+              </div>
+              {editImagePreview && (
+                <div className="md:col-span-2 flex items-center gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Preview</label>
+                    <img src={editImagePreview} alt="Preview" className="h-24 w-24 rounded-full object-cover border" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditAdmin(prev => ({ ...prev, profileImageFile: null }));
+                      setEditImagePreview('');
+                    }}
+                    className="px-3 py-2 border rounded text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           <div className="mt-4">
             <button 
@@ -470,6 +717,7 @@ const Admins = () => {
           return (
             <div key={admin.id} className="bg-white rounded-2xl border border-gray-200 ring-1 ring-gray-100 p-4 shadow-sm flex flex-col h-full">
               <div className="flex items-start justify-between gap-3">
+                {(() => { const nm = (admin.name || `${admin.firstName || ''} ${admin.surname || ''}`).trim(); const initials = (nm.split(' ').filter(Boolean).slice(0,2).map(s=>s[0]).join('') || 'A').toUpperCase(); const src = admin.profile_image || admin.profileImageUrl; return src ? (<img src={src} alt={nm || 'Admin'} className="h-16 w-16 rounded-full object-cover border cursor-zoom-in hover:ring-2 hover:ring-teal-400" onClick={() => openImage(src, nm || 'Admin')} />) : (<div className="h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-sm font-semibold cursor-zoom-in hover:ring-2 hover:ring-teal-400" onClick={() => openImage('', nm || 'Admin')}>{initials}</div>); })()}
                 <div className="min-w-0">
                   <h3 className="text-base font-semibold text-gray-900 truncate">{admin.name || `${admin.firstName || ''} ${admin.surname || ''}`.trim() || 'No Name'}</h3>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -489,8 +737,8 @@ const Admins = () => {
                   <span>{admin.phone_number || '-'}</span>
                 </div>
                 <div className="flex items-start gap-2">
-                  <svg className="w-4 h-4 text-gray-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414V19a2 2 0 01-2 2z"/></svg>
-                  <span>{admin.department || '-'}</span>
+                  <svg className="w-4 h-4 text-gray-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14a7 7 0 100-14 7 7 0 000 14z"/></svg>
+                  <span className="capitalize">{admin.gender || '-'}</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <svg className="w-4 h-4 text-gray-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
@@ -524,10 +772,11 @@ const Admins = () => {
           <table className="min-w-[1000px] w-full table-auto">
             <thead className="bg-gray-50">
             <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Photo</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gender</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
@@ -537,6 +786,9 @@ const Admins = () => {
           <tbody className="divide-y divide-gray-100">
             {admins.map((admin) => (
               <tr key={admin.id} className="hover:bg-gray-50/60 transition-colors">
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {(() => { const nm = (admin.name || `${admin.firstName || ''} ${admin.surname || ''}`).trim(); const initials = (nm.split(' ').filter(Boolean).slice(0,2).map(s=>s[0]).join('') || 'A').toUpperCase(); const src = admin.profile_image || admin.profileImageUrl; return src ? (<img src={src} alt={nm || 'Admin'} className="h-16 w-16 rounded-full object-cover border cursor-zoom-in hover:ring-2 hover:ring-teal-400" onClick={() => openImage(src, nm || 'Admin')} />) : (<div className="h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-sm font-semibold cursor-zoom-in hover:ring-2 hover:ring-teal-400" onClick={() => openImage('', nm || 'Admin')}>{initials}</div>); })()}
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900">
                     {admin.name || `${admin.firstName || ''} ${admin.surname || ''}`.trim() || 'No Name'}
@@ -551,8 +803,8 @@ const Admins = () => {
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">
-                    {admin.department || '-'}
+                  <div className="text-sm text-gray-900 capitalize">
+                    {admin.gender || '-'}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -684,6 +936,25 @@ const Admins = () => {
                 {loadingStates.deleting[deleteConfirm.admin?.id] ? 'Deleting...' : 'Delete'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {imagePreviewModal.open && (
+        <div className="fixed inset-0 bg-black/70 z-[2000] flex items-center justify-center p-4" onClick={closeImage}>
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={imagePreviewModal.src || `https://ui-avatars.com/api/?name=${encodeURIComponent(imagePreviewModal.alt || 'Admin')}&size=512&background=random&color=fff&bold=true&format=png`}
+              alt={imagePreviewModal.alt}
+              className="max-h-[80vh] max-w-[90vw] rounded-xl shadow-2xl"
+            />
+            <button
+              onClick={closeImage}
+              className="absolute -top-3 -right-3 bg-white text-gray-700 rounded-full p-2 shadow-lg hover:bg-gray-100"
+              aria-label="Close"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
           </div>
         </div>
       )}

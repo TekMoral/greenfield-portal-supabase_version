@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
-import { Menu, X } from 'lucide-react';
+import { Menu } from 'lucide-react';
 
 
 const DashboardLayout = () => {
@@ -43,14 +43,17 @@ const DashboardLayout = () => {
   return (
     <div className="h-screen bg-gray-50">
       {/* Fixed Desktop Sidebar */}
-      <aside className="hidden lg:block fixed top-0 left-0 h-full w-48 lg:w-60 bg-gradient-to-b from-slate-700 to-slate-800 text-white flex-shrink-0 shadow-lg z-30">
-        <div className="pt-6 h-full overflow-y-auto">
+      <aside
+        className="hidden lg:block fixed left-0 w-48 lg:w-60 bg-gradient-to-b from-slate-700 to-slate-800 text-white flex-shrink-0 shadow-lg z-30"
+        style={{ top: 'var(--appbar-height, 56px)', height: 'calc(100vh - var(--appbar-height, 56px))' }}
+      >
+        <div className="h-full overflow-y-auto">
           <Sidebar />
         </div>
       </aside>
 
       {/* Desktop Main Content with margin for fixed sidebar */}
-      <div className="hidden lg:block lg:ml-60 min-h-screen">
+      <div className="hidden lg:block lg:ml-60 min-h-screen" style={{ paddingTop: 'var(--appbar-height, 56px)' }}>
         <main className="flex-1 overflow-auto p-6">
           <Outlet key={location.pathname} />
         </main>
@@ -81,8 +84,8 @@ const DashboardLayout = () => {
             isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
-          <div className="p-4 pb-24">
-            <Sidebar onMenuItemClick={closeMobileMenu} />
+          <div className="px-4 pb-24">
+            <Sidebar />
           </div>
         </aside>
 

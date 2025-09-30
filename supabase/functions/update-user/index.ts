@@ -138,9 +138,11 @@ serve(async (req) => {
         if (body.updateData.role !== undefined) updateFields.role = body.updateData.role
         if (body.updateData.department !== undefined) updateFields.department = body.updateData.department
         if (body.updateData.position !== undefined) updateFields.position = body.updateData.position
+        if (body.updateData.gender !== undefined) updateFields.gender = body.updateData.gender
         console.log('🔍 Admin fields mapped:', { 
           department: body.updateData.department, 
-          position: body.updateData.position 
+          position: body.updateData.position,
+          gender: body.updateData.gender
         })
         break
     }

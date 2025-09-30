@@ -475,7 +475,7 @@ const StudentAssignments = () => {
               </div>
             </div>
 
-            <div className="p-6 flex-1 overflow-y-auto">
+            <div className="p-6 flex-1 overflow-y-auto overflow-x-hidden">
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -514,10 +514,10 @@ const StudentAssignments = () => {
                         {theoryQuestions.map((q, idx) => (
                           <li key={q.id || idx} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
                             <div className="flex items-start justify-between gap-3">
-                              <div className="font-medium">{q.text}</div>
-                              {typeof q.points === 'number' && (
-                                <div className="text-xs text-slate-500">{q.points} marks</div>
-                              )}
+                            <div className="font-medium flex-1 min-w-0 break-words whitespace-pre-wrap">{q.text}</div>
+                            {typeof q.points === 'number' && (
+                            <div className="text-xs text-slate-500 shrink-0">{q.points} marks</div>
+                            )}
                             </div>
                           </li>
                         ))}

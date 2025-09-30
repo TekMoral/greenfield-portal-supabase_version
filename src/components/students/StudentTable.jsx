@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import ProfileImage from "../common/ProfileImage";
-import ImageModal from "../common/ImageModal";
 import { EditButton, DeleteButton, PromoteButton, SuspendButton, ReactivateButton, ResetPasswordButton } from "../ui/ActionButtons";
 import { formatClassName } from "../../utils/classNameFormatter";
 
@@ -35,8 +34,7 @@ const StudentTable = ({
   onToggleAll = () => {},
 }) => {
   const { userRole, isSuperAdmin } = useAuth();
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [imagePreviewModal, setImagePreviewModal] = useState({ open: false, src: '', alt: '' });
   const [viewMode, setViewMode] = useState("auto");
   const [searchFocused, setSearchFocused] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -63,17 +61,15 @@ const StudentTable = ({
   // Handle image click - only for admins/super admins
   const handleImageClick = useCallback(
     (student) => {
-      if ((userRole === "admin" || isSuperAdmin) && student?.profile_image) {
-        setSelectedStudent(student);
-        setIsModalOpen(true);
+      if (student?.profile_image) {
+        setImagePreviewModal({ open: true, src: student.profile_image, alt: student.full_name || 'Student' });
       }
     },
-    [userRole, isSuperAdmin]
+    []
   );
 
-  const closeModal = useCallback(() => {
-    setIsModalOpen(false);
-    setSelectedStudent(null);
+  const closeImage = useCallback(() => {
+    setImagePreviewModal({ open: false, src: '', alt: '' });
   }, []);
 
   // Clear search with animation
@@ -353,18 +349,15 @@ const StudentTable = ({
       <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 border-b border-gray-100">
         <div className="flex items-center space-x-3">
           <div
-            className={`flex-shrink-0 ${
-              (userRole === "admin" || isSuperAdmin) && student?.profile_image
-                ? "cursor-pointer hover:opacity-80 transition-opacity"
-                : ""
-            }`}
+            className={`flex-shrink-0 ${student?.profile_image ? 'cursor-zoom-in hover:opacity-90 transition' : ''}`}
             onClick={() => handleImageClick(student)}
           >
             <ProfileImage
-              src={student?.profile_image}
-              alt={student?.full_name || "Student"}
-              size="md"
-              fallbackName={student?.full_name || ""}
+            src={student?.profile_image}
+            alt={student?.full_name || "Student"}
+            size="lg"
+            className="hover:ring-2 hover:ring-emerald-400"
+            fallbackName={student?.full_name || ""}
             />
           </div>
 
@@ -372,7 +365,7 @@ const StudentTable = ({
             <h3 className="text-lg font-semibold text-gray-900 truncate">
               {student?.full_name || "N/A"}
             </h3>
-            <p className="text-sm text-gray-600 font-medium">
+            <p className="text-xs text-gray-500 font-medium">
               ID: {student?.admission_number || "N/A"}
             </p>
             <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -417,12 +410,12 @@ const StudentTable = ({
       </div>
 
       {/* Card Body */}
-      <div className="p-4 flex-1">
-        <div className="space-y-3">
+      <div className="hidden">
+        <div className="space-y-2">
           {student?.email && (
             <div className="flex items-start space-x-2">
               <svg
-                className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0"
+                className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -448,7 +441,7 @@ const StudentTable = ({
           {student?.date_of_birth && (
             <div className="flex items-start space-x-2">
               <svg
-                className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0"
+                className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -474,7 +467,7 @@ const StudentTable = ({
           {student?.guardian_name && (
             <div className="flex items-start space-x-2">
               <svg
-                className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0"
+                className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -801,12 +794,25 @@ const StudentTable = ({
         </div>
       )}
 
-      {/* Image Modal */}
-      <ImageModal
-        isOpen={isModalOpen}
-        onClose={closeModal}
-        student={selectedStudent}
-      />
+      {/* Image Preview Overlay */}
+      {imagePreviewModal.open && (
+        <div className="fixed inset-0 bg-black/70 z-[2000] flex items-center justify-center p-4" onClick={closeImage}>
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={imagePreviewModal.src || `https://ui-avatars.com/api/?name=${encodeURIComponent(imagePreviewModal.alt || 'Student')}&size=512&background=random&color=fff&bold=true&format=png`}
+              alt={imagePreviewModal.alt}
+              className="max-h-[80vh] max-w-[90vw] rounded-xl shadow-2xl"
+            />
+            <button
+              onClick={closeImage}
+              className="absolute -top-3 -right-3 bg-white text-gray-700 rounded-full p-2 shadow-lg hover:bg-gray-100"
+              aria-label="Close"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

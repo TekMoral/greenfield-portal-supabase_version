@@ -527,10 +527,67 @@ export const bulkUploadFiles = async (files, folder = 'bulk', tags = []) => {
 };
 
 // Export as service object for easier usage
+// Upload admin profile image (similar to teacher upload)
+export const uploadAdminImage = async (file, adminId = null) => {
+  try {
+    const validation = validateFile(file, {
+      maxSize: 5 * 1024 * 1024,
+      allowedTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    });
+
+    if (!validation.isValid) {
+      return { success: false, error: `Invalid file: ${validation.errors.join(', ')}` };
+    }
+
+    // Compress
+    const { blob: compressedBlob, outExt } = await compressImageFile(file, {
+      maxWidth: 1024,
+      maxHeight: 1024,
+      quality: 0.7,
+      outputType: 'image/webp'
+    });
+
+    const bucket = 'profile-images';
+    const ext = (outExt || (file?.name || 'jpg').split('.').pop() || 'jpg').toLowerCase();
+    const fileName = `admin-${Date.now()}.${ext}`;
+    const storagePath = `admin-profiles/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(bucket)
+      .upload(storagePath, compressedBlob, { upsert: false });
+
+    if (uploadError) {
+      console.error('❌ Storage upload failed:', uploadError);
+      return { success: false, error: uploadError.message };
+    }
+
+    const { data: pub } = supabase.storage.from(bucket).getPublicUrl(storagePath);
+    const publicUrl = pub?.publicUrl || null;
+
+    // Optionally update admin profile immediately if adminId provided
+    if (adminId && publicUrl) {
+      try {
+        await edgeFunctionsService.updateUser(adminId, 'admin', {
+          profile_image: publicUrl
+        });
+      } catch (e) {
+        console.error('Error updating admin profile via Edge Function:', e);
+        // Do not fail the upload result due to profile update issues
+      }
+    }
+
+    return { success: true, data: { url: publicUrl, publicId: storagePath } };
+  } catch (error) {
+    console.error('Error uploading admin image:', error);
+    return { success: false, error: `Failed to upload image: ${error.message}` };
+  }
+};
+
 export const uploadService = {
   uploadStudentImage,
   uploadStudentDocument,
   uploadTeacherImage,
+  uploadAdminImage,
   uploadFile,
   getStudentDocuments,
   deleteStudentDocument,

@@ -2,13 +2,68 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@lib/supabaseClient';
 import useToast from '../../../hooks/useToast';
 
+// Lightweight MathJax v3 loader and renderer (inline + display TeX)
+let __mathjaxLoading = null;
+const loadMathJax = () => {
+  if (typeof window === 'undefined') return Promise.resolve(null);
+  if (window.MathJax) return Promise.resolve(window.MathJax);
+  if (__mathjaxLoading) return __mathjaxLoading;
+
+  // Configure before injecting script so $...$ is recognized
+  window.MathJax = window.MathJax || {
+    tex: {
+      inlineMath: [['$', '$'], ['\\(', '\\)']],
+      displayMath: [['$$', '$$'], ['\\[', '\\]']],
+      processEscapes: true,
+    },
+    options: {
+      skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'code', 'pre'],
+    },
+  };
+
+  __mathjaxLoading = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+    script.async = true;
+    script.onload = () => resolve(window.MathJax);
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+  return __mathjaxLoading;
+};
+
+// Renders text that may contain TeX delimiters using MathJax
+const MathText = ({ text = '', as = 'span', className = '' }) => {
+  const ref = React.useRef(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // Use textContent to avoid XSS; MathJax will parse TeX delimiters from text nodes
+    el.textContent = text || '';
+    let canceled = false;
+    loadMathJax().then((MJ) => {
+      if (canceled) return;
+      if (MJ && typeof MJ.typesetPromise === 'function') {
+        MJ.typesetPromise([el]).catch(() => {});
+      }
+    });
+    return () => { canceled = true; };
+  }, [text]);
+
+  const Comp = as;
+  return <Comp ref={ref} className={className} />;
+};
+
 const Option = ({ letter, label, checked, onChange }) => (
-  <label className="flex items-center gap-3 text-sm p-2 rounded border border-slate-200 hover:bg-slate-50 cursor-pointer">
-    <input type="radio" checked={checked} onChange={onChange} className="accent-emerald-600" />
-    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold">
-      {letter}
-    </span>
-    <span className="text-slate-800">{label}</span>
+  <label className="flex items-start gap-3 text-sm p-2 rounded border border-slate-200 hover:bg-slate-50 cursor-pointer w-full">
+    <input type="radio" checked={checked} onChange={onChange} className="accent-emerald-600 mt-1" />
+    {typeof letter === 'string' && letter.length > 0 && (
+      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold">
+        {letter}
+      </span>
+    )}
+    <MathText text={String(label ?? '')} className="text-slate-800 flex-1 min-w-0 break-words whitespace-pre-wrap" />
   </label>
 );
 
@@ -125,7 +180,7 @@ const ObjectiveAssignmentModal = ({ open, assignment, studentId, onClose, onSubm
         <div className="bg-emerald-600 text-white p-4 sm:p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg sm:text-xl font-bold">{assignment.title}</h3>
+              <h3 className="text-lg sm:text-xl font-bold break-words">{assignment.title}</h3>
               <p className="text-emerald-100 text-sm sm:text-base">Objective • {assignment.subjectName}</p>
             </div>
             <button onClick={onClose} className="text-white hover:text-emerald-200 transition-colors">
@@ -136,7 +191,7 @@ const ObjectiveAssignmentModal = ({ open, assignment, studentId, onClose, onSubm
           </div>
         </div>
 
-        <div className="p-4 sm:p-6 flex-1 overflow-y-auto">
+        <div className="p-4 sm:p-6 flex-1 overflow-y-auto overflow-x-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
@@ -156,17 +211,19 @@ const ObjectiveAssignmentModal = ({ open, assignment, studentId, onClose, onSubm
             <div className="space-y-6">
               <div className="text-sm text-slate-600">Total Points: <span className="font-semibold text-slate-800">{totalPoints}</span></div>
               {(questions || []).map((q, idx) => (
-                <div key={q.id} className="border rounded-lg p-3">
+                <div key={q.id || idx} className="border rounded-lg p-3">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="text-sm sm:text-base font-medium text-slate-800">{idx + 1}. {q.text}</div>
-                    <div className="text-xs text-slate-500">{q.points} pts</div>
+                    <div className="text-sm sm:text-base font-medium text-slate-800 flex-1 min-w-0 break-words whitespace-pre-wrap">
+                      <MathText text={`${idx + 1}. ${q.text || ''}`} />
+                    </div>
+                    <div className="text-xs text-slate-500 shrink-0">{q.points} pts</div>
                   </div>
                   <div className="mt-3 space-y-2">
                     {String(q.type) === 'mcq' && Array.isArray(q.options) && q.options.slice(0, 4).map((opt, i) => (
                       <Option key={i} letter={'ABCD'[i]} label={opt} checked={answers[idx] === i} onChange={() => handleChange(idx, i)} />
                     ))}
                     {String(q.type) === 'true_false' && (
-                      <div className="flex gap-6">
+                      <div className="flex flex-col sm:flex-row gap-2 sm:gap-6 w-full">
                         <Option label="True" checked={answers[idx] === true} onChange={() => handleChange(idx, true)} />
                         <Option label="False" checked={answers[idx] === false} onChange={() => handleChange(idx, false)} />
                       </div>

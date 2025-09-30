@@ -1,11 +1,9 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import { useEffect, useState } from "react";
 import { ShieldCheck, AlertTriangle, LayoutDashboard, GraduationCap, Users, UserCog, Layers, BookOpen, BarChart3, FileText, CalendarCheck, Image, Newspaper, Settings, ClipboardList, Trash2, Calendar } from 'lucide-react';
 
-const Sidebar = ({ onMenuItemClick }) => {
+const Sidebar = () => {
   const { role } = useAuth();
-  const location = useLocation();
   
   // STRICT: Only technical consultants and system admins (NOT super_admin)
   const isTechnicalConsultant =
@@ -56,15 +54,7 @@ const Sidebar = ({ onMenuItemClick }) => {
 
   return (
     <div className="h-full">
-      {onMenuItemClick && (
-        <button
-          className="mb-2 text-white bg-red-500 px-3 py-1 rounded"
-          onClick={onMenuItemClick}
-        >
-          Close Menu
-        </button>
-      )}
-      <div className={`mb-6 ${onMenuItemClick ? 'mt-2' : 'mt-12'}`}>
+            <div className="mb-4 mt-0">
         <h1 className="text-xl lg:text-2xl font-bold text-white text-center">
           Admin Panel
         </h1>
@@ -76,7 +66,6 @@ const Sidebar = ({ onMenuItemClick }) => {
             key={item.path}
             to={item.path}
             end={item.path === "/dashboard"}
-            onClick={onMenuItemClick}
             className={({ isActive }) =>
               `block px-3 py-2 rounded transition-colors duration-200 ${
                 isActive ? "bg-white text-teal-700 font-semibold" : "hover:bg-teal-600"

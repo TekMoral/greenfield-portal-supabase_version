@@ -11,6 +11,7 @@ interface CreateAdminRequest {
   department?: string
   position?: string
   permissions?: string[]
+  profileImageUrl?: string | null
 }
 
 serve(async (req) => {
@@ -103,6 +104,7 @@ serve(async (req) => {
         phone_number: body.phoneNumber || null,
         department: body.department || null,
         position: body.position || null,
+        profile_image: body.profileImageUrl || null,
         profile_data: {
           is_active: true,
           status: 'active',
@@ -126,6 +128,7 @@ serve(async (req) => {
       employee_id: adminId,
       department: body.department || null,
       position: body.position || null, 
+      profile_image: body.profileImageUrl || null,
       is_super_admin: adminRole === 'super_admin',
       is_active: true,
       status: 'active',
@@ -155,6 +158,7 @@ serve(async (req) => {
           employee_id: adminId,
           department: body.department || null,
           position: body.position || null,
+          profile_image: body.profileImageUrl || null,
           is_super_admin: adminRole === 'super_admin',
           is_active: true,
           status: 'active',
@@ -181,6 +185,7 @@ serve(async (req) => {
         department: updatedProfile.department,
         position: updatedProfile.position,
         employeeId: updatedProfile.employee_id,
+        profileImageUrl: updatedProfile.profile_image || null,
         isSuperAdmin: updatedProfile.is_super_admin,
         isActive: updatedProfile.is_active,
         createdAt: updatedProfile.created_at,
@@ -217,6 +222,7 @@ serve(async (req) => {
           department: raceProfile.department,
           position: raceProfile.position,
           employeeId: raceProfile.employee_id,
+          profileImageUrl: raceProfile.profile_image || null,
           isSuperAdmin: raceProfile.is_super_admin,
           isActive: raceProfile.is_active,
           createdAt: raceProfile.created_at,
@@ -293,6 +299,7 @@ serve(async (req) => {
       department: createdProfile.department,
       position: createdProfile.position,
       employeeId: createdProfile.employee_id,
+      profileImageUrl: createdProfile.profile_image || null,
       isSuperAdmin: createdProfile.is_super_admin,
       isActive: createdProfile.is_active,
       createdAt: createdProfile.created_at,

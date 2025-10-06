@@ -1,0 +1,22 @@
+name: Backup Supabase DB to Google Drive
+
+# Run every 15 minutes
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: # allows manual trigger from GitHub UI
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Supabase Backup Function
+        env:
+          BACKUP_SECRET: ${{ secrets.SUPABASE_BACKUP_SECRET }} # stored in GitHub Secrets
+          SUPABASE_FUNCTION_URL: https://ryiqdiqcmvwdotnrosac.supabase.co/functions/v1/backup-db
+        run: |
+          echo "Triggering Supabase backup function..."
+          curl -X POST "$SUPABASE_FUNCTION_URL" \
+            -H "Authorization: Bearer $BACKUP_SECRET" \
+            -H "Content-Type: application/json" \
+            -d '{"name":"Scheduled Backup"}'

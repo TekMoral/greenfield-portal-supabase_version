@@ -23,6 +23,7 @@ export function useStudentStatusFilter({
   }
 
   const [includeGraduated, setIncludeGraduated] = useState(getInitialFromQuery)
+  // Derived tri-state from boolean toggle: active-only vs all. For alumni-only a separate control is provided.
 
   // Keep URL in sync (replaceState to avoid history pollution)
   useEffect(() => {

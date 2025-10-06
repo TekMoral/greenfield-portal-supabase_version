@@ -356,3 +356,20 @@ verify_jwt = false
 
 [functions."health-check"]
 verify_jwt = false
+
+[functions."test-rate-limit"]
+verify_jwt = false
+
+[functions."ingest-web-vitals"]
+verify_jwt = false
+
+# Archive attendance notifications older than TTL (default 5 minutes)
+[functions."archive-attendance-notifications"]
+verify_jwt = false
+import_map = "./functions/deno.json"
+entrypoint = "./functions/archive-attendance-notifications/index.ts"
+
+[functions."backup-db"]
+verify_jwt = false
+import_map = "./functions/deno.json"
+entrypoint = "./functions/backup-db/index.ts"

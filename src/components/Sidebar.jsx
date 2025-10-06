@@ -1,10 +1,28 @@
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import { ShieldCheck, AlertTriangle, LayoutDashboard, GraduationCap, Users, UserCog, Layers, BookOpen, BarChart3, FileText, CalendarCheck, Image, Newspaper, Settings, ClipboardList, Trash2, Calendar } from 'lucide-react';
+import {
+  ShieldCheck,
+  AlertTriangle,
+  LayoutDashboard,
+  GraduationCap,
+  Users,
+  UserCog,
+  Layers,
+  BookOpen,
+  BarChart3,
+  FileText,
+  CalendarCheck,
+  Image,
+  Newspaper,
+  Settings,
+  ClipboardList,
+  Trash2,
+  Calendar,
+} from "lucide-react";
 
-const Sidebar = () => {
+const Sidebar = ({ onNavigate }) => {
   const { role } = useAuth();
-  
+
   // STRICT: Only technical consultants and system admins (NOT super_admin)
   const isTechnicalConsultant =
     role === "technical_consultant" || role === "system_admin";
@@ -16,13 +34,17 @@ const Sidebar = () => {
     { path: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
     { path: "/dashboard/students", label: "Students", Icon: GraduationCap },
     { path: "/dashboard/teachers", label: "Teachers", Icon: Users },
-        { path: "/dashboard/classes", label: "Classes", Icon: Layers },
+    { path: "/dashboard/classes", label: "Classes", Icon: Layers },
     { path: "/dashboard/subjects", label: "Subjects", Icon: BookOpen },
     { path: "/dashboard/reports", label: "Results", Icon: BarChart3 },
     { path: "/dashboard/timetable", label: "Timetable", Icon: Calendar },
-    { path: "/dashboard/admin-review", label: "Grading Review", Icon: ClipboardList },
+    {
+      path: "/dashboard/admin-review",
+      label: "Grading Review",
+      Icon: ClipboardList,
+    },
     { path: "/dashboard/report-cards", label: "Report Cards", Icon: FileText },
-        { path: "/dashboard/attendance", label: "Attendance", Icon: CalendarCheck },
+    { path: "/dashboard/attendance", label: "Attendance", Icon: CalendarCheck },
     { path: "/dashboard/carousel", label: "Carousel", Icon: Image },
     { path: "/dashboard/news", label: "News & Events", Icon: Newspaper },
     // Admin Review parent handled as custom dropdown below
@@ -30,8 +52,8 @@ const Sidebar = () => {
     ...(isSuperAdmin
       ? [
           { path: "/dashboard/admins", label: "Admins", Icon: UserCog },
-                    { path: "/dashboard/settings", label: "Settings", Icon: Settings },
-                    {
+          { path: "/dashboard/settings", label: "Settings", Icon: Settings },
+          {
             path: "/dashboard/activity-logs",
             label: "Audit Logs",
             restricted: true,
@@ -50,11 +72,11 @@ const Sidebar = () => {
           },
         ]
       : []),
-      ];
+  ];
 
   return (
     <div className="h-full">
-            <div className="mb-4 mt-0">
+      <div className="mb-4 mt-0">
         <h1 className="text-xl lg:text-2xl font-bold text-white text-center">
           Admin Panel
         </h1>
@@ -66,15 +88,22 @@ const Sidebar = () => {
             key={item.path}
             to={item.path}
             end={item.path === "/dashboard"}
+            onClick={() => {
+              if (typeof onNavigate === "function") onNavigate();
+            }}
             className={({ isActive }) =>
               `block px-3 py-2 rounded transition-colors duration-200 ${
-                isActive ? "bg-white text-teal-700 font-semibold" : "hover:bg-teal-600"
+                isActive
+                  ? "bg-white text-teal-700 font-semibold"
+                  : "hover:bg-teal-600"
               } ${item.restricted ? "border-l-4 border-orange-500" : ""}`
             }
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                {item.Icon && <item.Icon className="w-4 h-4" aria-hidden="true" />}
+                {item.Icon && (
+                  <item.Icon className="w-4 h-4" aria-hidden="true" />
+                )}
                 <span>{item.label}</span>
               </div>
               {item.restricted && (
@@ -85,8 +114,7 @@ const Sidebar = () => {
             </div>
           </NavLink>
         ))}
-
-              </nav>
+      </nav>
 
       {/* Technical Consultant Badge */}
       {isTechnicalConsultant && (

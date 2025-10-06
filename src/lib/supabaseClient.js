@@ -145,7 +145,7 @@ export const getUserProfile = async (userId, signal) => {
       // Fallback to direct select if RPC unavailable
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('*')
+        .select('id, full_name, email, role, status, is_active, profile_image')
         .eq('id', userId)
         .single()
         .abortSignal(abortSignal)
@@ -237,7 +237,7 @@ export const supabaseConfig = {
 }
 
 // Expose Supabase client globally only in development/debug
-const DEBUG_ENABLED = (import.meta?.env?.VITE_ENABLE_DEBUG === 'true') || (import.meta?.env?.DEV === true) || ((import.meta?.env?.MODE || '') === 'development')
+const DEBUG_ENABLED = (import.meta?.env?.VITE_ENABLE_DEBUG === 'false') || (import.meta?.env?.DEV === true) || ((import.meta?.env?.MODE || '') === 'development')
 if (DEBUG_ENABLED && typeof window !== 'undefined') {
   try {
     if (!window.supabase) {

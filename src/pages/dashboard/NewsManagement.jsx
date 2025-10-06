@@ -6,6 +6,7 @@ import NewsTable from '../../components/news/NewsTable';
 import EventsTable from '../../components/news/EventsTable';
 import FeaturedAnnouncementForm from '../../components/news/FeaturedAnnouncementForm';
 import { newsService } from '../../services/supabase/newsService';
+import { formatDMY } from '../../utils/dateUtils';
 
 const NewsManagement = () => {
   const [activeTab, setActiveTab] = useState('news');
@@ -252,7 +253,7 @@ const NewsManagement = () => {
                             <div className="mt-1 text-xs text-slate-600 break-words">{item.summary || item.content?.slice(0, 120)}</div>
                             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
                               <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">{item.category || 'General'}</span>
-                              <span>{new Date(item.created_at || item.date).toLocaleDateString()}</span>
+                              <span>{formatDMY(item.created_at || item.date)}</span>
                               <span className={`px-2 py-0.5 rounded-full ${item.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{item.status || 'draft'}</span>
                             </div>
                           </div>
@@ -288,7 +289,7 @@ const NewsManagement = () => {
                             <div className="mt-1 text-xs text-slate-600 break-words">{item.summary || item.content?.slice(0, 120)}</div>
                             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
                               <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">{item.category || 'Event'}</span>
-                              <span>{new Date(item.created_at || item.date).toLocaleDateString()}</span>
+                              <span>{formatDMY(item.created_at || item.date)}</span>
                               <span className={`px-2 py-0.5 rounded-full ${item.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{item.status || 'draft'}</span>
                             </div>
                           </div>
@@ -323,7 +324,7 @@ const NewsManagement = () => {
                               FEATURED
                             </span>
                             <span className="text-xs sm:text-sm text-gray-500">
-                              {new Date(featuredAnnouncement.created_at).toLocaleDateString()}
+                              {formatDMY(featuredAnnouncement.created_at)}
                             </span>
                           </div>
                           <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 break-words">

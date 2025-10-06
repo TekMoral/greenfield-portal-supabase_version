@@ -1,91 +1,52 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { useAuth } from "../../hooks/useAuth";
-import { auth, db } from "../../firebase/config";
-import { doc, updateDoc, getDoc } from "firebase/firestore";
-import { signOut } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
+import useToast from "../../hooks/useToast";
+import { useSettings } from "../../contexts/SettingsContext";
+import { formatSessionBadge } from "../../utils/sessionUtils";
 
+// Student Settings page reimplemented without Firebase
+// Provides sign-out and a simple placeholder for contact update flow.
 const Settings = () => {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
-
-  const [contact, setContact] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
-
-  // Fetch current phone number
-  useEffect(() => {
-    const fetchContact = async () => {
-      if (!user?.uid) return;
-      const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists()) {
-        setContact(userSnap.data().contact || "");
-      }
-      setLoading(false);
-    };
-    fetchContact();
-  }, [user]);
-
-  const handleSave = async () => {
-    if (!user?.uid || !contact) return;
-    setSaving(true);
-    try {
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, { contact });
-      setMessage("Contact updated successfully.");
-    } catch (err) {
-      setMessage("Failed to update contact.");
-      console.error(err);
-    } finally {
-      setSaving(false);
-      setTimeout(() => setMessage(""), 3000);
-    }
-  };
+  const { showToast } = useToast();
+  const { academicYear: settingsYear, currentTerm } = useSettings();
 
   const handleLogout = async () => {
-    await signOut(auth);
+    const res = await signOut();
+    if (!res?.success) {
+      showToast(res?.error || "Failed to sign out", "error");
+      return;
+    }
     navigate("/login");
   };
-
-  if (loading) return <div className="p-6">Loading settings...</div>;
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold">Account Settings</h1>
+      <div className="text-sm text-slate-500 mt-1">{formatSessionBadge(settingsYear, currentTerm)}</div>
 
-      {/* Update Contact Info */}
+      {/* Contact Update Placeholder (migrate to Supabase profile updates) */}
       <div className="bg-white p-4 rounded shadow">
         <h2 className="text-lg font-semibold mb-2">Contact Phone Number</h2>
-        <input
-          type="text"
-          value={contact}
-          onChange={(e) => setContact(e.target.value)}
-          className="border rounded w-full p-2 mb-3"
-          placeholder="Enter phone number"
-        />
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-        >
-          {saving ? "Saving..." : "Update Contact"}
-        </button>
-        {message && <p className="text-sm mt-2 text-green-600">{message}</p>}
+        <p className="text-sm text-slate-600">
+          This app no longer uses Firebase. Implement profile updates via Supabase user_profiles
+          using the Auth context and supabase client.
+        </p>
       </div>
 
       {/* Password Reset */}
       <div className="bg-white p-4 rounded shadow">
         <h2 className="text-lg font-semibold mb-2">Reset Password</h2>
         <p className="text-sm text-gray-600 mb-4">
-          A reset link will be sent to your email address.
+          Use the Reset Password page to request a password reset.
         </p>
         <button
-          onClick={() => auth.sendPasswordResetEmail(user.email)}
+          onClick={() => navigate("/reset-password")}
           className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
         >
-          Send Reset Email
+          Go to Reset Password
         </button>
       </div>
 
@@ -98,6 +59,10 @@ const Settings = () => {
         >
           Logout
         </button>
+      </div>
+
+      <div className="text-xs text-slate-500">
+        User ID: {user?.id || "-"}
       </div>
     </div>
   );

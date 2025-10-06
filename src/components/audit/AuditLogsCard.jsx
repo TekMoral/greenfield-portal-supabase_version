@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import edgeFunctionsService from "../../services/supabase/edgeFunctions";
+import { formatDMY } from "../../utils/dateUtils";
 
 const PAGE_SIZE = 50;
 
@@ -78,7 +79,7 @@ const res = await edgeFunctionsService.callFunction(
                 ) : logs.map((log) => (
                   <tr key={log.id} className="border-t">
                     <td className="px-3 py-2 whitespace-nowrap">
-                      {new Date(log.created_at).toLocaleString()}
+                      {formatDMY(log.created_at)}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap font-semibold text-gray-700">
                       {log.action}

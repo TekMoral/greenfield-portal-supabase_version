@@ -53,7 +53,7 @@ const DashboardLayout = () => {
       </aside>
 
       {/* Desktop Main Content with margin for fixed sidebar */}
-      <div className="hidden lg:block lg:ml-60 min-h-screen" style={{ paddingTop: 'var(--appbar-height, 56px)' }}>
+      <div className="hidden lg:block lg:ml-60 min-h-screen">
         <main className="flex-1 overflow-auto p-6">
           <Outlet key={location.pathname} />
         </main>
@@ -85,15 +85,12 @@ const DashboardLayout = () => {
           }`}
         >
           <div className="px-4 pb-24">
-            <Sidebar />
+            <Sidebar onNavigate={closeMobileMenu} />
           </div>
         </aside>
 
         {/* Main content */}
-        <main
-          className="flex-1 overflow-auto p-4"
-          style={{ paddingTop: "calc(var(--appbar-height, 56px) + 16px)" }}
-        >
+        <main className="flex-1 overflow-auto p-4">
           <Outlet key={location.pathname} />
         </main>
       </div>

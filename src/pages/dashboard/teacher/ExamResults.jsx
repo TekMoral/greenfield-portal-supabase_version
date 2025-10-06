@@ -9,6 +9,7 @@ import BulkExamResultUpload from '../../../components/results/BulkExamResultUplo
 import { aggregateSubjects, getClassesForSubject as buildClassesForSubject, expandClassEntryToIds } from '../../../utils/teacherClassSubjectUtils';
 import { getSubjectsByDepartment } from '../../../services/supabase/subjectService';
 import { useSettings } from '../../../contexts/SettingsContext';
+import { formatSessionBadge } from '../../../utils/sessionUtils';
 
 
 const ExamResults = () => {
@@ -488,6 +489,9 @@ const ExamResults = () => {
             {selectedClassData && (
               <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 text-white border border-white/20">Class: {selectedClassData.name}{selectedClassData.level ? ` • ${selectedClassData.level}` : ''}</span>
             )}
+            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 text-white border border-white/20">
+              {formatSessionBadge(academicYear, currentTerm) || `${String(academicYear || '')}${academicYear ? ' • ' : ''}${String(currentTerm || '')}`}
+            </span>
           </div>
         </div>
         <div className="mt-3 md:hidden flex flex-wrap gap-2">
@@ -497,6 +501,9 @@ const ExamResults = () => {
           {selectedClassData && (
             <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 text-white border border-white/20">Class: {selectedClassData.name}{selectedClassData.level ? ` • ${selectedClassData.level}` : ''}</span>
           )}
+          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 text-white border border-white/20">
+            {formatSessionBadge(academicYear, currentTerm) || `${String(academicYear || '')}${academicYear ? ' • ' : ''}${String(currentTerm || '')}`}
+          </span>
         </div>
       </div>
 

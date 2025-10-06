@@ -102,7 +102,7 @@ serve(async (req) => {
     const { error: upErr } = await service
       .storage
       .from('carousel-images')
-      .upload(path, file, { contentType: file.type })
+      .upload(path, file, { contentType: file.type, cacheControl: 'public, max-age=31536000, immutable' })
 
     if (upErr) {
       return new Response(JSON.stringify({ success: false, error: `Upload failed: ${upErr.message}` }), {

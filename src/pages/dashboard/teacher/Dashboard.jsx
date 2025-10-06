@@ -6,10 +6,14 @@ import { useNavigate } from "react-router-dom";
 import { getTeacherByUid } from "../../../services/supabase/teacherService";
 import { getTeacherClassesAndSubjects } from "../../../services/supabase/teacherStudentService";
 import { getAssignmentsByTeacher } from "../../../services/supabase/assignmentService";
+import TeacherDashboardSkeleton from "../../../components/teacher/skeletons/TeacherDashboardSkeleton";
+import { useSettings } from "../../../contexts/SettingsContext";
+import { formatSessionBadge } from "../../../utils/sessionUtils";
 
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { academicYear: settingsYear, currentTerm } = useSettings();
 
   const fetchTeacherDashboard = async () => {
     if (!user?.id) throw new Error('No user logged in');
@@ -55,14 +59,7 @@ const Dashboard = () => {
 
   
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="w-12 h-12 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
-          <span className="text-slate-600 font-medium text-lg">Loading your dashboard...</span>
-        </div>
-      </div>
-    );
+    return <TeacherDashboardSkeleton />;
   }
 
   if (isError) {
@@ -115,6 +112,11 @@ const Dashboard = () => {
         <p className="text-slate-200 text-sm sm:text-base">
           Welcome to your dashboard. Manage your classes and students effectively.
         </p>
+        <div className="mt-2">
+          <span className="inline-flex items-center rounded-full bg-white/15 text-white px-2.5 py-1 text-xs font-medium border border-white/20">
+            {formatSessionBadge(settingsYear, currentTerm) || `${String(settingsYear || '')}${settingsYear ? ' • ' : ''}${String(currentTerm || '')}`}
+          </span>
+        </div>
       </div>
 
       {/* Stats Summary (mobile friendly) */}

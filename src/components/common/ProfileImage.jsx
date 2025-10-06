@@ -46,7 +46,7 @@ const ProfileImage = ({
     }
   };
 
-  // Get optimized image URL from Cloudinary
+  // Return source URL directly (no Cloudinary transforms)
   const getOptimizedImageUrl = (imageUrl) => {
     if (!isValidImageUrl(imageUrl)) {
       return null;

@@ -25,17 +25,23 @@ export const studentService = {
     try {
       console.log("🔄 Fetching students and classes...");
 
-      // Get all students
-      const safe = await ensureGraduatedAccess(options);
+      // Normalize requested status filter: 'active' | 'graduated' | 'all'
+      const raw = String(options.statusFilter || '').toLowerCase();
+      const statusFilter = raw === 'graduated' ? 'graduated' : (raw === 'all' ? 'all' : 'active');
+
+      // Base query
       let query = supabase
         .from("user_profiles")
         .select("*")
         .eq("role", "student");
 
-      if (safe.includeGraduated) {
-        query = query.in("status", ["active", "graduated"]);
+      if (statusFilter === 'graduated') {
+        query = query.eq('status', 'graduated');
+      } else if (statusFilter === 'all') {
+        query = query.in('status', ['active', 'graduated', 'suspended']);
       } else {
-        query = query.eq("status", "active");
+        // active
+        query = query.eq('status', 'active');
       }
 
       const { data: students, error: studentsError } = await query
@@ -76,18 +82,22 @@ export const studentService = {
   // Get student by ID
   async getStudentById(studentId, options = {}) {
     try {
-      // Get student
-      const safe = await ensureGraduatedAccess(options);
+      // Normalize requested status filter
+      const raw = String(options.statusFilter || '').toLowerCase();
+      const statusFilter = raw === 'graduated' ? 'graduated' : (raw === 'all' ? 'all' : 'active');
+
       let query = supabase
         .from("user_profiles")
         .select("*")
         .eq("id", studentId)
         .eq("role", "student");
 
-      if (safe.includeGraduated) {
-        query = query.in("status", ["active", "graduated"]);
+      if (statusFilter === 'graduated') {
+        query = query.eq('status', 'graduated');
+      } else if (statusFilter === 'all') {
+        query = query.in('status', ['active', 'graduated', 'suspended']);
       } else {
-        query = query.eq("status", "active");
+        query = query.eq('status', 'active');
       }
 
       const { data: student, error: studentError } = await query.single();
@@ -120,18 +130,21 @@ export const studentService = {
   // Get student by admission number
   async getStudentByAdmissionNumber(admissionNumber, options = {}) {
     try {
-      // Get student
-      const safe = await ensureGraduatedAccess(options);
+      const raw = String(options.statusFilter || '').toLowerCase();
+      const statusFilter = raw === 'graduated' ? 'graduated' : (raw === 'all' ? 'all' : 'active');
+
       let query = supabase
         .from("user_profiles")
         .select("*")
         .eq("admission_number", admissionNumber)
         .eq("role", "student");
 
-      if (safe.includeGraduated) {
-        query = query.in("status", ["active", "graduated"]);
+      if (statusFilter === 'graduated') {
+        query = query.eq('status', 'graduated');
+      } else if (statusFilter === 'all') {
+        query = query.in('status', ['active', 'graduated', 'suspended']);
       } else {
-        query = query.eq("status", "active");
+        query = query.eq('status', 'active');
       }
 
       const { data: student, error: studentError } = await query.single();
@@ -236,18 +249,21 @@ export const studentService = {
   // Get students by class
   async getStudentsByClass(classId, options = {}) {
     try {
-      // Get students
-      const safe = await ensureGraduatedAccess(options);
+      const raw = String(options.statusFilter || '').toLowerCase();
+      const statusFilter = raw === 'graduated' ? 'graduated' : (raw === 'all' ? 'all' : 'active');
+
       let query = supabase
         .from("user_profiles")
         .select("*")
         .eq("class_id", classId)
         .eq("role", "student");
 
-      if (safe.includeGraduated) {
-        query = query.in("status", ["active", "graduated"]);
+      if (statusFilter === 'graduated') {
+        query = query.eq('status', 'graduated');
+      } else if (statusFilter === 'all') {
+        query = query.in('status', ['active', 'graduated', 'suspended']);
       } else {
-        query = query.eq("status", "active");
+        query = query.eq('status', 'active');
       }
 
       const { data: students, error: studentsError } = await query

@@ -144,7 +144,7 @@ export const AuthProvider = ({ children }) => {
           try {
             const { data, error } = await supabase
               .from('user_profiles')
-              .select('*')
+              .select('id, full_name, email, role, status, is_active, profile_image')
               .eq('id', userId)
               .single()
               .abortSignal(signal)
@@ -317,7 +317,7 @@ export const AuthProvider = ({ children }) => {
         try {
           const { data, error } = await supabase
             .from('user_profiles')
-            .select('*')
+            .select('id, full_name, email, role, status, is_active, profile_image')
             .eq('id', userId)
             .single()
             .abortSignal(signal)

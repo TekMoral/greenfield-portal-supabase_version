@@ -16,8 +16,8 @@ This guide explains the complete process from registering a teacher to students 
    - Date Hired, Profile Image
 
 2. **System Action**:
-   - Creates teacher account in Firebase Auth
-   - Stores teacher data in `users` collection with `role: "teacher"`
+   - Creates teacher account in Supabase Auth
+   - Stores teacher data in `user_profiles` with `role: "teacher"`
    - Teacher can now login to their dashboard
 
 ### **Step 2: Class Creation & Management**

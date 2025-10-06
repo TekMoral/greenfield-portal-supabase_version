@@ -123,9 +123,7 @@ Recommended approach:
   - react-hook-form: form handling (where applicable)
 - Other deps present
   - @tanstack/react-query: available for data fetching patterns (introduce consistently if used)
-  - cloudinary-core: media uploads (via utils/services)
-  - firebase / firebase-admin: present; ensure separation from client bundle if used (admin only server contexts)
-
+  
 Setup & Scripts
 - Environment: create `.env` from `.env.example` and set VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
 - Install: `npm install`

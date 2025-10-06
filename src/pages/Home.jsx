@@ -95,6 +95,53 @@ const Home = () => {
     loadCarouselImages();
   }, []);
 
+  // SEO metadata for Home route (no external deps)
+  useEffect(() => {
+    try {
+      const title = 'Greenfield College — Modern School Portal';
+      const description = 'Greenfield College portal: admissions, academics, results, assignments, and secure dashboards for students, teachers, and administrators.';
+      const url = `${window.location.origin}${window.location.pathname}`;
+      const image = HERO_IMAGE_URL;
+
+      document.title = title;
+
+      const setMeta = (name, content) => {
+        if (!content) return;
+        let el = document.head.querySelector(`meta[name="${name}"]`);
+        if (!el) { el = document.createElement('meta'); el.setAttribute('name', name); document.head.appendChild(el); }
+        el.setAttribute('content', content);
+      };
+      const setOg = (property, content) => {
+        if (!content) return;
+        let el = document.head.querySelector(`meta[property="${property}"]`);
+        if (!el) { el = document.createElement('meta'); el.setAttribute('property', property); document.head.appendChild(el); }
+        el.setAttribute('content', content);
+      };
+      const setLinkRel = (rel, href) => {
+        if (!href) return;
+        let el = document.head.querySelector(`link[rel="${rel}"]`);
+        if (!el) { el = document.createElement('link'); el.setAttribute('rel', rel); document.head.appendChild(el); }
+        el.setAttribute('href', href);
+      };
+
+      setMeta('description', description);
+      setMeta('twitter:card', 'summary_large_image');
+      setMeta('twitter:title', title);
+      setMeta('twitter:description', description);
+      setMeta('twitter:image', image);
+
+      setOg('og:title', title);
+      setOg('og:description', description);
+      setOg('og:type', 'website');
+      setOg('og:url', url);
+      setOg('og:image', image);
+
+      setLinkRel('canonical', url);
+    } catch (_) {
+      // ignore SEO errors
+    }
+  }, []);
+
   const features = [
     {
       icon: BookOpen,

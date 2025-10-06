@@ -11,6 +11,8 @@ import { supabase } from "../../../lib/supabaseClient";
 import { useSearchParams } from "react-router-dom";
 import { studentService } from "../../../services/supabase/studentService";
 import useToast from '../../../hooks/useToast';
+import { useSettings } from "../../../contexts/SettingsContext";
+import { formatSessionBadge } from "../../../utils/sessionUtils";
 
 const Reports = () => {
   const { user } = useAuth();
@@ -80,6 +82,7 @@ const Reports = () => {
   const [rejectedReports, setRejectedReports] = useState([]);
   const [rejectedIndex, setRejectedIndex] = useState(0);
   const { showToast } = useToast();
+  const { academicYear: settingsYear, currentTerm } = useSettings();
 
   // Event handlers
   const handleClassChange = (classId) => {
@@ -359,6 +362,7 @@ const Reports = () => {
         <div>
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800">Student Progress Reports</h1>
           <p className="text-sm sm:text-base text-slate-600 mt-1">View attendance, assignment submissions, and add remarks</p>
+          <div className="text-xs sm:text-sm text-slate-500 mt-1">{formatSessionBadge(settingsYear, currentTerm)}</div>
         </div>
       </div>
 

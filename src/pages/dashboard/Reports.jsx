@@ -8,13 +8,18 @@ import {
 } from "../../services/supabase/studentResultService";
 import { getAllSubjects } from "../../services/supabase/subjectService";
 import useToast from '../../hooks/useToast';
+import { formatDMY } from "../../utils/dateUtils";
+import { useSettings } from "../../contexts/SettingsContext";
+import { getNormalizedSession, formatSessionBadge } from "../../utils/sessionUtils";
 
 const ExamResults = () => {
   const { showToast } = useToast();
+  const { academicYear: settingsYear, currentTerm } = useSettings();
+  const normalized = getNormalizedSession({ academicYear: settingsYear, currentTerm });
   // Filters specific to exam results
   const [filters, setFilters] = useState({
-    year: "",
-    term: "",
+    year: normalized.academicYear || "",
+    term: normalized.term ? String(normalized.term) : "",
     subjectId: "",
     status: "submitted", // default to submitted for review
   });
@@ -133,6 +138,14 @@ const ExamResults = () => {
     fetchResults();
     fetchStats();
   }, [filters]);
+  useEffect(() => {
+    // Keep filters synced with Settings when they change
+    setFilters(prev => ({
+      ...prev,
+      year: normalized.academicYear || prev.year,
+      term: normalized.term ? String(normalized.term) : prev.term
+    }));
+  }, [normalized.term, normalized.academicYear]);
 
   const buildLookups = async (list) => {
     try {
@@ -301,6 +314,7 @@ const ExamResults = () => {
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-slate-800">Exam Results</h1>
           <p className="text-slate-600 mt-1">Review and manage teacher-submitted exam results</p>
+          <div className="text-sm text-slate-500 mt-1">{formatSessionBadge(settingsYear, currentTerm)}</div>
         </div>
         <div className="flex gap-2">
           <button onClick={exportCSV} className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium">Export CSV</button>
@@ -533,8 +547,8 @@ const ExamResults = () => {
                         </span>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-700">
-                          <div>Created: {row.createdAt ? new Date(row.createdAt).toLocaleString() : '-'}</div>
-                          <div>Updated: {row.updated_at ? new Date(row.updated_at).toLocaleString() : '-'}</div>
+                          <div>Created: {row.createdAt ? formatDMY(row.createdAt) : '-'}</div>
+                          <div>Updated: {row.updated_at ? formatDMY(row.updated_at) : '-'}</div>
                         </td>
                       </tr>
                     ))}

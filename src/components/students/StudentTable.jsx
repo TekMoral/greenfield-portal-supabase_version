@@ -35,6 +35,8 @@ const StudentTable = ({
 }) => {
   const { userRole, isSuperAdmin } = useAuth();
   const [imagePreviewModal, setImagePreviewModal] = useState({ open: false, src: '', alt: '' });
+  // Sticky offsets depend on whether selection column is rendered
+  const stickyNameLeft = showSelection ? 'left-14' : 'left-0';
   const [viewMode, setViewMode] = useState("auto");
   const [searchFocused, setSearchFocused] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -118,7 +120,7 @@ const StudentTable = ({
   // Determine actual view mode based on screen size and user preference
   const actualViewMode = useMemo(() => {
     if (viewMode === "auto") {
-      return "cards"; // Use cards for all screen sizes
+      return isMobile ? "cards" : "table"; // Cards on mobile, table on desktop
     }
     return viewMode;
   }, [viewMode, isMobile]);
@@ -211,8 +213,8 @@ const StudentTable = ({
           {canSuspend && studentStatus === 'active' && onSuspend && (
             <SuspendButton
               onClick={() => onSuspend(student)}
-              loading={operationLoading?.suspend}
-              disabled={operationLoading?.suspend}
+              loading={operationLoading?.suspendId === student.id}
+              disabled={operationLoading?.suspendId === student.id}
               className="w-full"
               size="xs"
             />
@@ -221,8 +223,8 @@ const StudentTable = ({
           {canSuspend && studentStatus === 'suspended' && onReactivate && (
             <ReactivateButton
               onClick={() => onReactivate(student)}
-              loading={operationLoading?.reactivate}
-              disabled={operationLoading?.reactivate}
+              loading={operationLoading?.reactivateId === student.id}
+              disabled={operationLoading?.reactivateId === student.id}
               className="w-full"
               size="xs"
             />
@@ -266,27 +268,20 @@ const StudentTable = ({
           />
         )}
         
-        {canPromote && studentStatus === 'active' && onPromote && (
-          <PromoteButton
-            onClick={() => onPromote(student)}
-            loading={operationLoading?.promote}
-            disabled={operationLoading?.promote}
-          />
-        )}
-                
+                        
         {canSuspend && studentStatus === 'active' && onSuspend && (
           <SuspendButton
             onClick={() => onSuspend(student)}
-            loading={operationLoading?.suspend}
-            disabled={operationLoading?.suspend}
+            loading={operationLoading?.suspendId === student.id}
+            disabled={operationLoading?.suspendId === student.id}
           />
         )}
         
         {canSuspend && studentStatus === 'suspended' && onReactivate && (
           <ReactivateButton
             onClick={() => onReactivate(student)}
-            loading={operationLoading?.reactivate}
-            disabled={operationLoading?.reactivate}
+            loading={operationLoading?.reactivateId === student.id}
+            disabled={operationLoading?.reactivateId === student.id}
           />
         )}
         
@@ -391,6 +386,11 @@ const StudentTable = ({
                 );
               })()}
               <StatusBadge status={student?.status || 'active'} />
+              {student?.status === 'graduated' && student?.graduated_at && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  Graduated: {new Date(student.graduated_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                </span>
+              )}
               {student?.gender && (
                 <span
                   className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -522,7 +522,7 @@ const StudentTable = ({
   return (
     <div className="bg-white rounded-xl shadow-sm overflow-hidden">
       {/* Enhanced Header with Search */}
-      <div className="p-4 sm:p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+      <div className="p-0 sm:py-6 sm:pr-6 sm:pl-0 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
         {/* Search Section */}
         <div className="mb-4">
           <div
@@ -677,19 +677,6 @@ const StudentTable = ({
                 onClick={clearSearch}
                 className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
               >
-                <svg
-                  className="w-4 h-4 mr-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
                 Clear Search
               </button>
             )}
@@ -697,6 +684,120 @@ const StudentTable = ({
         </div>
       ) : (
         <>
+          {/* Desktop Table View */}
+          {actualViewMode === "table" && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {showSelection && (
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 z-20 bg-gray-50 w-14 min-w-[3.5rem]">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                          checked={allSelectedOnPage}
+                          onChange={(e) => onToggleAll(pageIds, e.target.checked)}
+                        />
+                      </th>
+                    )}
+                    <th scope="col" className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky ${stickyNameLeft} z-10 bg-gray-50`}>
+                      <SortButton field="name">Student</SortButton>
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <SortButton field="admission">Admission No</SortButton>
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <SortButton field="class">Class</SortButton>
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gender</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <SortButton field="date_of_birth">Date of Birth</SortButton>
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guardian</th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {students.map((student, index) => {
+                    const name = student?.full_name || student?.fullName || "N/A";
+                    const admission = student?.admission_number || "N/A";
+                    const className = formatClassName(student?.classes?.name) || "N/A";
+                    const email = student?.email || "";
+                    const dob = student?.date_of_birth ? new Date(student.date_of_birth).toLocaleDateString() : "";
+                    const guardian = student?.guardian_name || "";
+                    const gender = student?.gender || "";
+                    return (
+                      <tr key={student?.id || index} className="hover:bg-gray-50">
+                        {showSelection && (
+                          <td className="px-4 py-3 whitespace-nowrap sticky left-0 z-10 bg-white w-14 min-w-[3.5rem]">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                              checked={selectedSet.has(student?.id)}
+                              onChange={(e) => { e.stopPropagation(); onToggleRow(student?.id); }}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </td>
+                        )}
+                        <td className={`px-6 py-4 whitespace-nowrap sticky ${stickyNameLeft} z-10 bg-white`}>
+                          <div className="flex items-center">
+                            <div
+                              className={`flex-shrink-0 ${student?.profile_image ? 'cursor-zoom-in hover:opacity-90 transition' : ''}`}
+                              onClick={() => handleImageClick(student)}
+                            >
+                              <ProfileImage
+                                src={student?.profile_image}
+                                alt={name}
+                                size="sm"
+                                className="hover:ring-2 hover:ring-emerald-400"
+                                fallbackName={name}
+                              />
+                            </div>
+                            <div className="ml-3 min-w-0">
+                              <div className="text-sm font-medium text-gray-900 truncate">{name}</div>
+                              {admission && <div className="text-xs text-gray-500">ID: {admission}</div>}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{admission}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{className}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{gender}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <div className="flex flex-col">
+                            <StatusBadge status={student?.status || 'active'} />
+                            {student?.status === 'graduated' && student?.graduated_at && (
+                              <span className="text-xs text-gray-500 mt-1">
+                                Graduated {new Date(student.graduated_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{email}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{dob}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{guardian}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <ActionsCell
+                            student={student}
+                            onEdit={onEdit}
+                            onDelete={onDelete}
+                            onPromote={onPromote}
+                            onSuspend={onSuspend}
+                            onReactivate={onReactivate}
+                            onResetPassword={onResetPassword}
+                            isMobile={false}
+                            operationLoading={operationLoading}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {/* Card Views */}
           {actualViewMode === "cards" && (
             <div className="p-4">

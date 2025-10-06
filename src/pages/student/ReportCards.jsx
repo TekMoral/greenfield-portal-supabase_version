@@ -3,9 +3,12 @@ import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabaseClient';
 import { getTermName } from '../../utils/reportUtils';
 import { callFunction } from '../../services/supabase/edgeFunctions';
+import { useSettings } from '../../contexts/SettingsContext';
+import { formatSessionBadge } from '../../utils/sessionUtils';
 
 const ReportCards = () => {
   const { user } = useAuth();
+  const { academicYear: settingsYear, currentTerm } = useSettings();
   const [reportCards, setReportCards] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -83,6 +86,7 @@ const ReportCards = () => {
       <div>
         <h1 className="text-2xl font-bold text-slate-800">My Report Cards</h1>
         <p className="text-slate-600 mt-1">Download your official term report cards</p>
+        <div className="text-sm text-slate-500 mt-1">{formatSessionBadge(settingsYear, currentTerm)}</div>
       </div>
 
       {reportCards.length === 0 ? (

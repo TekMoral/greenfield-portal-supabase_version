@@ -1,13 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { calculateGrade, getStudentExamResults } from '../../services/supabase/studentResultService';
 import { getTermName } from '../../utils/reportUtils';
 import { getAllExams } from '../../services/supabase/examService';
 import { getAllSubjects } from '../../services/supabase/subjectService';
 import { getStudentById } from '../../services/supabase/studentService';
+import { useSettings } from '../../contexts/SettingsContext';
+import { normalizeAcademicYear, getNormalizedSession, formatSessionBadge } from '../../utils/sessionUtils';
 
 const StudentExamResults = () => {
   const { user } = useAuth();
+  const { academicYear: settingsYear, currentTerm } = useSettings();
+  const { term } = useMemo(() => getNormalizedSession({ academicYear: settingsYear, currentTerm }), [settingsYear, currentTerm]);
   const [student, setStudent] = useState(null);
   const [results, setResults] = useState([]);
   const [filteredResults, setFilteredResults] = useState([]);
@@ -30,6 +34,23 @@ const StudentExamResults = () => {
       fetchStudentData();
     }
   }, [user?.uid]);
+
+  // Default filters to settings (retain user overrides)
+  useEffect(() => {
+    setFilters(prev => {
+      const next = { ...prev };
+      const hasYear = !!prev.academicYear;
+      const hasTerm = !!prev.term;
+      // Academic year: store as the first 4-digit year so parseInt comparison works.
+      if (!hasYear && settingsYear) {
+        const norm = normalizeAcademicYear(settingsYear);
+        const firstYear = (norm.match(/\d{4}/) || [null])[0];
+        if (firstYear) next.academicYear = String(firstYear);
+      }
+      if (!hasTerm && term) next.term = String(term);
+      return next;
+    });
+  }, [settingsYear, currentTerm, term]);
 
   useEffect(() => {
     applyFilters();
@@ -181,6 +202,7 @@ const StudentExamResults = () => {
         <p className="text-blue-100">
           Welcome {student.firstName} {student.lastName} - View your academic performance
         </p>
+        <div className="text-blue-100 text-sm mt-1">{formatSessionBadge(settingsYear, currentTerm)}</div>
       </div>
 
       {/* Stats Cards */}

@@ -8,10 +8,14 @@ import { useNavigate } from "react-router-dom";
 import { getStudent } from "../../services/supabase/studentService";
 import { getAllClasses } from "../../services/supabase/classService";
 import { getAssignmentsForStudent } from "../../services/supabase/assignmentService";
+import { useSettings } from "../../contexts/SettingsContext";
+import { getNormalizedSession, formatSessionBadge } from "../../utils/sessionUtils";
 
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { academicYear: settingsYear, currentTerm } = useSettings();
+  const { academicYear, term } = getNormalizedSession({ academicYear: settingsYear, currentTerm });
 
   const fetchDashboardData = async () => {
     if (!user?.id) throw new Error('No user logged in');
@@ -35,7 +39,7 @@ const Dashboard = () => {
       category: classData?.category || "",
       firstName: studentData.full_name?.split(' ')[0] || studentData.full_name || 'Student',
       admissionNumber: studentData.admission_number,
-      academicYear: new Date().getFullYear()
+      academicYear: academicYear || studentData.academicYear || new Date().getFullYear()
     };
 
     let assignments = [];
@@ -173,6 +177,7 @@ const Dashboard = () => {
             </span>
           )}
         </p>
+        <div className="text-slate-300 text-xs sm:text-sm mt-2">{formatSessionBadge(settingsYear, currentTerm)}</div>
       </div>
 
       {/* Student Stats Summary (mobile friendly) */}
@@ -211,7 +216,7 @@ const Dashboard = () => {
             <div className="flex items-center justify-between">
               <div className="min-w-0 flex-1">
                 <h3 className="text-xs sm:text-sm font-medium text-slate-600 uppercase tracking-wide">Academic Year</h3>
-                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 mt-1">{student.academicYear || new Date().getFullYear()}</p>
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 mt-1">{academicYear || new Date().getFullYear()}</p>
               </div>
               <div className="text-slate-700 text-xl sm:text-2xl ml-2 flex-shrink-0">📅</div>
             </div>

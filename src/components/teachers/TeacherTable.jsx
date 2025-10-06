@@ -109,7 +109,7 @@ const TeacherTable = ({
   // Determine actual view mode based on screen size and user preference
   const actualViewMode = useMemo(() => {
     if (viewMode === "auto") {
-      return "cards"; // Use cards for all screen sizes
+      return isMobile ? "cards" : "table"; // Cards on mobile, table on desktop
     }
     return viewMode;
   }, [viewMode, isMobile]);
@@ -610,6 +610,106 @@ const TeacherTable = ({
         </div>
       ) : (
         <>
+          {/* Desktop Table View */}
+          {actualViewMode === "table" && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {showSelection && (
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          checked={allSelectedOnPage}
+                          onChange={(e) => onToggleAll((teachers || []).map(t => t?.id).filter(Boolean), e.target.checked)}
+                        />
+                      </th>
+                    )}
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <SortButton field="name">Teacher</SortButton>
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <SortButton field="email">Email</SortButton>
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <SortButton field="subject">Subject</SortButton>
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <SortButton field="dateHired">Date Hired</SortButton>
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {teachers.map((teacher, index) => {
+                    const name = teacher?.name || 'N/A';
+                    const email = teacher?.email || '';
+                    const subject = teacher?.subject || 'N/A';
+                    const phone = teacher?.phoneNumber || '';
+                    const dateHired = teacher?.dateHired ? new Date(teacher.dateHired).toLocaleDateString() : '';
+                    return (
+                      <tr key={teacher?.id || index} className="hover:bg-gray-50">
+                        {showSelection && (
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              checked={selectedSet.has(teacher?.id)}
+                              onChange={(e) => { e.stopPropagation(); onToggleRow(teacher?.id); }}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </td>
+                        )}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div
+                              className={`flex-shrink-0 ${teacher?.profileImageUrl ? 'cursor-zoom-in hover:opacity-90 transition' : ''}`}
+                              onClick={() => openImage(teacher?.profileImageUrl || '', name)}
+                            >
+                              <ProfileImage
+                                src={teacher?.profileImageUrl}
+                                alt={name}
+                                size="sm"
+                                className="hover:ring-2 hover:ring-blue-400"
+                                fallbackName={name}
+                              />
+                            </div>
+                            <div className="ml-3 min-w-0">
+                              <div className="text-sm font-medium text-gray-900 truncate">{name}</div>
+                              {email && <div className="text-xs text-gray-500 truncate">{email}</div>}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{email}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{subject}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{phone}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <StatusBadge isActive={teacher?.isActive} />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{dateHired}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <ActionsCell
+                            teacher={teacher}
+                            onEdit={onEdit}
+                            onDelete={onDelete}
+                            onSuspend={onSuspend}
+                            onReactivate={onReactivate}
+                            isMobile={false}
+                            operationLoading={operationLoading}
+                            rowLoading={rowLoading}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {/* Card Views */}
           {actualViewMode === "cards" && (
             <div className="p-4">

@@ -8,11 +8,13 @@ import { useSettings } from '../../contexts/SettingsContext';
 import useToast from '../../hooks/useToast';
 import GeneratedReportCards from './GeneratedReportCards';
 import { callFunction } from '../../services/supabase/edgeFunctions';
+import { getNormalizedSession, formatSessionBadge } from '../../utils/sessionUtils';
 
 const AdminReportCards = () => {
   // Reference data
   const [classes, setClasses] = useState([]);
   const { academicYear, currentTerm } = useSettings();
+  const normalized = getNormalizedSession({ academicYear, currentTerm });
   const { showToast } = useToast();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -96,10 +98,9 @@ const AdminReportCards = () => {
 
   // Sync defaults from global settings
   useEffect(() => {
-    const s = String(currentTerm || '1st Term').toLowerCase();
-    setBulkTerm(s.includes('2') ? 2 : s.includes('3') ? 3 : 1);
+    setBulkTerm(normalized.term || 1);
     const yearHead = (() => {
-      const ys = String(academicYear || '');
+      const ys = String(normalized.academicYear || '');
       if (ys.includes('/')) {
         const head = parseInt(ys.split('/')[0], 10);
         return Number.isFinite(head) ? head : new Date().getFullYear();
@@ -108,9 +109,17 @@ const AdminReportCards = () => {
       return Number.isFinite(n) ? n : new Date().getFullYear();
     })();
     setBulkYear(yearHead);
-    setIndivTerm(s.includes('2') ? 2 : s.includes('3') ? 3 : 1);
+    setIndivTerm(normalized.term || 1);
     setIndivYear(yearHead);
-  }, [academicYear, currentTerm]);
+  }, [normalized.term, normalized.academicYear]);
+
+  // Default the Published tab term filter to Super Admin's current term from Settings
+  useEffect(() => {
+    if ((listTerm === '' || listTerm == null) && normalized.term != null) {
+      setListTerm(String(normalized.term));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [normalized.term]);
 
   // Load students for selected grouped class
   useEffect(() => {
@@ -347,6 +356,7 @@ const AdminReportCards = () => {
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-slate-800">Report Cards (Admin)</h1>
           <p className="text-slate-600 mt-1">Generate and publish official term report card PDFs in bulk</p>
+          <div className="text-sm text-slate-500 mt-1">{formatSessionBadge(academicYear, currentTerm)}</div>
         </div>
       </div>
 
@@ -405,7 +415,8 @@ const AdminReportCards = () => {
             <select
               value={bulkTerm}
               onChange={(e) => setBulkTerm(Number(e.target.value))}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              disabled
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-slate-100 text-slate-700"
             >
               <option value={1}>1st Term</option>
               <option value={2}>2nd Term</option>
@@ -418,7 +429,8 @@ const AdminReportCards = () => {
               type="number"
               value={bulkYear}
               onChange={(e) => setBulkYear(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              disabled
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-slate-100 text-slate-700"
             />
           </div>
           <div className="flex items-end">
@@ -627,7 +639,8 @@ const AdminReportCards = () => {
             <select
               value={indivTerm}
               onChange={(e) => setIndivTerm(Number(e.target.value))}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              disabled
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-slate-100 text-slate-700"
             >
               <option value={1}>1st Term</option>
               <option value={2}>2nd Term</option>
@@ -640,7 +653,8 @@ const AdminReportCards = () => {
               type="number"
               value={indivYear}
               onChange={(e) => setIndivYear(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              disabled
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-slate-100 text-slate-700"
             />
           </div>
         </div>

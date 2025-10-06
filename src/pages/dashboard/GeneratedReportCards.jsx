@@ -6,6 +6,9 @@ import { getAllStudents } from '../../services/supabase/studentService';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
 import { finalizeReport, callFunction } from '../../services/supabase/edgeFunctions';
+import { formatDMY } from '../../utils/dateUtils';
+import { useSettings } from '../../contexts/SettingsContext';
+import { getNormalizedSession, formatSessionBadge } from '../../utils/sessionUtils';
 
 const GeneratedReportCards = () => {
   const [loading, setLoading] = useState(true);
@@ -19,6 +22,7 @@ const GeneratedReportCards = () => {
   const [filterQuery, setFilterQuery] = useState(''); // search by name/admission
   const [statusFilter, setStatusFilter] = useState('generated'); // generated | published | all
 
+  
   // Pagination
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(20);
@@ -28,6 +32,17 @@ const GeneratedReportCards = () => {
   const [rows, setRows] = useState([]);
   const [listLoading, setListLoading] = useState(false);
   const { user } = useAuth();
+  const { academicYear, currentTerm } = useSettings();
+  const normalized = useMemo(() => getNormalizedSession({ academicYear, currentTerm }), [academicYear, currentTerm]);
+
+  // Default term filter to current settings term
+  useEffect(() => {
+    if (normalized.term != null && (filterTerm === '' || filterTerm == null)) {
+      setFilterTerm(String(normalized.term));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [normalized.term]);
+
   const [publishingMap, setPublishingMap] = useState({}); // { [id]: boolean }
   const anyPublishing = Object.values(publishingMap).some(Boolean);
 
@@ -299,6 +314,7 @@ const GeneratedReportCards = () => {
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-slate-800">Generated Report Cards</h1>
           <p className="text-slate-600 mt-1">Review draft report cards and publish individually or in bulk</p>
+          <div className="text-sm text-slate-500 mt-1">{formatSessionBadge(academicYear, currentTerm)}</div>
         </div>
         <Link to="/dashboard/report-cards" className="text-blue-600 hover:text-blue-800">Back to Report Cards</Link>
       </div>
@@ -413,7 +429,7 @@ const GeneratedReportCards = () => {
                   const termNum = card.term != null ? Number(card.term) : (pathTerm ?? undefined);
                   const termLabel = termNum === 1 ? '1st' : termNum === 2 ? '2nd' : termNum === 3 ? '3rd' : (termNum ?? '—');
                   const yearLabel = card.academic_year || pathYear || '—';
-                  const dateStr = new Date(card.uploaded_at || card.updated_at || Date.now()).toLocaleDateString();
+                  const dateStr = formatDMY(card.uploaded_at || card.updated_at || Date.now());
                   const href = null; // no public links for private storage
                   const verified = !!card.is_verified;
                   return (

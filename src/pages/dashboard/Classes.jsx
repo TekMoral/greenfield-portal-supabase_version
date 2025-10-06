@@ -13,6 +13,8 @@ import { SaveButton, CancelButton, DeleteButton, EditButton, CreateButton } from
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import ClassSubjectManager from "../../components/ClassSubjectManager";
 import { formatClassName, sortClasses } from "../../utils/classNameFormatter";
+import { useSettings } from "../../contexts/SettingsContext";
+import { getNormalizedSession } from "../../utils/sessionUtils";
 
 const LEVELS = ["Junior", "Senior"];
 const CATEGORIES = ["Science", "Art", "Commercial"];
@@ -50,6 +52,8 @@ export default function Classes() {
   const navigate = useNavigate();
   const { isSuperAdmin } = useAuth();
   const { logClassAction, AUDIT_ACTIONS } = useAuditLog();
+  const { academicYear: settingsYear, currentTerm } = useSettings();
+  const normalized = useMemo(() => getNormalizedSession({ academicYear: settingsYear, currentTerm }), [settingsYear, currentTerm]);
 
   const [classes, setClasses] = useState([]);
   // Local loading for legacy fetch function is no longer used for initial load
@@ -189,8 +193,8 @@ export default function Classes() {
             teacherId: subjectAssignment.teacherId,
             subjectId: subjectRecord.id,
             classId: selectedClass.id,
-            academicYear: new Date().getFullYear() + '/' + (new Date().getFullYear() + 1),
-            term: 1
+            academicYear: normalized.academicYear || (new Date().getFullYear() + '/' + (new Date().getFullYear() + 1)),
+            term: normalized.term || 1
           });
 
           if (!res || res.success === false) {

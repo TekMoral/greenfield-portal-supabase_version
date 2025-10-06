@@ -4,6 +4,7 @@ import { useAuth } from "../../../hooks/useAuth";
 import { useSettings } from "../../../contexts/SettingsContext";
 import { subjectService } from "../../../services/supabase/subjectService";
 import { formatFullClassName, formatClassWithLevel } from "../../../utils/classNameFormatter";
+import { getNormalizedSession, buildAcademicYearVariants, toRpcParams, formatSessionBadge } from "../../../utils/sessionUtils";
 
 // Day mapping
 const DAY_LABELS = {
@@ -17,35 +18,7 @@ const DAY_LABELS = {
 };
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 7];
 
-// Normalize academic year e.g., '2024/2025' -> '2024-2025'
-const normalizeAcademicYear = (val) => {
-  if (!val) {
-    const y = new Date().getFullYear();
-    return `${y}-${y + 1}`;
-  }
-  const s = String(val).trim();
-  if (s.includes('/')) {
-    const [a, b] = s.split('/');
-    if (a && b) return `${a}-${b}`;
-  }
-  if (s.includes('-')) return s;
-  const n = parseInt(s, 10);
-  if (Number.isFinite(n)) return `${n}-${n + 1}`;
-  return s;
-};
 
-// Parse settings currentTerm (e.g., '1st Term', 'Second', '3') -> 1/2/3
-const parseTermToNumber = (val) => {
-  if (val == null) return 1;
-  const s = String(val).trim();
-  const digit = s.match(/[1-3]/);
-  if (digit) return parseInt(digit[0], 10);
-  const lower = s.toLowerCase();
-  if (lower.includes('first')) return 1;
-  if (lower.includes('second')) return 2;
-  if (lower.includes('third')) return 3;
-  return 1;
-};
 
 // Format HH:MM[:SS] -> HH:MM
 const formatTime = (t) => {
@@ -57,8 +30,10 @@ const TeacherTimetable = () => {
   const { user } = useAuth();
   const { academicYear: settingsYear, currentTerm } = useSettings();
 
-  const academicYear = useMemo(() => normalizeAcademicYear(settingsYear), [settingsYear]);
-  const term = useMemo(() => parseTermToNumber(currentTerm), [currentTerm]);
+  const { academicYear, term } = useMemo(
+    () => getNormalizedSession({ academicYear: settingsYear, currentTerm }),
+    [settingsYear, currentTerm]
+  );
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -92,7 +67,7 @@ const TeacherTimetable = () => {
         let list = [];
         try {
           const { data: rpcData, error: rpcErr } = await supabase
-            .rpc('list_timetable_for_current_teacher', { p_academic_year: academicYear, p_term: term });
+            .rpc('list_timetable_for_current_teacher', toRpcParams(settingsYear, currentTerm));
           if (!rpcErr && Array.isArray(rpcData) && rpcData.length) {
             list = rpcData;
           }
@@ -101,10 +76,7 @@ const TeacherTimetable = () => {
         }
 
         // Build academic year variants to tolerate legacy formats
-        const raw = settingsYear;
-        const norm = academicYear;
-        const alt = raw ? (String(raw).includes('/') ? String(raw).replace('/', '-') : String(raw).replace('-', '/')) : null;
-        const yearCandidates = Array.from(new Set([norm, String(raw || ''), alt].filter(Boolean)));
+        const yearCandidates = buildAcademicYearVariants(settingsYear);
 
         // Query timetables by teacher/year/term (try variants) if RPC returned nothing
         if ((!list || list.length === 0) && yearCandidates.length > 0) {
@@ -225,7 +197,7 @@ const TeacherTimetable = () => {
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">📅 My Weekly Timetable</h1>
-        <div className="text-sm text-slate-600">{academicYear} • Term {term}</div>
+        <div className="text-sm text-slate-600">{formatSessionBadge(settingsYear, currentTerm)}</div>
       </div>
 
       {grouped.map(({ day, items }) => (

@@ -36,7 +36,9 @@ const Students = () => {
     delete: false,
     promote: false,
     suspend: false,
+    suspendId: null,
     reactivate: false,
+    reactivateId: null,
     resetPassword: false,
   });
 
@@ -125,12 +127,33 @@ const Students = () => {
     return Array.from(groupsMap.values()).sort((a, b) => a.label.localeCompare(b.label))
   }, [classes]);
 
-  // Status filter (admin can include graduated on demand)
-  const { includeGraduated, setIncludeGraduated, options: statusOptions } = useStudentStatusFilter({
+  // Status filter (tri-state UI: Active | Alumni | All) - keep existing toggle for Back-compat
+  const { includeGraduated, setIncludeGraduated, options: statusOptionsToggle } = useStudentStatusFilter({
     defaultIncludeGraduated: false,
     syncToQuery: true,
     queryKey: 'includeGraduated'
   });
+  const [statusFilter, setStatusFilter] = useState('active'); // 'active' | 'graduated' | 'all'
+  // Sync URL param ?alumni=1 for graduates-only, otherwise leverage includeGraduated for 'all'
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const a = sp.get('alumni');
+      if (a === '1' || a === 'true') setStatusFilter('graduated');
+    } catch (_) {}
+  }, []);
+  useEffect(() => {
+    // When toggling includeGraduated, if not explicitly in alumni mode, map to 'all' or 'active'
+    setStatusFilter((prev) => (prev === 'graduated' ? prev : (includeGraduated ? 'all' : 'active')));
+  }, [includeGraduated]);
+
+  // Clear class filter automatically when switching to Alumni to avoid excluding graduates without class
+  useEffect(() => {
+    if (statusFilter === 'graduated') {
+      if (selectedClassId) setSelectedClassId('');
+      if (searchTerm) setSearchTerm('');
+    }
+  }, [statusFilter]);
 
   // Memoized enriched students with class data
   const enrichedStudents = useMemo(() => {
@@ -158,8 +181,8 @@ const Students = () => {
   const filteredAndSortedStudents = useMemo(() => {
     let filtered = enrichedStudents;
 
-    // Apply class filter (grouped)
-    if (selectedClassId) {
+    // Apply class filter (grouped) - skip in Alumni mode because alumni may have null class_id
+    if (selectedClassId && statusFilter !== 'graduated') {
       const group = classGroups.find(g => g.key === selectedClassId);
       const ids = group ? new Set(group.classIds.map(String)) : new Set();
       filtered = filtered.filter((student) => ids.has(String(student.class_id)));
@@ -181,6 +204,13 @@ const Students = () => {
           email.includes(term)
         );
       });
+    }
+
+    // Status filter
+    if (statusFilter === 'graduated') {
+      filtered = filtered.filter((s) => String(s.status || '').toLowerCase() === 'graduated');
+    } else if (statusFilter === 'active') {
+      filtered = filtered.filter((s) => !s.status || String(s.status).toLowerCase() === 'active');
     }
 
     // Apply sorting
@@ -249,7 +279,13 @@ const Students = () => {
   const queryClient = useQueryClient();
 
   const fetchStudentsQuery = async () => {
-    const res = await getAllStudents(statusOptions);
+    // Map status to service options. Keep includeGraduated for backward support
+    const opts = statusFilter === 'graduated'
+      ? { statusFilter: 'graduated', includeGraduated: true }
+      : statusFilter === 'all'
+        ? { statusFilter: 'all', includeGraduated: true }
+        : { statusFilter: 'active', includeGraduated: false };
+    const res = await getAllStudents(opts);
     if (!res.success) throw new Error(res.error || "Failed to fetch students");
     return res.data || [];
   };
@@ -261,7 +297,7 @@ const Students = () => {
     throw new Error(res?.error || "Failed to fetch classes");
   };
 
-  const { data: studentsData, isLoading: studentsLoading, error: studentsError } = useQuery({ queryKey: ['students', includeGraduated ? 'inclGrad' : 'activeOnly'], queryFn: fetchStudentsQuery });
+  const { data: studentsData, isLoading: studentsLoading, error: studentsError } = useQuery({ queryKey: ['students', statusFilter], queryFn: fetchStudentsQuery });
   const { data: classesData, isLoading: classesLoading, error: classesError } = useQuery({ queryKey: ['classes'], queryFn: fetchClassesQuery });
 
   useEffect(() => { if (studentsData) setStudents(studentsData); }, [studentsData]);
@@ -470,7 +506,7 @@ const Students = () => {
   const handleSuspendStudent = async () => {
     if (!suspendConfirm.student) return;
 
-    setOperationLoading(prev => ({ ...prev, suspend: true }));
+    setOperationLoading(prev => ({ ...prev, suspend: true, suspendId: suspendConfirm.student.id }));
 
     try {
       console.log('➡️ Suspending student:', {
@@ -508,7 +544,7 @@ const Students = () => {
       const detailed = error.userMessage || error.responseJson?.error || error.responseJson?.message || error.message || 'Failed to suspend student';
       toast.error(detailed);
     } finally {
-      setOperationLoading(prev => ({ ...prev, suspend: false }));
+      setOperationLoading(prev => ({ ...prev, suspend: false, suspendId: null }));
     }
   };
 
@@ -519,7 +555,7 @@ const Students = () => {
   }, []);
 
   const handleReactivateStudent = async (student) => {
-    setOperationLoading(prev => ({ ...prev, reactivate: true }));
+    setOperationLoading(prev => ({ ...prev, reactivate: true, reactivateId: student.id }));
 
     try {
       console.log('➡️ Reactivating student:', {
@@ -555,7 +591,7 @@ const Students = () => {
       const detailed = error.userMessage || error.responseJson?.error || error.responseJson?.message || error.message || 'Failed to reactivate student';
       toast.error(detailed);
     } finally {
-      setOperationLoading(prev => ({ ...prev, reactivate: false }));
+      setOperationLoading(prev => ({ ...prev, reactivate: false, reactivateId: null }));
     }
   };
 
@@ -986,8 +1022,8 @@ const Students = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 -mx-3 sm:mx-0">
-      <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-6">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-0 py-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
@@ -1015,14 +1051,16 @@ const Students = () => {
                   ))}
                 </select>
                 {isAdmin && (
-                  <div className="flex items-center">
-                    <StudentStatusFilter
-                      className="w-full sm:w-auto"
-                      value={includeGraduated}
-                      onChange={setIncludeGraduated}
-                      label="Include Graduated"
-                      helperText="Show alumni in results"
-                    />
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="w-full sm:w-auto min-w-[160px] px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-sm shadow-sm transition-all duration-200 hover:border-gray-400"
+                    >
+                      <option value="active">Active</option>
+                      <option value="graduated">Alumni</option>
+                      <option value="all">All (Active + Alumni)</option>
+                    </select>
                   </div>
                 )}
               </div>

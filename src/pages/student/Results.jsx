@@ -5,6 +5,8 @@ import { getActiveExamsForStudent, getAllExams } from "../../services/supabase/e
 import { getAllSubjects } from "../../services/supabase/subjectService";
 import ResultCard from "../../components/student/ResultCard";
 import { Download, Printer, Filter, TrendingUp, BarChart3, CheckCircle2, XCircle, Percent } from "lucide-react";
+import { useSettings } from "../../contexts/SettingsContext";
+import { getNormalizedSession, formatSessionBadge } from "../../utils/sessionUtils";
 
 // Small inline sparkline component (no external deps)
 function Sparkline({ data = [], height = 36, width = 140, stroke = "#10b981" }) {
@@ -35,6 +37,8 @@ function Sparkline({ data = [], height = 36, width = 140, stroke = "#10b981" }) 
 
 const Results = () => {
   const { user } = useAuth();
+  const { academicYear: settingsYear, currentTerm } = useSettings();
+  const { term } = getNormalizedSession({ academicYear: settingsYear, currentTerm });
   const [results, setResults] = useState([]);
   const [activeExams, setActiveExams] = useState([]);
   const [subjects, setSubjects] = useState([]);
@@ -44,6 +48,12 @@ const Results = () => {
   const [selectedSession, setSelectedSession] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedTerm, setSelectedTerm] = useState('');
+  // Default the Term filter to Super Admin's configured current term (if available)
+  React.useEffect(() => {
+    if (!selectedTerm && term) {
+      setSelectedTerm(`Term ${term}`);
+    }
+  }, [term]);
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -272,6 +282,7 @@ const Results = () => {
         <div className="ml-0 sm:ml-0">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 ml-10">My Results</h1>
           <p className="text-gray-600">Track your academic performance across sessions and terms</p>
+          <div className="text-sm text-slate-500 mt-1">{formatSessionBadge(settingsYear, currentTerm)}</div>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={exportCSV} className="inline-flex items-center gap-2 bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 px-3 py-2 rounded-md shadow-sm">

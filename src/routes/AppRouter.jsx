@@ -14,10 +14,12 @@ import AcademicCalendar from "../pages/academics/AcademicCalendar";
 import DashboardLayout from "../layouts/DashboardLayout";
 import StudentLayout from "../layouts/StudentLayout";
 import TeacherLayout from "../layouts/TeacherLayout";
+import PublicLayout from "../layouts/PublicLayout";
 import lazyWithRetry from "../utils/lazyWithRetry";
+const PrivateApp = lazyWithRetry(() => import('./PrivateApp'));
 
 // Debug feature flag: enable debug routes only in development or when explicitly allowed
-const DEBUG_ENABLED = (import.meta.env?.VITE_ENABLE_DEBUG === 'true') || (import.meta.env?.DEV === true) || ((import.meta.env?.MODE || '') === 'development');
+const DEBUG_ENABLED = (import.meta.env?.VITE_ENABLE_DEBUG === 'false') || (import.meta.env?.DEV === true) || ((import.meta.env?.MODE || '') === 'development');
 
 // Lazy loaded components with retry handling
 const Login = lazyWithRetry(() => import("../pages/Login"));
@@ -95,7 +97,6 @@ const CarouselManagement = lazyWithRetry(() =>
 );
 const NewsManagement = lazyWithRetry(() => import("../pages/dashboard/NewsManagement"));
 const ActivityLogs = lazyWithRetry(() => import("../pages/dashboard/ActivityLogs"));
-const LogCleanup = lazyWithRetry(() => import("../pages/dashboard/LogCleanup"));
 
 // Loading component
 const LoadingFallback = () => (
@@ -106,24 +107,29 @@ const LoadingFallback = () => (
 
 const AppRouter = () => (
   <Routes>
-    <Route path="/" element={<Home />} />
-    <Route path="/about" element={<About />} />
-    <Route path="/admission" element={<Admission />} />
-    <Route path="/news" element={<NewsEvents />} />
-    <Route path="/contact" element={<Contact />} />
-    <Route path="/apply" element={<Apply />} />
+    {/* Public routes layout */}
+    <Route element={<PublicLayout />}>
+      <Route path="/" element={<Home />} />
+      <Route path="/about" element={<About />} />
+      <Route path="/admission" element={<Admission />} />
+      <Route path="/news" element={<NewsEvents />} />
+      <Route path="/contact" element={<Contact />} />
+      <Route path="/apply" element={<Apply />} />
 
-    {/* Academic Pages */}
-    <Route path="/academics/curriculum" element={<Curriculum />} />
-    <Route path="/academics/subjects" element={<Subjects />} />
-    <Route path="/academics/examinations" element={<Examinations />} />
-    <Route path="/academics/calendar" element={<AcademicCalendar />} />
+      {/* Academic Pages */}
+      <Route path="/academics/curriculum" element={<Curriculum />} />
+      <Route path="/academics/subjects" element={<Subjects />} />
+      <Route path="/academics/examinations" element={<Examinations />} />
+      <Route path="/academics/calendar" element={<AcademicCalendar />} />
+    </Route>
 
     <Route
       path="/login"
       element={
         <Suspense fallback={<LoadingFallback />}>
-          <Login />
+          <PrivateApp>
+            <Login />
+          </PrivateApp>
         </Suspense>
       }
     />
@@ -132,7 +138,9 @@ const AppRouter = () => (
       path="/reset-password"
       element={
         <Suspense fallback={<LoadingFallback />}>
-          <ResetPassword />
+          <PrivateApp>
+            <ResetPassword />
+          </PrivateApp>
         </Suspense>
       }
     />
@@ -141,7 +149,9 @@ const AppRouter = () => (
       path="/force-password-change"
       element={
         <Suspense fallback={<LoadingFallback />}>
-          <ForcePasswordChange />
+          <PrivateApp>
+            <ForcePasswordChange />
+          </PrivateApp>
         </Suspense>
       }
     />
@@ -151,9 +161,13 @@ const AppRouter = () => (
     <Route
       path="/dashboard"
       element={
-        <RoleBasedRoute allowedRoles={["admin", "super_admin"]}>
-          <DashboardLayout />
-        </RoleBasedRoute>
+        <Suspense fallback={<LoadingFallback />}>
+          <PrivateApp>
+            <RoleBasedRoute allowedRoles={["admin", "super_admin"]}>
+              <DashboardLayout />
+            </RoleBasedRoute>
+          </PrivateApp>
+        </Suspense>
       }
     >
       <Route
@@ -332,23 +346,19 @@ const AppRouter = () => (
           </Suspense>
         }
       />
-      <Route
-        path="log-cleanup"
-        element={
-          <Suspense fallback={<LoadingFallback />}>
-            <LogCleanup />
-          </Suspense>
-        }
-      />
-    </Route>
+          </Route>
 
     {/* Teacher Routes */}
     <Route
       path="/teacher"
       element={
-        <RoleBasedRoute allowedRoles={["teacher", "admin", "super_admin"]}>
-          <TeacherLayout />
-        </RoleBasedRoute>
+        <Suspense fallback={<LoadingFallback />}>
+          <PrivateApp>
+            <RoleBasedRoute allowedRoles={["teacher", "admin", "super_admin"]}>
+              <TeacherLayout />
+            </RoleBasedRoute>
+          </PrivateApp>
+        </Suspense>
       }
     >
       <Route
@@ -453,9 +463,13 @@ const AppRouter = () => (
     <Route
       path="/student"
       element={
-        <RoleBasedRoute allowedRoles={["student", "admin", "super_admin"]}>
-          <StudentLayout />
-        </RoleBasedRoute>
+        <Suspense fallback={<LoadingFallback />}>
+          <PrivateApp>
+            <RoleBasedRoute allowedRoles={["student", "admin", "super_admin"]}>
+              <StudentLayout />
+            </RoleBasedRoute>
+          </PrivateApp>
+        </Suspense>
       }
     >
       <Route

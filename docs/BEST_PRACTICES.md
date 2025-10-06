@@ -200,7 +200,7 @@ VITE_SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ### Auto-Generation Features
 - Admission numbers generated from surname + sequential number + year
 - Email addresses systematically generated using format: `firstlettersurnamefirstnamelastThreeNumberOfAdmissionNumber.schoolname@gmail.com`
-- Profile images handled via Cloudinary integration
+- Profile images handled via Supabase Storage
 - Default passwords set to admission numbers
 - Email generation utility in `src/utils/emailGenerator.js` with validation and alternatives
 

@@ -5,10 +5,14 @@ import { getStudentById as getStudent } from "../../services/supabase/studentSer
 import ProfileImage from "../../components/common/ProfileImage";
 import { formatFullClassName } from "../../utils/classNameFormatter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSettings } from "../../contexts/SettingsContext";
+import { formatSessionBadge } from "../../utils/sessionUtils";
 
 const Profile = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [showImageModal, setShowImageModal] = React.useState(false);
+  const { academicYear: settingsYear, currentTerm } = useSettings();
 
   const fetchStudentProfile = async () => {
     const result = await getStudent(user.id);
@@ -28,7 +32,6 @@ const Profile = () => {
         status: s.status || (s.is_active === false ? 'inactive' : 'active'),
         gender: s.gender || '-',
         dateOfBirth: s.date_of_birth || '-',
-        academicYear: new Date().getFullYear(),
         guardianName: s.guardian_name || '-',
         contact: s.phone_number || s.guardian_phone || '-',
         email: s.email || user.email,
@@ -98,15 +101,43 @@ const Profile = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
           <p className="text-gray-600 mt-2">View and manage your personal information</p>
+          <div className="text-sm text-slate-500 mt-1">{formatSessionBadge(settingsYear, currentTerm)}</div>
         </div>
 
+        {showImageModal && (
+          <div
+            className="fixed inset-0 bg-black/70 z-[2000] flex items-center justify-center p-4"
+            onClick={() => setShowImageModal(false)}
+          >
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
+              <img
+                src={(student.profileImageUrl || student.image) || `https://ui-avatars.com/api/?name=${encodeURIComponent(`${student.firstName || ''} ${student.surname || ''}`.trim())}&size=512&background=random&color=fff&bold=true&format=png`}
+                alt={`${(student.firstName || '')} ${(student.surname || '')}`.trim() || 'Student'}
+                className="max-h-[80vh] max-w-[90vw] rounded-xl shadow-2xl"
+              />
+              <button
+                onClick={() => setShowImageModal(false)}
+                className="absolute -top-3 -right-3 bg-white text-gray-700 rounded-full p-2 shadow-lg hover:bg-gray-100"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
         {/* Profile Card */}
         <div className="bg-white shadow-xl rounded-none sm:rounded-2xl overflow-hidden">
           {/* Header Section */}
           <div className="bg-gradient-to-r from-green-600 to-green-700 px-4 py-6 sm:px-8 sm:py-10">
             <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6">
               <div className="relative">
-                <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-lg p-1">
+                <div
+                  className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-lg p-1 cursor-zoom-in ring-2 ring-transparent hover:ring-green-300 transition"
+                  onClick={() => setShowImageModal(true)}
+                  title="View photo"
+                >
                   <ProfileImage
                     src={student.profileImageUrl || student.image}
                     alt="Profile"
@@ -183,7 +214,7 @@ const Profile = () => {
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Academic Year</p>
-                      <p className="font-semibold text-gray-900">{student.academicYear || new Date().getFullYear()}</p>
+                      <p className="font-semibold text-gray-900">{settingsYear}</p>
                     </div>
                   </div>
                 </div>

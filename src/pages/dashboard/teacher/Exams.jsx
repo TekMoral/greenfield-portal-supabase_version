@@ -5,11 +5,14 @@ import { getTeacherClassesAndSubjects } from '../../../services/supabase/teacher
 import { useAuth } from '../../../hooks/useAuth';
 import useToast from '../../../hooks/useToast';
 import TeacherExamCard from '../../../components/exams/TeacherExamCard';
+import { useSettings } from '../../../contexts/SettingsContext';
+import { formatSessionBadge } from '../../../utils/sessionUtils';
 
 const TeacherExams = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { academicYear: settingsYear, currentTerm } = useSettings();
   
   const [exams, setExams] = useState([]);
   const [teacherData, setTeacherData] = useState(null);
@@ -88,6 +91,7 @@ const TeacherExams = () => {
         <div>
           <h2 className="text-3xl font-bold text-gray-900">My Exams</h2>
           <p className="text-gray-600 mt-1">Create and manage exams for your subjects</p>
+          <div className="text-sm text-slate-500 mt-1">{formatSessionBadge(settingsYear, currentTerm)}</div>
         </div>
         <button
           onClick={() => navigate('/teacher/exams/create')}

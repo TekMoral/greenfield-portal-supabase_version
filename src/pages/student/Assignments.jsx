@@ -6,6 +6,8 @@ import { getStudentSubjects } from "../../services/supabase/teacherStudentServic
 import { supabase } from "../../lib/supabaseClient";
 import useToast from '../../hooks/useToast';
 import { sendMessageToStudent } from "../../services/supabase/studentManagementService";
+import { useSettings } from "../../contexts/SettingsContext";
+import { formatSessionBadge } from "../../utils/sessionUtils";
 
 const StudentAssignments = () => {
   const { user } = useAuth();
@@ -20,6 +22,7 @@ const StudentAssignments = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [theoryQuestions, setTheoryQuestions] = useState([]);
   const { showToast } = useToast();
+  const { academicYear: settingsYear, currentTerm } = useSettings();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -250,7 +253,10 @@ const StudentAssignments = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 ml-9">My Assignments</h1>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 ml-9">My Assignments</h1>
+          <div className="text-sm text-slate-500">{formatSessionBadge(settingsYear, currentTerm)}</div>
+        </div>
         <div className="text-sm text-slate-600">
           {filteredAssignments.length} Assignment{filteredAssignments.length !== 1 ? 's' : ''}
         </div>
@@ -261,7 +267,7 @@ const StudentAssignments = () => {
         <div className="bg-white rounded-xl shadow-sm border p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-slate-800">Assignment Overview</h3>
-            <span className="text-xs text-slate-500">This term</span>
+            <span className="text-xs text-slate-500">{formatSessionBadge(settingsYear, currentTerm) || 'This term'}</span>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {/* Total */}

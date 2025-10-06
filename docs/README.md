@@ -20,7 +20,7 @@ A comprehensive, modern school management system built for private secondary sch
 ### 🎓 **Advanced Student Management**
 - **Auto-generated admission numbers** with systematic formatting
 - **Automated school email generation** with validation and alternatives
-- **Cloudinary-integrated profile image uploads**
+- Profile image uploads via Supabase Storage
 - Complete CRUD operations with advanced search and filtering
 - Guardian information and contact management
 
@@ -71,7 +71,7 @@ A comprehensive, modern school management system built for private secondary sch
 | **State Management** | React Context | Built-in |
 | **Database** | PostgreSQL | (via Supabase) |
 | **Authentication** | Supabase Auth | Built-in |
-| **File Storage** | Supabase Storage + Cloudinary | Hybrid |
+| **File Storage** | Supabase Storage | Built-in |
 
 ---
 
@@ -81,7 +81,6 @@ A comprehensive, modern school management system built for private secondary sch
 - Node.js (v18 or higher)
 - npm or yarn
 - Supabase account
-- Cloudinary account (for image uploads)
 
 ### **Installation**
 
@@ -106,8 +105,6 @@ A comprehensive, modern school management system built for private secondary sch
    VITE_SUPABASE_URL=your_supabase_url
    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
    VITE_SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-   VITE_CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
-   VITE_CLOUDINARY_UPLOAD_PRESET=your_upload_preset
    ```
 
 4. **Database Setup**
@@ -186,7 +183,6 @@ school-portal/
 │   │   ├── emailGenerator.js   # Email generation utilities
 │   │   ├── nameUtils.js        # Name processing utilities
 │   │   ├── reportUtils.js      # Report processing utilities
-│   │   ├── cloudinaryUpload.js # Image upload utilities
 │   │   └── [8+ other utilities] # Various helper functions
 │   ├── data/                   # Static data and constants
 │   └── constants/              # Application constants
@@ -308,8 +304,7 @@ npm run lint         # Run ESLint code analysis
 
 3. **Environment Configuration**
    - Configure production environment variables
-   - Set up Cloudinary for image uploads
-   - Configure email settings for notifications
+      - Configure email settings for notifications
 
 ---
 

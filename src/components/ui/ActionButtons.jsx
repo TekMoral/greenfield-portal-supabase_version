@@ -3,12 +3,6 @@ import Button from './Button';
 
 // Edit Button
 export const EditButton = ({ onClick, loading = false, disabled = false, size = 'sm', ...props }) => {
-  const editIcon = (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-    </svg>
-  );
-
   return (
     <Button
       variant="secondary"
@@ -17,7 +11,6 @@ export const EditButton = ({ onClick, loading = false, disabled = false, size = 
       loading={loading}
       disabled={disabled}
       loadingText="Updating..."
-      icon={editIcon}
       {...props}
     >
       Edit
@@ -145,12 +138,6 @@ export const PromoteButton = ({ onClick, loading = false, disabled = false, size
 
 // Suspend Button
 export const SuspendButton = ({ onClick, loading = false, disabled = false, size = 'sm', ...props }) => {
-  const suspendIcon = (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18 12M6 6l6 6" />
-    </svg>
-  );
-
   return (
     <Button
       variant="warning"
@@ -159,7 +146,6 @@ export const SuspendButton = ({ onClick, loading = false, disabled = false, size
       loading={loading}
       disabled={disabled}
       loadingText="Suspending..."
-      icon={suspendIcon}
       {...props}
     >
       Suspend
@@ -217,12 +203,6 @@ export const GraduateButton = ({ onClick, loading = false, disabled = false, siz
 
 // Reset Password Button
 export const ResetPasswordButton = ({ onClick, loading = false, disabled = false, size = 'sm', ...props }) => {
-  const resetPasswordIcon = (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 12H9v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.586l4.707-4.707C10.923 2.663 11.596 2 12.414 2.414L15 5" />
-    </svg>
-  );
-
   return (
     <Button
       variant="warning"
@@ -231,7 +211,6 @@ export const ResetPasswordButton = ({ onClick, loading = false, disabled = false
       loading={loading}
       disabled={disabled}
       loadingText="Resetting..."
-      icon={resetPasswordIcon}
       {...props}
     >
       Reset Password

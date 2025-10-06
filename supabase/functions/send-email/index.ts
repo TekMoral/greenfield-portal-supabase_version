@@ -1,6 +1,7 @@
 // supabase/functions/send-email/index.ts
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { rateLimitCheck } from '../_shared/rate-limit.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -36,6 +37,27 @@ serve(async (req) => {
   }
 
   try {
+    // Rate limit (per authenticated user)
+    const RL_MAX = Number(Deno.env.get('RL_EMAIL_MAX') ?? '30')
+    const RL_WIN = Number(Deno.env.get('RL_EMAIL_WINDOW_MS') ?? '60000')
+    const { result } = await rateLimitCheck(req, { bucket: 'send-email', max: RL_MAX, intervalMs: RL_WIN, identityType: 'auto' })
+    if (!result.allowed) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Too many requests', code: 'rate_limited' }),
+        {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+            'RateLimit-Limit': String(result.limit),
+            'RateLimit-Remaining': String(result.remaining),
+            'RateLimit-Reset': String(Math.ceil(result.resetMs / 1000)),
+            'Retry-After': String(Math.ceil(result.resetMs / 1000)),
+          },
+          status: 429,
+        },
+      )
+    }
+
     // Get Brevo API key from Supabase secrets
     const brevoApiKey = Deno.env.get('BREVO_API_KEY')
     if (!brevoApiKey) {

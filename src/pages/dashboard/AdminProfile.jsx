@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../hooks/useAuth';
 import { getAdminProfile } from '../../services/supabase/adminService';
+import { formatDMY } from '../../utils/dateUtils';
 
 const AdminProfile = () => {
   const { user } = useAuth();
@@ -100,11 +101,11 @@ const AdminProfile = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="text-sm font-medium text-slate-500">Created</label>
-                <p className="text-slate-800">{profile?.created_at ? new Date(profile.created_at).toLocaleString() : '-'}</p>
+                <p className="text-slate-800">{profile?.created_at ? formatDMY(profile.created_at) : '-'}</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-slate-500">Updated</label>
-                <p className="text-slate-800">{profile?.updated_at ? new Date(profile.updated_at).toLocaleString() : '-'}</p>
+                <p className="text-slate-800">{profile?.updated_at ? formatDMY(profile.updated_at) : '-'}</p>
               </div>
             </div>
           </div>

@@ -4,9 +4,12 @@ import { useAuth } from '../../hooks/useAuth';
 import { getStudentById } from '../../services/supabase/studentService';
 import { getClassById } from '../../services/supabase/classService';
 import { getSubjectsByDepartment } from '../../services/supabase/subjectService';
+import { useSettings } from '../../contexts/SettingsContext';
+import { formatSessionBadge } from '../../utils/sessionUtils';
 
 export default function StudentSubjects() {
   const { user, profile } = useAuth();
+  const { academicYear: settingsYear, currentTerm } = useSettings();
 
   const fetchStudentSubjects = async () => {
     if (!user?.id) throw new Error('No user logged in');
@@ -184,6 +187,7 @@ export default function StudentSubjects() {
                   <p className="text-white text-opacity-90 text-sm font-medium">
                     {classInfo ? `${classInfo.name} - ${getDepartmentName(department)}` : 'Your Academic Subjects'}
                   </p>
+                  <div className="text-white text-opacity-90 text-xs mt-1">{formatSessionBadge(settingsYear, currentTerm)}</div>
                 </div>
               </div>
               <div className="bg-transparent sm:bg-white sm:bg-opacity-20 sm:backdrop-blur-sm p-0 sm:px-6 sm:py-3 rounded-xl border-0 sm:border sm:border-white sm:border-opacity-30 w-full sm:w-auto text-center sm:text-left">

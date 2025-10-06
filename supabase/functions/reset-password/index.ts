@@ -1,6 +1,7 @@
 // supabase/functions/reset-password/index.ts
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { rateLimitCheck } from '../_shared/rate-limit.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,6 +21,30 @@ serve(async (req) => {
   }
 
   try {
+    // Rate limit (dual policy): per-IP first, then per-email
+    const RL_MAX = Number(Deno.env.get('RL_RESET_MAX') ?? '3')
+    const RL_WIN = Number(Deno.env.get('RL_RESET_WINDOW_MS') ?? '3600000')
+    const RL_IP_MAX = Number(Deno.env.get('RL_RESET_IP_MAX') ?? '10')
+
+    // 1) Per-IP limit (higher threshold to avoid blocking shared networks)
+    const { result: ipResult } = await rateLimitCheck(req, { bucket: 'reset-password:ip', max: RL_IP_MAX, intervalMs: RL_WIN, identityType: 'ip' })
+    if (!ipResult.allowed) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Too many requests', code: 'rate_limited' }),
+        {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+            'RateLimit-Limit': String(ipResult.limit),
+            'RateLimit-Remaining': String(ipResult.remaining),
+            'RateLimit-Reset': String(Math.ceil(ipResult.resetMs / 1000)),
+            'Retry-After': String(Math.ceil(ipResult.resetMs / 1000)),
+          },
+          status: 429,
+        },
+      )
+    }
+
     // Create Supabase client with service role key for admin operations
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -33,6 +58,49 @@ serve(async (req) => {
 
     if (!email) {
       throw new Error('Email is required')
+    }
+
+    // 2) Per-email limit (tighter threshold to protect individual accounts)
+    const normalizedEmail = String(email).trim().toLowerCase()
+    try {
+      const { data: rlEmail, error: rlEmailErr } = await supabaseAdmin
+        .rpc('rpc_rate_limit_check', {
+          p_bucket: 'reset-password:email',
+          p_identity: normalizedEmail,
+          p_max: RL_MAX,
+          p_interval_ms: RL_WIN,
+        })
+        .single()
+
+      if (!rlEmailErr) {
+        const allowed = Boolean((rlEmail as any)?.allowed)
+        if (!allowed) {
+          const limit = Number((rlEmail as any)?.limit ?? RL_MAX)
+          const remaining = Number((rlEmail as any)?.remaining ?? 0)
+          const resetMs = Number((rlEmail as any)?.reset_ms ?? RL_WIN)
+          const resetSec = Math.ceil(resetMs / 1000)
+          return new Response(
+            JSON.stringify({ success: false, error: 'Too many requests', code: 'rate_limited' }),
+            {
+              headers: {
+                ...corsHeaders,
+                'Content-Type': 'application/json',
+                'RateLimit-Limit': String(limit),
+                'RateLimit-Remaining': String(remaining),
+                'RateLimit-Reset': String(resetSec),
+                'Retry-After': String(resetSec),
+              },
+              status: 429,
+            },
+          )
+        }
+      } else {
+        // If RPC fails, allow (fail-open) to avoid locking out users; errors are logged for ops visibility
+        console.error('Email rate limit RPC error:', rlEmailErr)
+      }
+    } catch (e) {
+      // Non-fatal; continue with flow
+      console.error('Email rate limit error:', e)
     }
 
     // Check if user exists in our system using service role

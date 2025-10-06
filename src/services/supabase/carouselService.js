@@ -105,7 +105,7 @@ export const uploadCarouselImage = async (file, imageData) => {
     const fileName = `carousel/${timestamp}_${Math.random().toString(36).substring(7)}.${safeExt}`;
 
     // Upload to Supabase Storage (compressed blob)
-    const { error: uploadError } = await supabase.storage.from('carousel-images').upload(fileName, uploadBlob, { upsert: false });
+    const { error: uploadError } = await supabase.storage.from('carousel-images').upload(fileName, uploadBlob, { upsert: false, cacheControl: 'public, max-age=31536000, immutable' });
     if (uploadError) {
       console.error('Supabase Storage upload error:', uploadError);
       return { success: false, error: uploadError.message || String(uploadError) };

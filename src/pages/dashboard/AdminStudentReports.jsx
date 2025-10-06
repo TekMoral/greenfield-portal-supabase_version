@@ -3,6 +3,9 @@ import { useAuth } from '../../hooks/useAuth';
 import { reportService } from '../../services/supabase/reportService';
 import { supabase } from '../../lib/supabaseClient';
 import useToast from '../../hooks/useToast';
+import { formatDMY } from '../../utils/dateUtils';
+import { useSettings } from '../../contexts/SettingsContext';
+import { getNormalizedSession, formatSessionBadge } from '../../utils/sessionUtils';
 
 const AdminStudentReports = () => {
   const { user } = useAuth();
@@ -20,9 +23,11 @@ const AdminStudentReports = () => {
   const [updating, setUpdating] = useState(false);
   
   // Filter states
+  const { academicYear: settingsYear, currentTerm } = useSettings();
+  const normalized = getNormalizedSession({ academicYear: settingsYear, currentTerm });
   const [filters, setFilters] = useState({
-    academicYear: new Date().getFullYear().toString(),
-    term: '',
+    academicYear: normalized.academicYear || new Date().getFullYear().toString(),
+    term: normalized.term ? String(normalized.term) : '',
     subjectId: '',
     teacherId: '',
     classId: '',
@@ -40,6 +45,14 @@ const AdminStudentReports = () => {
   useEffect(() => {
     fetchReports();
   }, [filters]);
+  useEffect(() => {
+    // Keep filters synced to Settings when they change
+    setFilters(prev => ({
+      ...prev,
+      academicYear: normalized.academicYear || prev.academicYear,
+      term: normalized.term ? String(normalized.term) : prev.term
+    }));
+  }, [normalized.term, normalized.academicYear]);
 
   const fetchInitialData = async () => {
     try {
@@ -193,8 +206,8 @@ const AdminStudentReports = () => {
       report.status || '',
       report.teacher_remark || '',
       report.admin_notes || '',
-      report.created_at ? new Date(report.created_at).toLocaleString() : '',
-      report.reviewed_at ? new Date(report.reviewed_at).toLocaleString() : ''
+      report.created_at ? formatDMY(report.created_at) : '',
+      report.reviewed_at ? formatDMY(report.reviewed_at) : ''
     ]);
 
     const csv = [
@@ -238,6 +251,7 @@ const AdminStudentReports = () => {
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-slate-800">Student Reports</h1>
           <p className="text-slate-600 mt-1">Review and manage teacher-submitted student progress reports</p>
+          <div className="text-sm text-slate-500 mt-1">{formatSessionBadge(settingsYear, currentTerm)}</div>
         </div>
         <div className="flex gap-2">
           <button 
@@ -622,18 +636,18 @@ const AdminStudentReports = () => {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-slate-600">Submitted:</span>
-                    <span>{selectedReport.created_at ? new Date(selectedReport.created_at).toLocaleString() : 'N/A'}</span>
+                    <span>{selectedReport.created_at ? formatDMY(selectedReport.created_at) : 'N/A'}</span>
                   </div>
                   {selectedReport.reviewed_at && (
                     <div className="flex justify-between">
                       <span className="text-slate-600">Reviewed:</span>
-                      <span>{new Date(selectedReport.reviewed_at).toLocaleString()}</span>
+                      <span>{formatDMY(selectedReport.reviewed_at)}</span>
                     </div>
                   )}
                   {selectedReport.updated_at && (
                     <div className="flex justify-between">
                       <span className="text-slate-600">Last Updated:</span>
-                      <span>{new Date(selectedReport.updated_at).toLocaleString()}</span>
+                      <span>{formatDMY(selectedReport.updated_at)}</span>
                     </div>
                   )}
                 </div>

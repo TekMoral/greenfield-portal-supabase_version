@@ -1,9 +1,12 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useState } from "react";
 import { Menu, X, LayoutDashboard, Users, Layers, ClipboardList, CalendarCheck, BarChart3, FileText, Calendar, User } from 'lucide-react';
+import { useSettings } from "../contexts/SettingsContext";
+import { formatSessionBadge } from "../utils/sessionUtils";
 
 const TeacherLayout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { academicYear: settingsYear, currentTerm } = useSettings();
 
   const menuItems = [
     { label: "Dashboard", path: "/teacher", Icon: LayoutDashboard },
@@ -120,6 +123,11 @@ const TeacherLayout = () => {
           className="flex-1 p-3 sm:p-4 lg:p-6 overflow-auto"
           style={{ overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch' }}
         >
+          <div className="mb-3 flex items-center justify-end">
+            <span className="inline-flex items-center rounded-full bg-slate-100 text-slate-700 px-2.5 py-1 text-xs font-medium border border-slate-200">
+              {formatSessionBadge(settingsYear, currentTerm) || `${String(settingsYear || '')}${settingsYear ? ' • ' : ''}${String(currentTerm || '')}`}
+            </span>
+          </div>
           <Outlet />
         </main>
       </div>

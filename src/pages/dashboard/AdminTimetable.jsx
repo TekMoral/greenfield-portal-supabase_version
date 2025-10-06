@@ -5,6 +5,7 @@ import { subjectService } from "../../services/supabase/subjectService";
 import { useSettings } from "../../contexts/SettingsContext";
 import { formatFullClassName, formatClassWithLevel } from "../../utils/classNameFormatter";
 import useToast from '../../hooks/useToast';
+import { getNormalizedSession, formatSessionBadge } from "../../utils/sessionUtils";
 
 // Helper: map day (1-7) <-> label
 const DAY_LABELS = {
@@ -20,35 +21,7 @@ const DAY_VALUES = Object.keys(DAY_LABELS).map((k) => ({ value: Number(k), label
 const TERM_LABELS = { 1: "First", 2: "Second", 3: "Third" };
 const TERM_VALUES = [1, 2, 3].map((t) => ({ value: t, label: TERM_LABELS[t] }));
 
-// Normalize academic year from settings (e.g., '2024/2025' -> '2024-2025')
-const normalizeAcademicYear = (val) => {
-  if (!val) {
-    const y = new Date().getFullYear();
-    return `${y}-${y + 1}`;
-  }
-  const s = String(val).trim();
-  if (s.includes('/')) {
-    const [a, b] = s.split('/');
-    if (a && b) return `${a}-${b}`;
-  }
-  if (s.includes('-')) return s;
-  const n = parseInt(s, 10);
-  if (Number.isFinite(n)) return `${n}-${n + 1}`;
-  return s;
-};
 
-// Map settings currentTerm (e.g., '1st Term', 'Second', '3') to numeric 1/2/3
-const parseTermToNumber = (val) => {
-  if (val == null) return 1;
-  const s = String(val).trim();
-  const digit = s.match(/[1-3]/);
-  if (digit) return parseInt(digit[0], 10);
-  const lower = s.toLowerCase();
-  if (lower.includes('first')) return 1;
-  if (lower.includes('second')) return 2;
-  if (lower.includes('third')) return 3;
-  return 1;
-};
 
 // Normalize a row from DB to UI shape
 const normalizeRow = (row) => ({
@@ -59,28 +32,31 @@ const normalizeRow = (row) => ({
   day_of_week: typeof row.day_of_week === "number" ? row.day_of_week : row.day || null,
   start_time: row.start_time || row.startTime || null,
   end_time: row.end_time || row.endTime || null,
-  room_number: row.room_number || row.roomNumber || "",
-  academic_year: row.academic_year || row.academicYear || "",
+    academic_year: row.academic_year || row.academicYear || "",
   term: typeof row.term === "number" ? row.term : (row.termNumber || null),
 });
 
 const AdminTimetable = () => {
   const { academicYear: globalAcademicYear, currentTerm } = useSettings();
   const { showToast } = useToast();
+  const normalized = useMemo(
+    () => getNormalizedSession({ academicYear: globalAcademicYear, currentTerm }),
+    [globalAcademicYear, currentTerm]
+  );
 
   // Filters
-  const [academicYear, setAcademicYear] = useState(() => normalizeAcademicYear(globalAcademicYear));
-  const [term, setTerm] = useState(() => parseTermToNumber(currentTerm));
+  const [academicYear, setAcademicYear] = useState(() => normalized.academicYear);
+  const [term, setTerm] = useState(() => normalized.term || 1);
   const [classId, setClassId] = useState("");
   const [dayOfWeek, setDayOfWeek] = useState(0); // 0 = All, 1..7
 
   // Keep term/year in sync with Super Admin settings when it changes
   useEffect(() => {
-    setTerm(parseTermToNumber(currentTerm));
-  }, [currentTerm]);
+    setTerm(normalized.term || 1);
+  }, [normalized.term]);
   useEffect(() => {
-    setAcademicYear(normalizeAcademicYear(globalAcademicYear));
-  }, [globalAcademicYear]);
+    setAcademicYear(normalized.academicYear);
+  }, [normalized.academicYear]);
 
   // Data
   const [classes, setClasses] = useState([]);
@@ -102,7 +78,6 @@ const AdminTimetable = () => {
     day_of_week: 1,
     start_time: "08:00",
     end_time: "08:40",
-    room_number: "",
   });
 
   // Load reference data
@@ -215,7 +190,6 @@ const AdminTimetable = () => {
           end_time: e.end_time,
           subject_id: e.subject_id,
           teacher_id: e.teacher_id,
-          room_number: e.room_number,
           classLabel,
           sub,
         });
@@ -225,7 +199,7 @@ const AdminTimetable = () => {
   }, [entries, subjectMap, classMap]);
 
   const resetDraft = () => {
-    setDraft({ class_id: classId || "", subject_id: "", teacher_id: "", day_of_week: 1, start_time: "08:00", end_time: "08:40", room_number: "" });
+    setDraft({ class_id: classId || "", subject_id: "", teacher_id: "", day_of_week: 1, start_time: "08:00", end_time: "08:40" });
   };
 
   const handleCreate = async (e) => {
@@ -239,7 +213,6 @@ const AdminTimetable = () => {
         day_of_week: Number(draft.day_of_week),
         start_time: draft.start_time,
         end_time: draft.end_time,
-        room_number: draft.room_number || null,
         academic_year: academicYear,
         term: term,
         is_active: true,
@@ -311,6 +284,9 @@ const AdminTimetable = () => {
             <div className="px-3 py-2 bg-slate-100 rounded-lg text-sm text-slate-700">
               Term: {TERM_LABELS[term]} Term
             </div>
+            <div className="px-3 py-2 bg-slate-100 rounded-lg text-sm text-slate-700">
+              {formatSessionBadge(globalAcademicYear, currentTerm)}
+            </div>
             <select
               value={classId}
               onChange={(e) => setClassId(e.target.value)}
@@ -361,8 +337,7 @@ const AdminTimetable = () => {
                     <th className="text-left px-4 py-2 border-b">Time</th>
                     <th className="text-left px-4 py-2 border-b">Subject</th>
                     <th className="text-left px-4 py-2 border-b">Teacher</th>
-                    <th className="text-left px-4 py-2 border-b">Room</th>
-                    <th className="text-left px-4 py-2 border-b">Term</th>
+                                        <th className="text-left px-4 py-2 border-b">Term</th>
                     <th className="text-left px-4 py-2 border-b">Year</th>
                     <th className="text-left px-4 py-2 border-b">Actions</th>
                   </tr>
@@ -377,8 +352,7 @@ const AdminTimetable = () => {
                         <td className="px-4 py-2 border-b">{row.start_time?.slice(0,5)} - {row.end_time?.slice(0,5)}</td>
                         <td className="px-4 py-2 border-b">{row.sub?.name || row.subject_id}</td>
                         <td className="px-4 py-2 border-b">{tch?.full_name || tch?.name || row.teacher_id}</td>
-                        <td className="px-4 py-2 border-b">{row.room_number || '-'}</td>
-                        <td className="px-4 py-2 border-b">{TERM_LABELS[row.term] || row.term}</td>
+                                                <td className="px-4 py-2 border-b">{TERM_LABELS[row.term] || row.term}</td>
                         <td className="px-4 py-2 border-b">{row.academic_year}</td>
                         <td className="px-4 py-2 border-b">
                           <button
@@ -482,17 +456,7 @@ const AdminTimetable = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-sm"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Room</label>
-                  <input
-                    type="text"
-                    value={draft.room_number}
-                    onChange={(e) => setDraft((d) => ({ ...d, room_number: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-sm"
-                    placeholder="e.g., Room 101"
-                  />
-                </div>
-                <div className="sm:col-span-2 flex items-center justify-end gap-3 mt-2">
+                                <div className="sm:col-span-2 flex items-center justify-end gap-3 mt-2">
                   <button type="button" onClick={() => { setShowAdd(false); resetDraft(); }} className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800">Cancel</button>
                   <button type="submit" disabled={creating} className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white">
                     {creating ? "Saving..." : "Save Entry"}

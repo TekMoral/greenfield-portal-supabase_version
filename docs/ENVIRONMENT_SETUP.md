@@ -12,11 +12,6 @@ VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-### Cloudinary Configuration (for image uploads)
-```env
-VITE_CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
-VITE_CLOUDINARY_UPLOAD_PRESET=your_cloudinary_upload_preset
-```
 
 ## Setup Instructions
 
@@ -32,11 +27,6 @@ VITE_CLOUDINARY_UPLOAD_PRESET=your_cloudinary_upload_preset
    - Copy the Project URL and anon/public key
    - Replace the placeholder values in your `.env` file
 
-3. **Get Cloudinary credentials (if using image uploads):**
-   - Go to your [Cloudinary Dashboard](https://cloudinary.com/console)
-   - Copy your Cloud Name
-   - Create an unsigned upload preset in Settings > Upload
-   - Replace the placeholder values in your `.env` file
 
 ## Security Best Practices
 

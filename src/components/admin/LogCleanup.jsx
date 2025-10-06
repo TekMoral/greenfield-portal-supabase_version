@@ -3,6 +3,7 @@ import { cleanupOldAuditLogs } from '../../services/supabase/auditLogService';
 import useAuditLog from '../../hooks/useAuditLog';
 import useToast from '../../hooks/useToast';
 import { useAuth } from '../../hooks/useAuth';
+import { formatDMY } from '../../utils/dateUtils';
 
 const LogCleanup = () => {
   const [loading, setLoading] = useState(false);
@@ -225,7 +226,7 @@ const LogCleanup = () => {
               <div className="text-sm text-green-700 mt-1">
                 <p><strong>Deleted:</strong> {cleanupStats.deletedCount} logs older than {cleanupStats.retentionDays} days</p>
                 <p><strong>Performed by:</strong> {user?.email} (Technical Consultant)</p>
-                <p><strong>Timestamp:</strong> {cleanupStats.cleanupDate.toLocaleString()}</p>
+                <p><strong>Timestamp:</strong> {formatDMY(cleanupStats.cleanupDate)}</p>
               </div>
             </div>
           </div>

@@ -76,7 +76,7 @@ async function compressImageFile(file, options = {}) {
 }
 
 /**
- * Upload student profile image to Cloudinary and update user profile
+ * Upload student profile image to Supabase Storage and optionally update user profile
  */
 export const uploadStudentImage = async (file, admissionNumber, studentId = null) => {
   try {
@@ -107,7 +107,7 @@ export const uploadStudentImage = async (file, admissionNumber, studentId = null
     // Upload to Supabase Storage (compressed)
     const { error: uploadError } = await supabase.storage
       .from('profile-images')
-      .upload(filePath, compressedBlob, { upsert: false });
+      .upload(filePath, compressedBlob, { upsert: false, cacheControl: 'public, max-age=31536000, immutable' });
 
     if (uploadError) {
       console.error('❌ Storage upload failed:', uploadError);
@@ -146,7 +146,7 @@ export const uploadStudentImage = async (file, admissionNumber, studentId = null
 };
 
 /**
- * Upload student document to Cloudinary and save metadata
+ * Upload student document to Supabase Storage and save metadata
  */
 export const uploadStudentDocument = async (file, admissionNumber, documentType, studentId = null) => {
   try {
@@ -259,7 +259,7 @@ export const uploadTeacherImage = async (file, teacherId) => {
 
     const { error: uploadError } = await supabase.storage
       .from(bucket)
-      .upload(storagePath, compressedBlob, { upsert: false });
+      .upload(storagePath, compressedBlob, { upsert: false, cacheControl: 'public, max-age=31536000, immutable' });
 
     if (uploadError) {
       console.error('❌ Storage upload failed:', uploadError);
@@ -301,7 +301,7 @@ export const uploadTeacherImage = async (file, teacherId) => {
 };
 
 /**
- * Upload general file to Cloudinary
+ * Upload general file to Supabase Storage
  */
 export const uploadFile = async (file, folder = 'general', tags = []) => {
   try {
@@ -410,9 +410,8 @@ export const deleteStudentDocument = async (documentId) => {
       return { success: false, error: deleteError.message };
     }
 
-    // TODO: Optionally delete from Cloudinary using document.public_id
-    // This would require implementing a Cloudinary delete function
-
+    // Optionally, also delete from Supabase Storage using the stored path
+    // if required at a later time.
     return { success: true };
   } catch (error) {
     console.error('Error deleting student document:', error);
@@ -554,7 +553,7 @@ export const uploadAdminImage = async (file, adminId = null) => {
 
     const { error: uploadError } = await supabase.storage
       .from(bucket)
-      .upload(storagePath, compressedBlob, { upsert: false });
+      .upload(storagePath, compressedBlob, { upsert: false, cacheControl: 'public, max-age=31536000, immutable' });
 
     if (uploadError) {
       console.error('❌ Storage upload failed:', uploadError);

@@ -6,11 +6,14 @@ import { getStudentsInClass } from '../../services/supabase/classService';
 import useToast from '../../hooks/useToast';
 import ResultEntryForm from '../../components/results/ResultEntryForm';
 import ResultsTable from '../../components/results/ResultsTable';
+import { useSettings } from '../../contexts/SettingsContext';
+import { parseTermToNumber } from '../../utils/sessionUtils';
 
 const ManageResults = () => {
   const { examId } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { academicYear: settingsYear, currentTerm } = useSettings();
   
   const [exam, setExam] = useState(null);
   const [students, setStudents] = useState([]);
@@ -81,10 +84,22 @@ const ManageResults = () => {
 
   const handleCalculatePositions = async () => {
     try {
+      // Derive session/year and term from centralized Settings
+      const ys = String(settingsYear || '');
+      let headYear = new Date().getFullYear();
+      if (ys.includes('/')) {
+        const head = parseInt(ys.split('/')[0], 10);
+        if (Number.isFinite(head)) headYear = head;
+      } else {
+        const n = parseInt(ys, 10);
+        if (Number.isFinite(n)) headYear = n;
+      }
+      const termNum = parseTermToNumber(currentTerm) || 1;
+
       const updatedResults = await calculateClassPositions(
         exam.classId,
-        exam.session || new Date().getFullYear().toString(),
-        exam.term || '1st'
+        String(headYear),
+        String(termNum)
       );
       setResults(updatedResults);
       showToast('Positions calculated successfully', 'success');

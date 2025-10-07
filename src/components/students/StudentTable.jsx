@@ -342,9 +342,9 @@ const StudentTable = ({
       )}
       {/* Card Header */}
       <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 border-b border-gray-100">
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-col items-center sm:flex-row sm:items-center sm:space-x-3 space-y-3 sm:space-y-0">
           <div
-            className={`flex-shrink-0 ${student?.profile_image ? 'cursor-zoom-in hover:opacity-90 transition' : ''}`}
+            className={`flex-shrink-0 ${student?.profile_image ? 'cursor-zoom-in hover:opacity-90 transition' : ''} mx-auto sm:mx-0`}
             onClick={() => handleImageClick(student)}
           >
             <ProfileImage
@@ -357,13 +357,13 @@ const StudentTable = ({
           </div>
 
           <div className="flex-1 min-w-0">
-            <h3 className="text-lg font-semibold text-gray-900 truncate">
+            <h3 className="text-lg font-semibold text-gray-900 sm:truncate break-words text-center sm:text-left">
               {student?.full_name || "N/A"}
             </h3>
-            <p className="text-xs text-gray-500 font-medium">
+            <p className="text-xs text-gray-500 font-medium text-center sm:text-left">
               ID: {student?.admission_number || "N/A"}
             </p>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
+            <div className="mt-1 flex flex-wrap items-center justify-center sm:justify-start gap-2">
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                 {formatClassName(student?.classes?.name) || "N/A"}
               </span>
@@ -410,7 +410,7 @@ const StudentTable = ({
       </div>
 
       {/* Card Body */}
-      <div className="hidden">
+      <div className="px-4 py-3">
         <div className="space-y-2">
           {student?.email && (
             <div className="flex items-start space-x-2">
@@ -801,6 +801,51 @@ const StudentTable = ({
           {/* Card Views */}
           {actualViewMode === "cards" && (
             <div className="p-4">
+the              <div className="mb-3 -mt-1 flex items-center gap-2 overflow-x-auto whitespace-nowrap sm:hidden">
+                <span className="text-xs text-gray-500 mr-1 flex-shrink-0">Sort:</span>
+                <button
+                  onClick={() => onSort('name')}
+                  className={`px-3 py-1.5 text-xs rounded-full border flex-shrink-0 transition-colors ${
+                    sortBy === 'name' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                  }`}
+                >
+                  Name
+                </button>
+                <button
+                  onClick={() => onSort('admission')}
+                  className={`px-3 py-1.5 text-xs rounded-full border flex-shrink-0 transition-colors ${
+                    sortBy === 'admission' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                  }`}
+                >
+                  Admission
+                </button>
+                <button
+                  onClick={() => onSort('class')}
+                  className={`px-3 py-1.5 text-xs rounded-full border flex-shrink-0 transition-colors ${
+                    sortBy === 'class' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                  }`}
+                >
+                  Class
+                </button>
+                <button
+                  onClick={() => onSort('date_of_birth')}
+                  className={`px-3 py-1.5 text-xs rounded-full border flex-shrink-0 transition-colors ${
+                    sortBy === 'date_of_birth' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                  }`}
+                >
+                  DOB
+                </button>
+                <button
+                  onClick={() => onSort(sortBy)}
+                  title="Toggle sort order"
+                  className="ml-1 px-2 py-1.5 text-xs rounded-full border bg-white text-gray-700 border-gray-300 hover:border-gray-400 flex items-center gap-1 flex-shrink-0"
+                >
+                  {sortOrder === 'asc' ? 'Asc' : 'Desc'}
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
               <div className={`${isMobile ? 'space-y-4' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'}`}>
                 {students.map((student, index) => (
                   <StudentCard

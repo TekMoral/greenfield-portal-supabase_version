@@ -185,49 +185,50 @@ const TeacherTable = ({
 
     if (isMobile || isDesktopCard) {
       return (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {canEdit && (
-            <EditButton
-              onClick={() => onEdit(teacher)}
-              loading={operationLoading?.update}
-              disabled={operationLoading?.update}
-              className="w-full"
-              size="xs"
-            />
-          )}
-                    
-          {canSuspend && teacherStatus === 'active' && onSuspend && (
-            <SuspendButton
-              onClick={() => onSuspend(teacher)}
-              loading={rowLoading?.suspend?.[teacher.id] ?? operationLoading?.suspend}
-              disabled={rowLoading?.suspend?.[teacher.id] ?? operationLoading?.suspend}
-              className="w-full"
-              size="xs"
-            />
-          )}
-          
-          {canSuspend && teacherStatus === 'inactive' && onReactivate && (
-            <ReactivateButton
-              onClick={() => onReactivate(teacher)}
-              loading={rowLoading?.reactivate?.[teacher.id] ?? operationLoading?.reactivate}
-              disabled={rowLoading?.reactivate?.[teacher.id] ?? operationLoading?.reactivate}
-              className="w-full"
-              size="xs"
-            />
-          )}
-          
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            {canEdit && (
+              <EditButton
+                onClick={() => onEdit(teacher)}
+                loading={operationLoading?.update}
+                disabled={operationLoading?.update}
+                className="w-full"
+                size="xs"
+              />
+            )}
+            {canSuspend && teacherStatus === 'active' && onSuspend && (
+              <SuspendButton
+                onClick={() => onSuspend(teacher)}
+                loading={rowLoading?.suspend?.[teacher.id] ?? operationLoading?.suspend}
+                disabled={rowLoading?.suspend?.[teacher.id] ?? operationLoading?.suspend}
+                className="w-full"
+                size="xs"
+              />
+            )}
+            {canSuspend && teacherStatus === 'inactive' && onReactivate && (
+              <ReactivateButton
+                onClick={() => onReactivate(teacher)}
+                loading={rowLoading?.reactivate?.[teacher.id] ?? operationLoading?.reactivate}
+                disabled={rowLoading?.reactivate?.[teacher.id] ?? operationLoading?.reactivate}
+                className="w-full"
+                size="xs"
+              />
+            )}
+          </div>
           {canDelete && (
-            <DeleteButton
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onDelete(teacher);
-              }}
-              loading={operationLoading?.delete}
-              disabled={operationLoading?.delete}
-              className="w-full"
-              size="xs"
-            />
+            <div className="flex justify-center">
+              <DeleteButton
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onDelete(teacher);
+                }}
+                loading={operationLoading?.delete}
+                disabled={operationLoading?.delete}
+                className="w-2/3 max-w-xs"
+                size="xs"
+              />
+            </div>
           )}
         </div>
       );
@@ -287,29 +288,29 @@ const TeacherTable = ({
   };
 
   const TeacherCard = ({ teacher, index }) => (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
+    <div className="bg-white border border-emerald-200 ring-1 ring-emerald-50 rounded-lg shadow-sm hover:shadow-md hover:border-emerald-300 transition-colors duration-200 overflow-hidden">
       {/* Card Header */}
-      <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-100">
-        <div className="flex items-center space-x-3">
+      <div className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-100">
+        <div className="flex flex-col items-center sm:flex-row sm:items-center sm:space-x-3 space-y-3 sm:space-y-0">
           <div
-            className={`flex-shrink-0 ${teacher?.profileImageUrl ? 'cursor-zoom-in hover:opacity-90 transition' : ''}`}
+            className={`flex-shrink-0 ${teacher?.profileImageUrl ? 'cursor-zoom-in hover:opacity-90 transition' : ''} mx-auto sm:mx-0`}
             onClick={() => openImage(teacher?.profileImageUrl || '', teacher?.name || 'Teacher')}
           >
             <ProfileImage
-              src={teacher?.profileImageUrl}
-              alt={teacher?.name || "Teacher"}
-              size="lg"
-              className="hover:ring-2 hover:ring-blue-400"
-              fallbackName={teacher?.name || ""}
+            src={teacher?.profileImageUrl}
+            alt={teacher?.name || "Teacher"}
+            size="lg"
+            className="hover:ring-2 hover:ring-emerald-400"
+            fallbackName={teacher?.name || ""}
             />
           </div>
 
           <div className="flex-1 min-w-0">
-            <h3 className="text-lg font-semibold text-gray-900 truncate">
+            <h3 className="text-lg font-semibold text-gray-900 sm:truncate break-words text-center sm:text-left">
               {teacher?.name || "N/A"}
             </h3>
-                        <div className="flex items-center space-x-2 mt-1">
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        <div className="flex items-center justify-center sm:justify-start space-x-2 mt-1">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-200">
                 {teacher?.subject || "N/A"}
               </span>
               <StatusBadge isActive={teacher?.isActive} />
@@ -428,7 +429,7 @@ const TeacherTable = ({
       </div>
 
       {/* Card Footer */}
-      <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
+      <div className="px-4 py-3 bg-emerald-50/40 border-t border-emerald-100">
         <ActionsCell
           teacher={teacher}
           onEdit={onEdit}
@@ -712,7 +713,7 @@ const TeacherTable = ({
 
           {/* Card Views */}
           {actualViewMode === "cards" && (
-            <div className="p-4">
+            <div className="px-0 py-4">
               <div className={`${isMobile ? 'space-y-4' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'}`}>
                 {teachers.map((teacher, index) => (
                   <TeacherCard

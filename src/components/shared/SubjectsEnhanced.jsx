@@ -156,7 +156,7 @@ export default function SubjectsEnhanced({ department = null }) {
 
   if (showForm) {
     return (
-      <div className="w-full px-2 md:px-3 lg:px-4 py-4">
+      <div className="w-full px-0 py-4">
         <SubjectForm
           subject={editingSubject}
           onSuccess={handleFormSuccess}
@@ -167,7 +167,7 @@ export default function SubjectsEnhanced({ department = null }) {
   }
 
   return (
-    <div className="w-full px-2 md:px-3 lg:px-4 py-4">
+    <div className="w-full px-0 py-4">
       <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden backdrop-blur-sm">
         {/* Header with Gradient */}
         <div className={`relative bg-gradient-to-br from-gray-700 via-gray-800 to-black overflow-hidden`}>
@@ -201,7 +201,7 @@ export default function SubjectsEnhanced({ department = null }) {
         </div>
 
         {/* Controls */}
-        <div className="p-6 md:p-8 space-y-6">
+        <div className="px-1 sm:px-3 md:px-6 lg:px-8 py-4 md:py-6 space-y-6">
           {!department && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className="lg:col-span-1">
@@ -266,7 +266,7 @@ export default function SubjectsEnhanced({ department = null }) {
             {subjectsLoading ? (
               <div className="space-y-3">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="bg-white rounded-xl border border-gray-200 ring-1 ring-gray-100 p-4 animate-pulse">
+                  <div key={i} className="bg-white rounded-xl border border-emerald-100 ring-1 ring-emerald-50 px-2 py-4 animate-pulse">
                     <div className="h-4 bg-gray-100 rounded w-1/2 mb-2" />
                     <div className="h-3 bg-gray-100 rounded w-24 mb-2" />
                     <div className="h-3 bg-gray-100 rounded w-40 mb-3" />
@@ -276,7 +276,7 @@ export default function SubjectsEnhanced({ department = null }) {
                 ))}
               </div>
             ) : filteredSortedSubjects.length === 0 ? (
-              <div className="bg-white rounded-xl border border-gray-200 ring-1 ring-gray-100 p-6 text-center">
+              <div className="bg-white rounded-xl border border-emerald-100 ring-1 ring-emerald-50 px-3 py-6 text-center">
                 <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-50 flex items-center justify-center border border-gray-200">
                   <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -288,7 +288,7 @@ export default function SubjectsEnhanced({ department = null }) {
             ) : (
               <div className="grid grid-cols-1 gap-3">
                 {filteredSortedSubjects.map((subject) => (
-                  <div key={subject.id || subject.code} className="bg-white rounded-xl border border-gray-200 ring-1 ring-gray-100 p-4 shadow-sm">
+                  <div key={subject.id || subject.code} className="bg-white rounded-xl border border-emerald-200 ring-1 ring-emerald-100 hover:border-emerald-300 transition-colors px-2 py-4 shadow-sm">
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1">
                         <div className="text-base font-semibold text-gray-900">{subject.name}</div>

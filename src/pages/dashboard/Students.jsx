@@ -1025,7 +1025,7 @@ const Students = () => {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-0 py-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div className="relative overflow-hidden rounded-2xl border border-indigo-200/60 bg-gradient-to-br from-indigo-50/90 via-slate-50 to-violet-50/90 backdrop-blur-sm shadow p-4 sm:p-6 mb-6">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
               Student Management
@@ -1038,10 +1038,23 @@ const Students = () => {
             {/* Top Row - Filter and Primary Action */}
             <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 flex-1">
+                {isAdmin && (
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="w-full sm:w-auto px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-sm shadow-sm transition-all duration-200 hover:border-gray-400"
+                    >
+                      <option value="active">Active</option>
+                      <option value="graduated">Alumni</option>
+                      <option value="all">All (Active + Alumni)</option>
+                    </select>
+                  </div>
+                )}
                 <select
                   value={selectedClassId}
                   onChange={(e) => setSelectedClassId(e.target.value)}
-                  className="w-full sm:w-auto min-w-[160px] px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-sm shadow-sm transition-all duration-200 hover:border-gray-400"
+                  className="w-full sm:w-auto px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-sm shadow-sm transition-all duration-200 hover:border-gray-400"
                 >
                   <option value="">All Classes</option>
                   {classGroups.map((g) => (
@@ -1050,19 +1063,6 @@ const Students = () => {
                     </option>
                   ))}
                 </select>
-                {isAdmin && (
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      className="w-full sm:w-auto min-w-[160px] px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-sm shadow-sm transition-all duration-200 hover:border-gray-400"
-                    >
-                      <option value="active">Active</option>
-                      <option value="graduated">Alumni</option>
-                      <option value="all">All (Active + Alumni)</option>
-                    </select>
-                  </div>
-                )}
               </div>
               <CreateButton
                 onClick={handleAddClick}

@@ -120,7 +120,7 @@ const Overview = () => {
       {/* KPIs - Desktop */}
       <div className="hidden sm:grid grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Students */}
-        <div className="group relative rounded-xl border border-emerald-100 bg-white shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5">
+        <div className="group relative rounded-xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50/90 via-teal-50/70 to-emerald-50/90 shadow-sm backdrop-blur-sm transition-all hover:shadow-md hover:-translate-y-0.5">
           <div className="absolute inset-x-0 -top-px h-1 bg-gradient-to-r from-emerald-500/80 to-teal-500/80 rounded-t-xl" />
           <div className="p-6">
             <div className="flex items-start justify-between">
@@ -136,7 +136,7 @@ const Overview = () => {
           </div>
         </div>
         {/* Teachers */}
-        <div className="group relative rounded-xl border border-emerald-100 bg-white shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5">
+        <div className="group relative rounded-xl border border-sky-200/60 bg-gradient-to-br from-sky-50/90 via-emerald-50/70 to-sky-50/90 shadow-sm backdrop-blur-sm transition-all hover:shadow-md hover:-translate-y-0.5">
           <div className="absolute inset-x-0 -top-px h-1 bg-gradient-to-r from-sky-500/80 to-emerald-500/80 rounded-t-xl" />
           <div className="p-6">
             <div className="flex items-start justify-between">
@@ -152,7 +152,7 @@ const Overview = () => {
           </div>
         </div>
         {/* Classes */}
-        <div className="group relative rounded-xl border border-emerald-100 bg-white shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5">
+        <div className="group relative rounded-xl border border-teal-200/60 bg-gradient-to-br from-teal-50/90 via-emerald-50/70 to-teal-50/90 shadow-sm backdrop-blur-sm transition-all hover:shadow-md hover:-translate-y-0.5">
           <div className="absolute inset-x-0 -top-px h-1 bg-gradient-to-r from-teal-500/80 to-emerald-500/80 rounded-t-xl" />
           <div className="p-6">
             <div className="flex items-start justify-between">
@@ -168,7 +168,7 @@ const Overview = () => {
           </div>
         </div>
         {/* Active Exams */}
-        <div className="group relative rounded-xl border border-emerald-100 bg-white shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5">
+        <div className="group relative rounded-xl border border-amber-200/60 bg-gradient-to-br from-amber-50/90 via-emerald-50/60 to-amber-50/90 shadow-sm backdrop-blur-sm transition-all hover:shadow-md hover:-translate-y-0.5">
           <div className="absolute inset-x-0 -top-px h-1 bg-gradient-to-r from-amber-500/80 to-emerald-500/80 rounded-t-xl" />
           <div className="p-6">
             <div className="flex items-start justify-between">
@@ -187,7 +187,7 @@ const Overview = () => {
 
       {/* Mobile summary */}
       <div className="sm:hidden space-y-4">
-        <div className="bg-white/90 backdrop-blur-sm shadow rounded-xl p-4 border border-emerald-200/60">
+        <div className="bg-gradient-to-br from-emerald-50/90 to-teal-50/80 backdrop-blur-sm shadow rounded-xl p-4 border border-emerald-200/60">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-base font-semibold text-slate-900">School Totals</h3>
             <div className="flex items-center space-x-1 text-xs text-slate-500">
@@ -216,7 +216,7 @@ const Overview = () => {
       </div>
 
       {/* Attendance Today */}
-      <div className="bg-white/90 backdrop-blur-sm shadow rounded-2xl p-6 border border-emerald-200/60">
+      <div className="bg-gradient-to-br from-emerald-50/90 to-teal-50/70 backdrop-blur-sm shadow rounded-2xl p-6 border border-emerald-200/60">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-slate-900">Attendance Today</h3>
           <span className="text-sm text-slate-500">School‑wide</span>
@@ -231,7 +231,7 @@ const Overview = () => {
       </div>
 
       {/* Pending Exam Reviews */}
-      <div className="rounded-2xl border border-amber-200/60 bg-white/90 backdrop-blur-sm shadow p-6">
+      <div className="rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50/90 to-emerald-50/70 backdrop-blur-sm shadow p-6">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-medium ring-1 ring-amber-200">Pending</span>
@@ -249,7 +249,7 @@ const Overview = () => {
       </div>
 
       {/* Quick Actions */}
-      <div className="rounded-2xl border border-slate-200/60 bg-white/90 backdrop-blur-sm shadow p-6">
+      <div className="rounded-2xl border border-slate-200/60 bg-gradient-to-br from-slate-50 to-emerald-50/70 backdrop-blur-sm shadow p-6">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">Quick Actions</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <button

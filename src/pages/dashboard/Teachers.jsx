@@ -38,14 +38,29 @@ const Teachers = () => {
     if (teachersData) setTeachers(teachersData); 
   }, [teachersData]);
 
-  // When the form opens, scroll to top so the form is immediately in view
+    const [editTeacher, setEditTeacher] = useState(null);
+  const formRef = React.useRef(null);
+  // When form opens or switching to edit, scroll to the form, accounting for fixed header
   useEffect(() => {
     if (showForm) {
-      setTimeout(() => {
-        try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (_) {}
-      }, 0);
+      const scrollToForm = () => {
+        try {
+          const el = formRef.current;
+          if (el) {
+            const rect = el.getBoundingClientRect();
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
+            const cssVar = getComputedStyle(document.documentElement).getPropertyValue('--appbar-height') || '64px';
+            const headerH = parseInt(String(cssVar).replace('px','').trim()) || 64;
+            const target = rect.top + scrollTop - headerH - 12; // small margin
+            window.scrollTo({ top: Math.max(target, 0), behavior: 'smooth' });
+          } else {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        } catch (_) {}
+      };
+      requestAnimationFrame(() => setTimeout(scrollToForm, 0));
     }
-  }, [showForm]);
+  }, [showForm, editTeacher]);
 
   const [operationLoading, setOperationLoading] = useState({ 
     create: false, 
@@ -55,8 +70,7 @@ const Teachers = () => {
     reactivate: false
   });
   const [rowLoading, setRowLoading] = useState({ suspend: {}, reactivate: {} });
-  const [editTeacher, setEditTeacher] = useState(null);
-  const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, teacherId: null, teacherName: '' });
+    const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, teacherId: null, teacherName: '' });
 
   const { logTeacherAction, AUDIT_ACTIONS } = useAuditLog();
 
@@ -282,6 +296,22 @@ const Teachers = () => {
   const handleEdit = (teacher) => {
     setEditTeacher(teacher);
     setShowForm(true);
+    // Defer scroll until after the form mounts
+    setTimeout(() => {
+      try {
+        const el = formRef.current;
+        if (el && typeof el.scrollIntoView === 'function') {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          // Adjust for fixed header after the smooth scroll starts
+          setTimeout(() => {
+            const cssVar = getComputedStyle(document.documentElement).getPropertyValue('--appbar-height') || '64px';
+            const headerH = parseInt(String(cssVar).replace('px','').trim()) || 64;
+            const y = window.pageYOffset || document.documentElement.scrollTop || 0;
+            window.scrollTo({ top: Math.max(y - headerH - 12, 0), behavior: 'auto' });
+          }, 200);
+        }
+      } catch (_) {}
+    }, 0);
   };
 
   const handleEditSubmit = async (formData) => {
@@ -332,7 +362,7 @@ const Teachers = () => {
 
   if (teachersLoading) {
     return (
-      <div className="p-6">
+      <div className="px-0 py-6">
         <div className="animate-pulse space-y-6">
           <div className="h-8 bg-gray-200 rounded w-1/3"></div>
           <div className="bg-white p-6 rounded-lg shadow">
@@ -350,7 +380,7 @@ const Teachers = () => {
   return (
     <div className="py-6 space-y-6">
       {/* Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-0 sm:px-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Teacher Management</h1>
           <p className="text-gray-600 mt-1">Manage your school's teaching staff</p>
@@ -368,7 +398,7 @@ const Teachers = () => {
 
       {/* Error Display */}
       {(error || rqError) && (
-        <div className="mx-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <div className="mx-0 sm:mx-6 p-4 bg-red-50 border border-red-200 rounded-lg">
           <div className="flex items-center">
             <div className="text-red-600 mr-2">❌</div>
             <div className="text-red-800 font-medium">Error:</div>
@@ -379,16 +409,8 @@ const Teachers = () => {
 
       {/* Teacher Form */}
       {showForm && (
-        <div className="mx-6 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-            <h2 className="text-xl font-semibold text-gray-900">
-              {editTeacher ? 'Edit Teacher' : 'Add New Teacher'}
-            </h2>
-            <p className="text-gray-600 mt-1">
-              {editTeacher ? 'Update teacher information' : 'Fill in the details to add a new teacher'}
-            </p>
-          </div>
-          <div className="p-6">
+        <div ref={formRef} className="mx-0 sm:mx-6 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="px-0 py-6 sm:p-6">
             <TeacherForm 
               mode={editTeacher ? 'edit' : 'add'}
               defaultValues={editTeacher ? {

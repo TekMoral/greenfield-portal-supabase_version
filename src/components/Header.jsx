@@ -148,10 +148,10 @@ const Header = forwardRef((props, ref) => {
             <Link to="/" className="flex flex-col">
               <h1 className="block font-bold transition-all duration-300 select-none text-sm sm:text-base hover:text-emerald-200">
                 <span className="block sm:hidden leading-tight">
-                  Greenfield<br />College
+                  Greenfield<br />Portal
                 </span>
                 <span className="hidden sm:block whitespace-nowrap">
-                  Greenfield College
+                  Greenfield Portal
                 </span>
               </h1>
             </Link>

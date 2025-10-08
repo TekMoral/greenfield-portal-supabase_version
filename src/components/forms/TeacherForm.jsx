@@ -139,26 +139,11 @@ const TeacherForm = ({ onSubmit, onCancel, error, loading = false, mode = 'add',
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-6 sm:py-8 px-0 sm:px-4">
       <div className="max-w-5xl mx-auto">
         {/* Header Section */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full mb-4">
-            <svg
-              className="w-8 h-8 text-white"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"
-              />
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                    <h1 className="text-3xl font-bold text-gray-900 mb-2">
             {mode === 'edit' ? 'Update Teacher Information' : 'Add New Teacher'}
           </h1>
           <p className="text-gray-600">
@@ -168,10 +153,10 @@ const TeacherForm = ({ onSubmit, onCancel, error, loading = false, mode = 'add',
           </p>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmitForm)} className="bg-white rounded-2xl shadow-xl overflow-hidden">
+        <form onSubmit={handleSubmit(onSubmitForm)} className="bg-white rounded-none sm:rounded-2xl shadow-none sm:shadow-xl overflow-hidden">
           <fieldset disabled={loading}>
             {/* Profile Image Section */}
-            <div className="bg-gradient-to-r from-blue-400 to-indigo-500 px-8 py-4">
+            <div className="bg-gradient-to-r from-blue-400 to-indigo-500 px-4 sm:px-8 py-4">
               <div className="text-center">
                 <label className="block mb-4 text-lg font-semibold text-white">
                   Profile Picture
@@ -262,7 +247,7 @@ const TeacherForm = ({ onSubmit, onCancel, error, loading = false, mode = 'add',
             </div>
 
             {/* Form Content */}
-            <div className="p-8">
+            <div className="px-4 sm:px-8 py-6 sm:py-8">
               {/* Error Display */}
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6 flex items-start">
@@ -273,7 +258,7 @@ const TeacherForm = ({ onSubmit, onCancel, error, loading = false, mode = 'add',
                 </div>
               )}
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
                 {/* Personal Information Section */}
                 <div className="space-y-6">
                   <div className="pb-4 border-b border-gray-200">
@@ -559,7 +544,7 @@ const TeacherForm = ({ onSubmit, onCancel, error, loading = false, mode = 'add',
               </div>
 
               {/* Submit Button */}
-              <div className="mt-8 pt-8 border-t border-gray-200">
+              <div className="mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-gray-200">
                 <div className="flex flex-col sm:flex-row gap-4">
                   <button
                     type="submit"

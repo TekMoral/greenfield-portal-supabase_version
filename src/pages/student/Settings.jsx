@@ -19,7 +19,7 @@ const Settings = () => {
       showToast(res?.error || "Failed to sign out", "error");
       return;
     }
-    navigate("/login");
+    navigate("/");
   };
 
   return (

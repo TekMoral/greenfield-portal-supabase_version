@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { COMPONENT_COLORS } from '../constants/colors';
 import schoolLogo from '../assets/images/greenfield-logo.png';
-import { Menu, X, ChevronDown, GraduationCap, BookOpen, FileText, Calendar } from 'lucide-react';
+import { Menu, X, ChevronDown } from 'lucide-react';
 
 const Header = forwardRef((props, ref) => {
   const { user, role, signOut } = useAuth();
@@ -110,12 +110,7 @@ const Header = forwardRef((props, ref) => {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  const academicsMenuItems = [
-    { path: "/academics/curriculum", label: "Curriculum", Icon: GraduationCap },
-    { path: "/academics/subjects", label: "Subjects", Icon: BookOpen },
-    { path: "/academics/examinations", label: "Exams", Icon: FileText },
-    { path: "/academics/calendar", label: "Academic Calendar", Icon: Calendar }
-  ];
+  const academicsMenuItems = [];
 
   return (
     <header
@@ -157,77 +152,12 @@ const Header = forwardRef((props, ref) => {
             </Link>
           </div>
 
-          {/* Main Navigation Links - Desktop */}
-          <nav className="hidden lg:flex items-center space-x-8" aria-label="Primary Navigation">
-            <Link
-              to="/about"
-              className="hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded px-2 py-1"
-            >
-              About Us
-            </Link>
-            
-            {/* Academics Dropdown */}
-            <div className="relative academics-menu-container">
-              <button
-                onClick={toggleAcademicsMenu}
-                className="flex items-center space-x-1 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded px-2 py-1"
-                aria-label="Academics menu"
-                aria-expanded={isAcademicsMenuOpen}
-              >
-                <span>Academics</span>
-                <ChevronDown
-                  className={`w-4 h-4 transition-transform duration-200 ${isAcademicsMenuOpen ? 'rotate-180' : ''}`}
-                />
-              </button>
-
-              {/* Academics Dropdown Menu */}
-              {isAcademicsMenuOpen && (
-                <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-lg shadow-lg py-2 z-50 border border-gray-200">
-                  {academicsMenuItems.map((item, index) => (
-                    <Link
-                      key={index}
-                      to={item.path}
-                      className="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors duration-200"
-                      onClick={() => setIsAcademicsMenuOpen(false)}
-                    >
-                      <item.Icon className="w-4 h-4" />
-                      <span className="font-medium">{item.label}</span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <Link
-              to="/admission"
-              className="hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded px-2 py-1"
-            >
-              Admissions
-            </Link>
-            <Link
-              to="/news"
-              className="hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded px-2 py-1"
-            >
-              News & Events
-            </Link>
-            <Link
-              to="/contact"
-              className="hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded px-2 py-1"
-            >
-              Contact Us
-            </Link>
-          </nav>
+          {/* Main Navigation Links - Desktop (management-only, no marketing links) */}
+          <nav className="hidden lg:flex items-center space-x-8" aria-label="Primary Navigation"></nav>
 
           {/* Primary CTAs */}
           <div className="flex items-center space-x-1 xs:space-x-2 sm:space-x-4">
-            {/* Apply Now Button - hidden on xs, shown on sm+ */}
-            <Link
-              to="/apply"
-              className="inline-flex items-center bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-md font-semibold transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-300 shadow-lg text-xs sm:text-sm sm:px-3 sm:py-1.5"
-            >
-              <span className="sm:hidden">Apply</span>
-              <span className="hidden sm:inline">Apply Now</span>
-            </Link>
+            {/* Removed Apply CTA for management-only */}
 
             {/* User Section */}
             {user ? (
@@ -322,53 +252,8 @@ const Header = forwardRef((props, ref) => {
             >
               <div className="h-full overflow-y-auto p-4">
                 <div className="flex flex-col space-y-3">
-                  <Link
-                    to="/about"
-                    className="block py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    About Us
-                  </Link>
-
-                  <div className="space-y-2">
-                    <div className="py-2 text-emerald-200 font-medium">Academics</div>
-                    <div className="pl-4 space-y-2">
-                      {academicsMenuItems.map((item, index) => (
-                        <Link
-                          key={index}
-                          to={item.path}
-                          className="flex items-center space-x-2 py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
-                          onClick={() => setIsMenuOpen(false)}
-                        >
-                          <item.Icon className="w-4 h-4" />
-                          <span>{item.label}</span>
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-
-                  <Link
-                    to="/admission"
-                    className="block py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    Admission
-                  </Link>
-                  <Link
-                    to="/news"
-                    className="block py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    News & Events
-                  </Link>
-                  <Link
-                    to="/contact"
-                    className="block py-2 hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    Contact
-                  </Link>
-
+                  
+                  
                   {user && (
                     <>
                       <div className="border-t border-white/20 my-3 pt-3">

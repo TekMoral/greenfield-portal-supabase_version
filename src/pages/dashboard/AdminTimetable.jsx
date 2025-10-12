@@ -198,6 +198,19 @@ const AdminTimetable = () => {
     return Array.from(items.values());
   }, [entries, subjectMap, classMap]);
 
+  const entriesByDay = useMemo(() => {
+    const map = new Map();
+    for (const r of groupedRows) {
+      const day = r.day_of_week;
+      if (!map.has(day)) map.set(day, []);
+      map.get(day).push(r);
+    }
+    for (const arr of map.values()) {
+      arr.sort((a, b) => String(a.start_time || '').localeCompare(String(b.start_time || '')));
+    }
+    return map;
+  }, [groupedRows]);
+
   const resetDraft = () => {
     setDraft({ class_id: classId || "", subject_id: "", teacher_id: "", day_of_week: 1, start_time: "08:00", end_time: "08:40" });
   };
@@ -270,22 +283,17 @@ const AdminTimetable = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+      <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8 py-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Timetable (Admin)</h1>
-            <p className="text-slate-600 mt-1">Centralized schedule management (academic year, term, class)</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 text-center lg:text-left">Timetable (Admin)</h1>
+            <p className="text-slate-600 mt-1 text-center lg:text-left">Centralized schedule management (academic year, term, class)</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-            <div className="px-3 py-2 bg-slate-100 rounded-lg text-sm text-slate-700">
-              Year: {academicYear}
-            </div>
-            <div className="px-3 py-2 bg-slate-100 rounded-lg text-sm text-slate-700">
-              Term: {TERM_LABELS[term]} Term
-            </div>
-            <div className="px-3 py-2 bg-slate-100 rounded-lg text-sm text-slate-700">
-              {formatSessionBadge(globalAcademicYear, currentTerm)}
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-600 to-green-600 text-white text-sm shadow">
+              <span aria-hidden>📅</span>
+              <span>{formatSessionBadge(academicYear, term)}</span>
             </div>
             <select
               value={classId}
@@ -309,15 +317,15 @@ const AdminTimetable = () => {
             </select>
             <button
               onClick={() => setShowAdd(true)}
-              className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium"
+              className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white text-sm font-medium shadow"
             >
               Add Entry
             </button>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200">
-          <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+        <div className="bg-white/95 supports-[backdrop-filter]:bg-white/90 backdrop-blur rounded-xl shadow-md border border-slate-200">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-800">Entries</h2>
             <button onClick={fetchEntries} className="text-sm px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200">Refresh</button>
           </div>
@@ -328,53 +336,117 @@ const AdminTimetable = () => {
           ) : entries.length === 0 ? (
             <div className="p-6 text-slate-500">No entries found for selected filters.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="text-left px-4 py-2 border-b">Class</th>
-                    <th className="text-left px-4 py-2 border-b">Day</th>
-                    <th className="text-left px-4 py-2 border-b">Time</th>
-                    <th className="text-left px-4 py-2 border-b">Subject</th>
-                    <th className="text-left px-4 py-2 border-b">Teacher</th>
-                                        <th className="text-left px-4 py-2 border-b">Term</th>
-                    <th className="text-left px-4 py-2 border-b">Year</th>
-                    <th className="text-left px-4 py-2 border-b">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupedRows.map((row) => {
-                    const tch = teacherMap.get(row.teacher_id);
+            <>
+              {/* Mobile list view */}
+              <div className="block md:hidden">
+                {[1, 2, 3, 4, 5]
+                  .filter((d) => dayOfWeek === 0 || dayOfWeek === d)
+                  .map((d) => {
+                    const dayEntries = entriesByDay.get(d) || [];
                     return (
-                      <tr key={`${row.academic_year}-${row.term}-${row.day_of_week}-${row.start_time}-${row.end_time}-${row.subject_id}-${row.classLabel}`} className="odd:bg-white even:bg-slate-50/50">
-                        <td className="px-4 py-2 border-b">{row.classLabel}</td>
-                        <td className="px-4 py-2 border-b">{DAY_LABELS[row.day_of_week] || row.day_of_week}</td>
-                        <td className="px-4 py-2 border-b">{row.start_time?.slice(0,5)} - {row.end_time?.slice(0,5)}</td>
-                        <td className="px-4 py-2 border-b">{row.sub?.name || row.subject_id}</td>
-                        <td className="px-4 py-2 border-b">{tch?.full_name || tch?.name || row.teacher_id}</td>
-                                                <td className="px-4 py-2 border-b">{TERM_LABELS[row.term] || row.term}</td>
-                        <td className="px-4 py-2 border-b">{row.academic_year}</td>
-                        <td className="px-4 py-2 border-b">
-                          <button
-                            onClick={() => handleDelete(row.id)}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
+                      <div key={d} className="py-4 px-0 border-b border-slate-100">
+                        <h3 className="text-base font-semibold text-slate-900 mb-3 tracking-wide">{DAY_LABELS[d]}</h3>
+                        {dayEntries.length === 0 ? (
+                          <div className="text-slate-500 text-sm">No entries for {DAY_LABELS[d]}.</div>
+                        ) : (
+                          <div className="relative">
+                            <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-slate-200"></div>
+                            <div className="space-y-5">
+                              {dayEntries.map((row) => {
+                                const tch = teacherMap.get(row.teacher_id);
+                                return (
+                                  <div
+                                    key={`${row.academic_year}-${row.term}-${row.day_of_week}-${row.start_time}-${row.end_time}-${row.subject_id}-${row.classLabel}`}
+                                    className="relative pl-8"
+                                  >
+                                    <span className="absolute left-0 top-2 w-4 h-4 rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 ring-2 ring-white shadow"></span>
+                                    <div className="rounded-xl ring-1 ring-slate-200/70 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/70 p-3 shadow-sm">
+                                      <div className="h-1.5 bg-gradient-to-r from-indigo-500 via-fuchsia-500 to-sky-500 rounded-full mb-2"></div>
+                                      <div className="flex items-center justify-between">
+                                        <div className="font-semibold text-slate-900">{row.sub?.name || row.subject_id}</div>
+                                        <div className="font-mono text-[11px] px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                          {row.start_time?.slice(0, 5)} - {row.end_time?.slice(0, 5)}
+                                        </div>
+                                      </div>
+                                      <div className="mt-1 text-sm text-slate-700">{row.classLabel}</div>
+                                      <div className="mt-0.5 text-xs text-slate-500">{tch?.full_name || tch?.name || row.teacher_id}</div>
+                                      <div className="mt-2 flex items-center justify-between">
+                                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                                          {TERM_LABELS[row.term] || row.term} • {row.academic_year}
+                                        </span>
+                                        {row.id ? (
+                                          <button
+                                            onClick={() => handleDelete(row.id)}
+                                            className="text-red-600 hover:text-red-700 text-sm"
+                                          >
+                                            Delete
+                                          </button>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
+              </div>
+
+              {/* Desktop table view */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-emerald-50">
+                    <tr>
+                      <th className="text-left px-4 py-2 border-b">Class</th>
+                      <th className="text-left px-4 py-2 border-b">Day</th>
+                      <th className="text-left px-4 py-2 border-b">Time</th>
+                      <th className="text-left px-4 py-2 border-b">Subject</th>
+                      <th className="text-left px-4 py-2 border-b">Teacher</th>
+                      <th className="text-left px-4 py-2 border-b">Term</th>
+                      <th className="text-left px-4 py-2 border-b">Year</th>
+                      <th className="text-left px-4 py-2 border-b">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupedRows.map((row) => {
+                      const tch = teacherMap.get(row.teacher_id);
+                      return (
+                        <tr
+                          key={`${row.academic_year}-${row.term}-${row.day_of_week}-${row.start_time}-${row.end_time}-${row.subject_id}-${row.classLabel}`}
+                          className="odd:bg-white even:bg-slate-50/50 hover:bg-emerald-50/40 transition-colors"
+                        >
+                          <td className="px-4 py-2 border-b">{row.classLabel}</td>
+                          <td className="px-4 py-2 border-b">{DAY_LABELS[row.day_of_week] || row.day_of_week}</td>
+                          <td className="px-4 py-2 border-b">{row.start_time?.slice(0, 5)} - {row.end_time?.slice(0, 5)}</td>
+                          <td className="px-4 py-2 border-b">{row.sub?.name || row.subject_id}</td>
+                          <td className="px-4 py-2 border-b">{tch?.full_name || tch?.name || row.teacher_id}</td>
+                          <td className="px-4 py-2 border-b">{TERM_LABELS[row.term] || row.term}</td>
+                          <td className="px-4 py-2 border-b">{row.academic_year}</td>
+                          <td className="px-4 py-2 border-b">
+                            <button
+                              onClick={() => handleDelete(row.id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
 
         {showAdd && (
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl">
-              <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-slate-800">Add Timetable Entry</h3>
                 <button onClick={() => { setShowAdd(false); resetDraft(); }} className="text-slate-500 hover:text-slate-700">✕</button>
               </div>

@@ -974,8 +974,8 @@ const Students = () => {
   if (studentsLoading || classesLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="animate-pulse space-y-6">
+        <div className="w-full mx-0 px-0 py-6">
+        <div className="animate-pulse space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="h-8 bg-gray-200 rounded w-64"></div>
               <div className="flex gap-4">
@@ -1000,8 +1000,8 @@ const Students = () => {
   if (studentsError || classesError) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="w-full mx-0 px-0 py-6">
+        <div className="bg-white rounded-xl shadow-sm p-6">
             <div className="text-center">
               <div className="text-red-500 text-4xl mb-4">⚠️</div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -1023,7 +1023,7 @@ const Students = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-0 py-6">
+      <div className="w-full mx-0 px-0 py-6">
         {/* Header */}
         <div className="relative overflow-hidden rounded-2xl border border-indigo-200/60 bg-gradient-to-br from-indigo-50/90 via-slate-50 to-violet-50/90 backdrop-blur-sm shadow p-4 sm:p-6 mb-6">
           <div>

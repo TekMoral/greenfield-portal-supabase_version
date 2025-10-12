@@ -15,7 +15,7 @@ const RoleBasedRoute = ({ children, allowedRoles }) => {
     );
   }
 
-  if (!isAuthenticated || !isActive) return <Navigate to="/login" />;
+  if (!isAuthenticated || !isActive) return <Navigate to="/" />;
 
   // Enforce first-login password change (with one-time bypass after successful update)
   if (profile?.require_password_change === true) {

@@ -5,6 +5,7 @@ import PasswordInput from "../components/ui/PasswordInput";
 import PasswordResetModal from "../components/auth/PasswordResetModal";
 import schoolLogo from "../assets/images/greenfield-logo.png";
 import toast from "react-hot-toast";
+import { Shield, UserCheck, GraduationCap } from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -12,29 +13,54 @@ const Login = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [selectedRole, setSelectedRole] = useState("");
+  const roleOptions = [
+    { key: 'admin', label: 'Admin', Icon: Shield },
+    { key: 'teacher', label: 'Teacher', Icon: UserCheck },
+    { key: 'student', label: 'Student', Icon: GraduationCap },
+  ];
 
   const navigate = useNavigate();
-  const { user, role, signIn, isAuthenticated } = useAuth();
+  const { user, role, signIn, signOut, isAuthenticated } = useAuth();
 
-  // Redirect already authenticated users
+  // Redirect after auth with selected-role validation
   useEffect(() => {
-    if (isAuthenticated && role) {
-      switch (role) {
-        case "admin":
-        case "super_admin":
-          navigate("/dashboard");
-          break;
-        case "teacher":
-          navigate("/teacher");
-          break;
-        case "student":
-          navigate("/student");
-          break;
-      }
+    if (!isAuthenticated || !role) return;
+
+    // Validate selected role when provided (admin selection includes super_admin)
+    const matchesSelected = (() => {
+      if (!selectedRole) return true;
+      if (selectedRole === 'admin') return role === 'admin' || role === 'super_admin';
+      return role === selectedRole;
+    })();
+
+    if (!matchesSelected) {
+      toast.error('Selected role does not match your account. Please choose the correct role.');
+      try { signOut && signOut(); } catch (_) {}
+      setPassword('');
+      return; // Stay on login page
     }
-  }, [isAuthenticated, role, navigate]);
+
+    switch (role) {
+      case "admin":
+      case "super_admin":
+        navigate("/dashboard");
+        break;
+      case "teacher":
+        navigate("/teacher");
+        break;
+      case "student":
+        navigate("/student");
+        break;
+    }
+  }, [isAuthenticated, role, selectedRole, navigate, signOut]);
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (!selectedRole) {
+      setError("Please select your role to continue.");
+      toast.error("Please select your role to continue.");
+      return;
+    }
     setError("");
     setLoading(true);
 
@@ -81,6 +107,29 @@ const Login = () => {
 
         {/* Login Form */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
+          {/* Role Selection */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Select your role</label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {roleOptions.map(({ key, label, Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setSelectedRole(key)}
+                  className={`flex items-center justify-center gap-2 px-3 py-3 rounded-lg border transition-all ${
+                    selectedRole === key
+                      ? 'border-green-600 bg-green-50 text-green-700 shadow-sm'
+                      : 'border-gray-200 hover:border-green-300 text-gray-700 bg-white'
+                  }`}
+                  aria-pressed={selectedRole === key}
+                >
+                  <Icon className="w-4 h-4" aria-hidden="true" />
+                  <span className="font-semibold text-sm">{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <form onSubmit={handleLogin} className="space-y-6">
             {/* Email Field */}
             <div>

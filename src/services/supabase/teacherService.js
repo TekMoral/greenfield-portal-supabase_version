@@ -524,7 +524,7 @@ export const teacherService = {
     term = null
   ) {
     try {
-      // Pre-check: no more than 2 unique teachers for the same subject globally
+      // Pre-check: no more than 3 unique teachers for the same subject globally
       const { data: existingAssignments, error: countError } = await supabase
         .from('teacher_assignments')
         .select('teacher_id')
@@ -540,8 +540,8 @@ export const teacherService = {
       const teacherAlreadyAssigned = uniqueTeachers.has(teacherId);
       
       // If teacher not already assigned and we're at the limit, reject
-      if (!teacherAlreadyAssigned && uniqueTeachers.size >= 2) {
-        throw new Error('Subject already has the maximum number of teachers (2) assigned across all classes');
+      if (!teacherAlreadyAssigned && uniqueTeachers.size >= 3) {
+        throw new Error('Subject already has the maximum number of teachers (3) assigned across all classes');
       }
 
       const { data, error } = await supabase
@@ -565,8 +565,8 @@ export const teacherService = {
 
       if (error) {
         const msg = error.message || '';
-        if (msg.includes('Cannot assign more than 2 different teachers')) {
-          throw new Error('Subject already has the maximum number of teachers (2) assigned across all classes');
+        if (msg.includes('Cannot assign more than')) {
+          throw new Error('Subject already has the maximum number of teachers (3) assigned across all classes');
         }
         throw error;
       }

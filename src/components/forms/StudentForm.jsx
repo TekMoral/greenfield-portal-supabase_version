@@ -210,11 +210,18 @@ const StudentForm = ({ onSubmit, onCancel, defaultValues = {}, mode = "add", cla
 
   // Capitalize name fields
   const handleNameChange = (field) => (e) => {
-    const formatted = e.target.value
-      .split(" ")
+    const raw = e.target.value || '';
+    // Collapse multiple spaces and trim
+    const cleaned = raw.replace(/\s+/g, ' ').trim();
+    // Capitalize each word
+    const capitalized = cleaned
+      .split(' ')
+      .filter(Boolean)
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-      .join(" ");
-    setValue(field, formatted);
+      .join(' ');
+    // Enforce max length 40
+    const limited = capitalized.slice(0, 40);
+    setValue(field, limited);
     trigger(field);
   };
 
@@ -297,12 +304,16 @@ const StudentForm = ({ onSubmit, onCancel, defaultValues = {}, mode = "add", cla
     first_name: {
       required: "First name is required",
       minLength: { value: 2, message: "Min 2 characters" },
+      maxLength: { value: 40, message: "Max 40 characters" },
       pattern: { value: /^[A-Za-z\s]+$/, message: "Letters only" },
+      validate: (value) => !/\s{2,}/.test(String(value || '')) || "No double spaces allowed",
     },
     surname: {
       required: "Surname is required",
       minLength: { value: 2, message: "Min 2 characters" },
+      maxLength: { value: 40, message: "Max 40 characters" },
       pattern: { value: /^[A-Za-z\s]+$/, message: "Letters only" },
+      validate: (value) => !/\s{2,}/.test(String(value || '')) || "No double spaces allowed",
     },
     admission_number: {
       required: "Admission number is required",
@@ -327,11 +338,22 @@ const StudentForm = ({ onSubmit, onCancel, defaultValues = {}, mode = "add", cla
       },
     },
     contact: {
-      pattern: { value: /^[\d+()-\s]+$/, message: "Invalid phone number" },
-      minLength: { value: 10, message: "At least 10 digits" },
+      validate: (value) => {
+        if (!value) return true; // optional
+        const s = String(value);
+        if (/\s/.test(s)) return 'Phone number must not contain spaces';
+        if (!/^\d+$/.test(s)) return 'Phone number must contain digits only';
+        if (s.length !== 11) return 'Phone number must be 11 digits';
+        return true;
+      },
     },
     email: {
       // Email is auto-generated, so no validation needed
+    },
+    guardian_name: {
+      maxLength: { value: 40, message: "Max 40 characters" },
+      pattern: { value: /^[A-Za-z\s]+$/, message: "Letters only" },
+      validate: (value) => !value || !/\s{2,}/.test(String(value || '')) || "No double spaces allowed",
     },
   };
 
@@ -467,6 +489,7 @@ const StudentForm = ({ onSubmit, onCancel, defaultValues = {}, mode = "add", cla
                   </label>
                   <input
                     {...register("first_name", validationRules.first_name)}
+                    maxLength={40}
                     onChange={handleNameChange("first_name")}
                     className={`w-full px-4 py-3 border-2 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                       errors.first_name
@@ -487,6 +510,9 @@ const StudentForm = ({ onSubmit, onCancel, defaultValues = {}, mode = "add", cla
                       {errors.first_name.message}
                     </p>
                   )}
+                  <p className={`mt-1 text-xs ${((watch('first_name')||'').length >= 40) ? 'text-red-600' : 'text-gray-400'}`}>
+                    {(watch('first_name')||'').length}/40 {((watch('first_name')||'').length >= 40) ? ' - Max 40 characters reached' : ''}
+                  </p>
                 </div>
 
                 {/* Surname */}
@@ -496,6 +522,7 @@ const StudentForm = ({ onSubmit, onCancel, defaultValues = {}, mode = "add", cla
                   </label>
                   <input
                     {...register("surname", validationRules.surname)}
+                    maxLength={40}
                     onChange={handleNameChange("surname")}
                     className={`w-full px-4 py-3 border-2 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                       errors.surname
@@ -516,6 +543,9 @@ const StudentForm = ({ onSubmit, onCancel, defaultValues = {}, mode = "add", cla
                       {errors.surname.message}
                     </p>
                   )}
+                  <p className={`mt-1 text-xs ${((watch('surname')||'').length >= 40) ? 'text-red-600' : 'text-gray-400'}`}>
+                    {(watch('surname')||'').length}/40 {((watch('surname')||'').length >= 40) ? ' - Max 40 characters reached' : ''}
+                  </p>
                 </div>
 
                 {/* Gender */}
@@ -778,11 +808,27 @@ const StudentForm = ({ onSubmit, onCancel, defaultValues = {}, mode = "add", cla
                     Guardian Name
                   </label>
                   <input
-                    {...register("guardian_name")}
+                    {...register("guardian_name", validationRules.guardian_name)}
+                    maxLength={40}
                     onChange={handleNameChange("guardian_name")}
                     className="w-full px-4 py-3 border-2 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent border-gray-200 hover:border-gray-300 focus:border-blue-500"
                     placeholder="Enter guardian's full name"
                   />
+                  {errors.guardian_name && (
+                    <p className="text-sm text-red-600 flex items-center">
+                      <svg
+                        className="w-4 h-4 mr-1"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm-1 15l-5-5 1.414-1.414L11 14.172l7.586-7.586L20 8l-9 9z" />
+                      </svg>
+                      {errors.guardian_name.message}
+                    </p>
+                  )}
+                  <p className={`mt-1 text-xs ${((watch('guardian_name')||'').length >= 40) ? 'text-red-600' : 'text-gray-400'}`}>
+                    {(watch('guardian_name')||'').length}/40 {((watch('guardian_name')||'').length >= 40) ? ' - Max 40 characters reached' : ''}
+                  </p>
                 </div>
 
                 {/* Contact */}
@@ -792,16 +838,19 @@ const StudentForm = ({ onSubmit, onCancel, defaultValues = {}, mode = "add", cla
                   </label>
                   <input
                     type="tel"
+                    inputMode="numeric"
+                    maxLength={11}
                     {...register("contact", validationRules.contact)}
                     className={`w-full px-4 py-3 border-2 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                       errors.contact
                         ? "border-red-300 bg-red-50"
                         : "border-gray-200 hover:border-gray-300 focus:border-blue-500"
                     }`}
-                    placeholder="e.g., 0803-123-4567"
+                    placeholder="e.g., 08012345678"
                     onChange={(e) => {
-                      const formatted = formatPhoneNumber(e.target.value);
-                      setValue("contact", formatted);
+                      const digitsOnly = (e.target.value || '').replace(/\D/g, '').slice(0, 11);
+                      setValue('contact', digitsOnly);
+                      trigger('contact');
                     }}
                   />
                   {errors.contact && (
@@ -816,6 +865,9 @@ const StudentForm = ({ onSubmit, onCancel, defaultValues = {}, mode = "add", cla
                       {errors.contact.message}
                     </p>
                   )}
+                  <p className={`mt-1 text-xs ${((watch('contact')||'').length >= 11) ? 'text-red-600' : 'text-gray-400'}`}>
+                    {(watch('contact')||'').length}/11 {((watch('contact')||'').length >= 11) ? ' - Max 11 digits reached' : ''}
+                  </p>
                 </div>
               </div>
             </div>

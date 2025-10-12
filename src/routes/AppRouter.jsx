@@ -1,21 +1,11 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { Suspense } from "react";
 import RoleBasedRoute from "../components/RoleBasedRoute";
-import Home from "../pages/Home";
-import About from "../pages/About";
-import Admission from "../pages/Admission";
-import NewsEvents from "../pages/NewsEvents";
-import Contact from "../pages/Contact";
-import Apply from "../pages/Apply";
-import Curriculum from "../pages/academics/Curriculum";
-import Subjects from "../pages/academics/Subjects";
-import Examinations from "../pages/academics/Examinations";
-import AcademicCalendar from "../pages/academics/AcademicCalendar";
 import DashboardLayout from "../layouts/DashboardLayout";
 import StudentLayout from "../layouts/StudentLayout";
 import TeacherLayout from "../layouts/TeacherLayout";
-import PublicLayout from "../layouts/PublicLayout";
 import lazyWithRetry from "../utils/lazyWithRetry";
+import Home from "../pages/Home";
 const PrivateApp = lazyWithRetry(() => import('./PrivateApp'));
 
 // Debug feature flag: enable debug routes only in development or when explicitly allowed
@@ -92,10 +82,7 @@ const AdminTimetable = lazyWithRetry(() => import("../pages/dashboard/AdminTimet
 const AdminReview = lazyWithRetry(() => import("../pages/dashboard/AdminReview"));
 const AdminReportCards = lazyWithRetry(() => import("../pages/dashboard/AdminReportCards"));
 const GeneratedReportCards = lazyWithRetry(() => import("../pages/dashboard/GeneratedReportCards"));
-const CarouselManagement = lazyWithRetry(() =>
-  import("../pages/dashboard/CarouselManagement")
-);
-const NewsManagement = lazyWithRetry(() => import("../pages/dashboard/NewsManagement"));
+const CarouselManagement = lazyWithRetry(() => import("../pages/dashboard/CarouselManagement"));
 const ActivityLogs = lazyWithRetry(() => import("../pages/dashboard/ActivityLogs"));
 
 // Loading component
@@ -107,21 +94,16 @@ const LoadingFallback = () => (
 
 const AppRouter = () => (
   <Routes>
-    {/* Public routes layout */}
-    <Route element={<PublicLayout />}>
-      <Route path="/" element={<Home />} />
-      <Route path="/about" element={<About />} />
-      <Route path="/admission" element={<Admission />} />
-      <Route path="/news" element={<NewsEvents />} />
-      <Route path="/contact" element={<Contact />} />
-      <Route path="/apply" element={<Apply />} />
-
-      {/* Academic Pages */}
-      <Route path="/academics/curriculum" element={<Curriculum />} />
-      <Route path="/academics/subjects" element={<Subjects />} />
-      <Route path="/academics/examinations" element={<Examinations />} />
-      <Route path="/academics/calendar" element={<AcademicCalendar />} />
-    </Route>
+    <Route
+      path="/"
+      element={
+        <Suspense fallback={<LoadingFallback />}>
+          <PrivateApp>
+            <Home />
+          </PrivateApp>
+        </Suspense>
+      }
+    />
 
     <Route
       path="/login"
@@ -322,7 +304,7 @@ const AppRouter = () => (
           </Suspense>
         }
       />
-      <Route
+                  <Route
         path="carousel"
         element={
           <Suspense fallback={<LoadingFallback />}>
@@ -330,15 +312,7 @@ const AppRouter = () => (
           </Suspense>
         }
       />
-      <Route
-        path="news"
-        element={
-          <Suspense fallback={<LoadingFallback />}>
-            <NewsManagement />
-          </Suspense>
-        }
-      />
-      <Route
+                  <Route
         path="activity-logs"
         element={
           <Suspense fallback={<LoadingFallback />}>

@@ -43,7 +43,27 @@ serve(async (req) => {
     // Create service client for admin operations (bypasses RLS)
     const serviceClient = createServiceClient()
 
-    // Check global limit: max 2 unique teachers per subject across all classes
+    // Enforce per-teacher subject limit: max 3 unique subjects
+    console.log(`🔍 Checking teacher subject limit for teacher: ${body.teacherId}`)
+    const { data: teacherAssignments, error: teacherCountErr } = await serviceClient
+      .from('teacher_assignments')
+      .select('subject_id')
+      .eq('teacher_id', body.teacherId)
+      .eq('is_active', true)
+
+    if (teacherCountErr) {
+      throw new Error(`Failed to check teacher subject limit: ${teacherCountErr.message}`)
+    }
+
+    const teacherSubjectSet = new Set((teacherAssignments || []).map((a: any) => a.subject_id))
+    const hasSubjectAlready = teacherSubjectSet.has(body.subjectId)
+    console.log(`📚 Teacher currently has ${teacherSubjectSet.size} unique subject(s). Already has this one? ${hasSubjectAlready}`)
+    if (!hasSubjectAlready && teacherSubjectSet.size >= 3) {
+      console.log(`❌ LIMIT REACHED: Teacher already has 3 unique subjects assigned`)
+      throw new Error('Teacher already has the maximum number of subjects (3) assigned')
+    }
+
+    // Check global limit: max 3 unique teachers per subject across all classes
     console.log(`🔍 Checking global limit for subject: ${body.subjectId}`)
     
     const { data: existingAssignments, error: countError } = await serviceClient
@@ -61,17 +81,17 @@ serve(async (req) => {
     // Count unique teachers for this subject
     const uniqueTeachers = new Set(existingAssignments?.map(a => a.teacher_id) || [])
     console.log(`👥 Unique teachers already assigned: ${Array.from(uniqueTeachers)}`)
-    console.log(`📈 Current teacher count: ${uniqueTeachers.size}/2`)
+    console.log(`📈 Current teacher count: ${uniqueTeachers.size}/3`)
     
     // Check if this teacher is already assigned to this subject
     const teacherAlreadyAssigned = uniqueTeachers.has(body.teacherId)
     console.log(`🔍 Is teacher already assigned? ${teacherAlreadyAssigned}`)
     
     // If teacher not already assigned and we're at the limit, reject
-    if (!teacherAlreadyAssigned && uniqueTeachers.size >= 2) {
+    if (!teacherAlreadyAssigned && uniqueTeachers.size >= 3) {
       const currentTeachers = Array.from(uniqueTeachers)
-      console.log(`❌ LIMIT REACHED: Subject already has 2 teachers:`, currentTeachers)
-      throw new Error(`Subject already has the maximum number of teachers (2) assigned across all classes. Current teachers: ${currentTeachers.length}`)
+      console.log(`❌ LIMIT REACHED: Subject already has 3 teachers:`, currentTeachers)
+      throw new Error(`Subject already has the maximum number of teachers (3) assigned across all classes. Current teachers: ${currentTeachers.length}`)
     }
     
     console.log(`✅ Global limit check passed. Proceeding with assignment...`)

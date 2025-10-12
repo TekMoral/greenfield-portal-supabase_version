@@ -103,7 +103,7 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
         return;
       }
 
-      // Check global limit: max 2 unique teachers per subject across all classes
+      // Check global limit: max 3 unique teachers per subject across all classes
       console.log(`🔍 Checking global limit for subject: ${selectedSubject.name} (ID: ${selectedSubject.id})`);
       
       const { data: existingAssignments, error } = await supabase
@@ -123,17 +123,17 @@ const ClassSubjectManager = ({ classData, onSubjectsUpdate, onClose }) => {
       // Count unique teachers for this subject
       const uniqueTeachers = new Set(existingAssignments?.map(a => a.teacher_id) || []);
       console.log(`👥 Unique teachers already assigned to ${selectedSubject.name}:`, Array.from(uniqueTeachers));
-      console.log(`📈 Current teacher count: ${uniqueTeachers.size}/2`);
+      console.log(`📈 Current teacher count: ${uniqueTeachers.size}/3`);
       
       // Check if this teacher is already assigned to this subject
       const teacherAlreadyAssigned = uniqueTeachers.has(newSubject.teacherId);
       console.log(`🔍 Is teacher ${newSubject.teacherName} already assigned? ${teacherAlreadyAssigned}`);
       
       // If teacher not already assigned and we're at the limit, reject
-      if (!teacherAlreadyAssigned && uniqueTeachers.size >= 2) {
+      if (!teacherAlreadyAssigned && uniqueTeachers.size >= 3) {
         const currentTeachers = Array.from(uniqueTeachers);
-        console.log(`❌ LIMIT REACHED: Subject "${newSubject.subjectName}" already has 2 teachers:`, currentTeachers);
-        showToast(`Subject "${newSubject.subjectName}" already has the maximum number of teachers (2) assigned across all classes.`, 'error');
+        console.log(`❌ LIMIT REACHED: Subject "${newSubject.subjectName}" already has 3 teachers:`, currentTeachers);
+        showToast(`Subject "${newSubject.subjectName}" already has the maximum number of teachers (3) assigned across all classes.`, 'error');
         return;
       }
       

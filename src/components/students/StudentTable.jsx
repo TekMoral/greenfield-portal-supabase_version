@@ -357,7 +357,7 @@ const StudentTable = ({
           </div>
 
           <div className="flex-1 min-w-0">
-            <h3 className="text-lg font-semibold text-gray-900 sm:truncate break-words text-center sm:text-left">
+            <h3 className="text-lg font-semibold text-gray-900 sm:truncate break-words text-center sm:text-left" title={student?.full_name || ''}>
               {student?.full_name || "N/A"}
             </h3>
             <p className="text-xs text-gray-500 font-medium text-center sm:text-left">
@@ -483,19 +483,18 @@ const StudentTable = ({
                 <p className="text-xs text-gray-500 uppercase tracking-wide">
                   Guardian
                 </p>
-                <p className="text-sm font-medium text-gray-900 truncate">
+                <p className="text-sm font-medium text-gray-900 truncate" title={student.guardian_name || ''}>
                   {student.guardian_name}
                 </p>
-                {(student?.guardian_phone ||
-                  student?.contact ||
-                  student?.phone_number) && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    📞{" "}
-                    {student.guardian_phone ||
-                      student.contact ||
-                      student.phone_number}
-                  </p>
-                )}
+                {(() => {
+                  const raw = student?.guardian_phone || student?.contact || student?.phone_number;
+                  const phone = String(raw || '').replace(/\D/g, '').slice(0, 11);
+                  return phone ? (
+                    <p className="text-xs text-gray-500 mt-1" title={phone}>
+                      📞 {phone}
+                    </p>
+                  ) : null;
+                })()}
               </div>
             </div>
           )}
@@ -756,13 +755,20 @@ const StudentTable = ({
                               />
                             </div>
                             <div className="ml-3 min-w-0">
-                              <div className="text-sm font-medium text-gray-900 truncate">{name}</div>
+                              <div className="text-sm font-medium text-gray-900 truncate max-w-[220px]" title={name}>{name}</div>
                               {admission && <div className="text-xs text-gray-500">ID: {admission}</div>}
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{admission}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{className}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <div className="flex flex-col">
+                            <span>{className}</span>
+                            {student?.classes?.category && (
+                              <span className="text-xs text-gray-500">{student.classes.category}</span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{gender}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           <div className="flex flex-col">
@@ -774,9 +780,22 @@ const StudentTable = ({
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{email}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <div className="max-w-[240px] truncate" title={email || ''}>{email || ''}</div>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{dob}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{guardian}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <div className="flex flex-col">
+                            <span className="block max-w-[240px] truncate" title={guardian || ''}>{guardian || 'N/A'}</span>
+                            {(() => {
+                              const raw = student?.guardian_phone || student?.contact || student?.phone_number;
+                              const phone = String(raw || '').replace(/\D/g, '').slice(0, 11);
+                              return phone ? (
+                                <span className="text-xs text-gray-500 max-w-[240px] truncate" title={phone}>{phone}</span>
+                              ) : null;
+                            })()}
+                          </div>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <ActionsCell
                             student={student}
@@ -801,7 +820,7 @@ const StudentTable = ({
           {/* Card Views */}
           {actualViewMode === "cards" && (
             <div className="p-4">
-the              <div className="mb-3 -mt-1 flex items-center gap-2 overflow-x-auto whitespace-nowrap sm:hidden">
+<div className="mb-3 -mt-1 flex items-center gap-2 overflow-x-auto whitespace-nowrap sm:hidden">
                 <span className="text-xs text-gray-500 mr-1 flex-shrink-0">Sort:</span>
                 <button
                   onClick={() => onSort('name')}

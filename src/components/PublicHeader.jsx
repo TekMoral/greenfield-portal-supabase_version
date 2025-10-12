@@ -87,7 +87,7 @@ export default function PublicHeader() {
           </div>
 
           <nav className="hidden lg:flex items-center space-x-8" aria-label="Primary Navigation">
-            <Link to="/about" className="hover:text-emerald-200 transition-colors duration-200 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded px-2 py-1">About Us</Link>
+           
 
             <div className="relative academics-menu-container">
               <button

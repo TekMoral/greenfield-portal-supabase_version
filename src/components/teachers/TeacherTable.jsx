@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import ProfileImage from "../common/ProfileImage";
 import { EditButton, DeleteButton, SuspendButton, ReactivateButton } from "../ui/ActionButtons";
+import { getTeacherSubjects } from "../../services/supabase/teacherService";
 
 const TeacherTable = ({
   teachers = [],
@@ -36,6 +37,12 @@ const TeacherTable = ({
   const [viewMode, setViewMode] = useState("auto");
   const [searchFocused, setSearchFocused] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [assignedSubjectsMap, setAssignedSubjectsMap] = useState({}); // { [teacherId]: [{ name, classes: [] }] }
+  const [expandedTeachers, setExpandedTeachers] = useState({}); // { [teacherId]: true|false }
+  const toggleExpand = useCallback((id) => {
+    if (!id) return;
+    setExpandedTeachers((prev) => ({ ...prev, [id]: !prev[id] }));
+  }, []);
 
   // Selection helpers
   const selectedSet = useMemo(() => new Set(selectedIds || []), [selectedIds]);
@@ -54,6 +61,51 @@ const TeacherTable = ({
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
+
+  // Fetch assigned subjects for current page teachers
+  useEffect(() => {
+    const ids = (teachers || []).map(t => t?.id).filter(Boolean);
+    if (!ids.length) return;
+    let cancelled = false;
+
+    (async () => {
+      const updates = {};
+      await Promise.all(ids.map(async (id) => {
+        try {
+          // Skip if already loaded for this teacher id
+          if (assignedSubjectsMap[id]) return;
+          const res = await getTeacherSubjects(id);
+          const rows = res?.success ? (res.data || []) : [];
+          const normalize = (s) => String(s || '').trim().replace(/\s+/g, ' ');
+          const keyify = (s) => normalize(s).toUpperCase();
+          const subjMap = new Map(); // key -> { name, classes: Map<classKey, classDisplay> }
+          rows.forEach((r) => {
+            const subjRaw = r?.subjects?.name || r?.subject?.name || r?.subject_name;
+            const classRaw = r?.classes?.name || r?.class?.name;
+            const subjKey = keyify(subjRaw);
+            if (!subjKey) return;
+            if (!subjMap.has(subjKey)) {
+              subjMap.set(subjKey, { name: normalize(subjRaw), classes: new Map() });
+            }
+            const classKey = keyify(classRaw);
+            const classDisplay = normalize(classRaw);
+            if (classKey) {
+              const entry = subjMap.get(subjKey);
+              if (!entry.classes.has(classKey)) entry.classes.set(classKey, classDisplay);
+            }
+          });
+          updates[id] = Array.from(subjMap.values()).map(({ name, classes }) => ({ name, classes: Array.from(classes.values()) }));
+        } catch (_) {
+          updates[id] = [];
+        }
+      }));
+      if (!cancelled && Object.keys(updates).length) {
+        setAssignedSubjectsMap((prev) => ({ ...prev, ...updates }));
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [teachers]);
 
   // Handle image click - only for admins/super admins
   const openImage = useCallback((src, alt) => {
@@ -322,6 +374,48 @@ const TeacherTable = ({
       {/* Card Body */}
       <div className="p-4">
         <div className="space-y-3">
+          {/* Assigned Subjects */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Assigned Subjects</p>
+              <button
+                type="button"
+                onClick={() => toggleExpand(teacher?.id)}
+                className="text-xs font-medium text-sky-600 hover:text-sky-700"
+              >
+                {expandedTeachers[teacher?.id] ? 'Hide' : 'View'}
+              </button>
+            </div>
+            {expandedTeachers[teacher?.id] ? (
+              Array.isArray(assignedSubjectsMap[teacher?.id]) && assignedSubjectsMap[teacher?.id].length > 0 ? (
+                <div className="space-y-2">
+                  {assignedSubjectsMap[teacher?.id].map((s) => (
+                    <div key={s.name}>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full border text-xs bg-indigo-50 border-indigo-200 text-indigo-700">
+                        {s.name}
+                      </span>
+                      {Array.isArray(s.classes) && s.classes.length > 0 ? (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {s.classes.map((cls) => (
+                            <span
+                              key={cls}
+                              className="inline-flex items-center px-2 py-0.5 rounded-full border text-xs bg-slate-100 border-slate-200 text-slate-700"
+                            >
+                              {cls}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-1 text-xs text-gray-500">No classes assigned</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500">None</div>
+              )
+            ) : null}
+          </div>
           {teacher?.email && (
             <div className="flex items-start space-x-2">
               <svg
@@ -636,6 +730,7 @@ const TeacherTable = ({
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       <SortButton field="subject">Subject</SortButton>
                     </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Subjects</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -686,6 +781,56 @@ const TeacherTable = ({
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{email}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{subject}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <div className="max-w-[420px]">
+                            {!expandedTeachers[teacher?.id] ? (
+                              <button
+                                type="button"
+                                onClick={() => toggleExpand(teacher?.id)}
+                                className="text-xs font-medium text-sky-600 hover:text-sky-700"
+                              >
+                                View{Array.isArray(assignedSubjectsMap[teacher?.id]) && assignedSubjectsMap[teacher?.id].length ? ` (${assignedSubjectsMap[teacher?.id].length})` : ''}
+                              </button>
+                            ) : (
+                              <div className="space-y-1">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleExpand(teacher?.id)}
+                                  className="text-xs font-medium text-sky-600 hover:text-sky-700"
+                                >
+                                  Hide
+                                </button>
+                                <div className="space-y-2">
+                                  {Array.isArray(assignedSubjectsMap[teacher?.id]) && assignedSubjectsMap[teacher?.id].length > 0 ? (
+                                    assignedSubjectsMap[teacher?.id].map((s) => (
+                                      <div key={s.name}>
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full border text-xs bg-indigo-50 border-indigo-200 text-indigo-700">
+                                          {s.name}
+                                        </span>
+                                        {Array.isArray(s.classes) && s.classes.length > 0 ? (
+                                          <div className="mt-1 flex flex-wrap gap-1">
+                                            {s.classes.map((cls) => (
+                                              <span
+                                                key={cls}
+                                                className="inline-flex items-center px-2 py-0.5 rounded-full border text-xs bg-slate-100 border-slate-200 text-slate-700"
+                                              >
+                                                {cls}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <div className="mt-1 text-xs text-gray-400">No classes</div>
+                                        )}
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <span className="text-gray-400">—</span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{phone}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           <StatusBadge isActive={teacher?.isActive} />

@@ -176,42 +176,77 @@ export default function Classes() {
       // First, deactivate existing assignments for this class
       // (We'll implement a proper cleanup later, for now just create new ones)
       
-      // Create teacher_assignments records for each subject-teacher pair using Edge Function
-      const assignmentPromises = subjects.map(async (subjectAssignment) => {
+
+      // Fetch current active assignments for this class
+      const { data: existingAssignments, error: existingErr } = await supabase
+        .from('teacher_assignments')
+        .select('id, teacher_id, subject_id')
+        .eq('class_id', selectedClass.id)
+        .eq('is_active', true);
+      if (existingErr) {
+        console.warn('⚠️ Failed to fetch existing assignments for diff:', existingErr);
+      }
+      const existing = Array.isArray(existingAssignments) ? existingAssignments : [];
+
+      // Build desired pairs (teacher_id, subject_id) from incoming subjects
+      const desiredPairs = [];
+      for (const subjectAssignment of subjects) {
+        const subjectRecord = allSubjects.find(s => s.name === subjectAssignment.subjectName);
+        if (!subjectRecord) {
+          console.error(`❌ Subject not found: ${subjectAssignment.subjectName}`);
+          continue;
+        }
+        desiredPairs.push({ teacher_id: subjectAssignment.teacherId, subject_id: subjectRecord.id });
+      }
+      const desiredKeySet = new Set(desiredPairs.map(p => `${p.teacher_id}|${p.subject_id}`));
+
+      // Determine removals: existing active not present in desired set
+      const toRemoveIds = existing
+        .filter(e => !desiredKeySet.has(`${e.teacher_id}|${e.subject_id}`))
+        .map(e => e.id);
+
+      // Deactivate removed assignments (best-effort)
+      if (toRemoveIds.length) {
+        console.log('🗑️ Deactivating removed assignments:', toRemoveIds.length);
+        const { error: deactErr } = await supabase
+          .from('teacher_assignments')
+          .update({ is_active: false, updated_at: new Date().toISOString() })
+          .in('id', toRemoveIds);
+        if (deactErr) {
+          console.warn('⚠️ Failed to deactivate some assignments:', deactErr);
+        }
+      }
+
+      // Determine additions: desired pairs not already existing
+      const existingKeySet = new Set(existing.map(e => `${e.teacher_id}|${e.subject_id}`));
+      const toAdd = desiredPairs.filter(p => !existingKeySet.has(`${p.teacher_id}|${p.subject_id}`));
+
+      // Create teacher_assignments records for additions using Edge Function
+      const assignmentPromises = toAdd.map(async (pair) => {
         try {
-          // Find subject ID by name
-          const subjectRecord = allSubjects.find(s => s.name === subjectAssignment.subjectName);
+          const subjectRecord = allSubjects.find(s => s.id === pair.subject_id);
           if (!subjectRecord) {
-            console.error(`❌ Subject not found: ${subjectAssignment.subjectName}`);
-            return { success: false, error: `Subject not found: ${subjectAssignment.subjectName}` };
+            return { success: false, error: `Subject not found by id: ${pair.subject_id}` };
           }
-
-          console.log(`🔄 Creating assignment via Edge Function: Teacher ${subjectAssignment.teacherId} -> Subject ${subjectRecord.id} (${subjectRecord.name}) -> Class ${selectedClass.id}`);
-
-          // Use centralized wrapper to ensure Authorization header is attached
+          console.log(`🔄 Creating assignment via Edge Function: Teacher ${pair.teacher_id} -> Subject ${pair.subject_id} (${subjectRecord.name}) -> Class ${selectedClass.id}`);
           const res = await callFunction('assign-teacher-subject', {
-            teacherId: subjectAssignment.teacherId,
-            subjectId: subjectRecord.id,
+            teacherId: pair.teacher_id,
+            subjectId: pair.subject_id,
             classId: selectedClass.id,
             academicYear: normalized.academicYear || (new Date().getFullYear() + '/' + (new Date().getFullYear() + 1)),
             term: normalized.term || 1
           });
-
           if (!res || res.success === false) {
             const errMsg = res?.userMessage || res?.error || 'Edge Function call failed';
-            console.error(`❌ Edge Function error for ${subjectAssignment.subjectName}:`, errMsg, res);
+            console.error(`❌ Edge Function error:`, errMsg, res);
             return { success: false, error: errMsg };
           }
-
-          console.log(`✅ Assignment result:`, res);
           return { success: true, data: res?.data || res };
         } catch (error) {
-          console.error(`❌ Error creating assignment for ${subjectAssignment.subjectName}:`, error);
           return { success: false, error: error.message };
         }
       });
 
-      // Wait for all assignments to complete
       const results = await Promise.all(assignmentPromises);
       console.log('📊 Assignment results:', results);
 

@@ -385,7 +385,7 @@ const Admins = () => {
   return (
     <div className="p-0">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Admin Management</h1>
+        <h1 className="text-2xl font-bold text-indigo-900">Admin Management</h1>
         {isSuperAdmin && (
           <CreateButton onClick={() => setShowForm(!showForm)}>
             Add Admin

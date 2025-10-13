@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useState } from "react";
-import { Menu, X, LayoutDashboard, Users, Layers, ClipboardList, CalendarCheck, BarChart3, FileText, Calendar, User } from 'lucide-react';
+import { Menu, X, LayoutDashboard, Users, Layers, ClipboardList, CalendarCheck, BarChart3, FileText, Calendar, User, Newspaper } from 'lucide-react';
 import { useSettings } from "../contexts/SettingsContext";
 import { formatSessionBadge } from "../utils/sessionUtils";
 
@@ -17,6 +17,7 @@ const TeacherLayout = () => {
     { label: "Gradebook", path: "/teacher/grades", Icon: FileText },
     { label: "Timetable", path: "/teacher/timetable", Icon: Calendar },
     { label: "Attendance", path: "/teacher/attendance", Icon: CalendarCheck },
+    { label: "News & Events", path: "/teacher/news", Icon: Newspaper },
     { label: "Profile", path: "/teacher/profile", Icon: User },
   ];
 

@@ -16,7 +16,14 @@ const NewsManagement = () => {
   const [eventsData, setEventsData] = useState([]);
   const [featuredAnnouncement, setFeaturedAnnouncement] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedItem, setSelectedItem] = useState(null);
   const { showToast } = useToast();
+
+  const toArrayTags = (tags) => {
+    if (Array.isArray(tags)) return tags;
+    if (typeof tags === 'string') return tags.split(',').map(t => t.trim()).filter(Boolean);
+    return [];
+  };
 
   useEffect(() => {
     loadData();
@@ -25,13 +32,13 @@ const NewsManagement = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [news, events] = await Promise.all([
-        newsService.getNewsEvents(),
-        newsService.getNewsByType('event') // Get events specifically
-      ]);
-      setNewsData(news || []);
-      setEventsData(events || []);
-      setFeaturedAnnouncement(news?.[0] || null); // Use first news as featured
+      const all = await newsService.getNewsEvents();
+      const list = all || [];
+      const newsOnly = list.filter(item => item?.type === 'news');
+      const eventsOnly = list.filter(item => item?.type === 'event');
+      setNewsData(newsOnly);
+      setEventsData(eventsOnly);
+      setFeaturedAnnouncement(newsOnly?.[0] || null); // Use first news as featured
     } catch (error) {
       showToast('Failed to load data', 'error');
       console.error('Error loading data:', error);
@@ -74,17 +81,25 @@ const NewsManagement = () => {
       // Map form data to database schema
       const payload = {
         title: data.title,
-        content: data.content,
+        content: type === 'event' ? (data.description || '') : data.content,
         type: type === 'event' ? 'event' : 'news',
         status: 'published', // Default to published
         author_id: null, // Will be set by RLS policy
-        summary: data.summary,
-        category: data.category,
-        author: data.author,
-        tags: data.tags,
-        featured: data.featured,
-        date: data.date
+        category: data.category || 'general',
+        tags: data.tags || [],
+        featured: data.featured || false,
+        date: data.date || new Date().toISOString().split('T')[0]
       };
+
+      // Include event-specific fields when creating/updating events
+      if (type === 'event') {
+        payload.time = data.time || null;
+        payload.venue = data.venue || null;
+        payload.organizer = data.organizer || null;
+        payload.registrationRequired = !!data.registrationRequired;
+        payload.capacity = data.capacity ?? null;
+        payload.contact = data.contact || null;
+      }
 
       if (editingItem) {
         // Update existing item
@@ -250,15 +265,17 @@ const NewsManagement = () => {
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <div className="text-sm font-semibold text-slate-900 break-words">{item.title}</div>
-                            <div className="mt-1 text-xs text-slate-600 break-words">{item.summary || item.content?.slice(0, 120)}</div>
                             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">{item.category || 'General'}</span>
+                              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                                {item.category ? (item.category.charAt(0).toUpperCase() + item.category.slice(1)) : 'General'}
+                              </span>
                               <span>{formatDMY(item.created_at || item.date)}</span>
                               <span className={`px-2 py-0.5 rounded-full ${item.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{item.status || 'draft'}</span>
                             </div>
                           </div>
                         </div>
-                        <div className="mt-3 grid grid-cols-2 gap-2">
+                        <div className="mt-3 grid grid-cols-3 gap-2">
+                          <button onClick={() => setSelectedItem(item)} className="w-full inline-flex justify-center px-3 py-2 rounded-md bg-gray-100 text-gray-800 text-xs font-medium hover:bg-gray-200">View</button>
                           <button onClick={() => handleEdit(item)} className="w-full inline-flex justify-center px-3 py-2 rounded-md bg-blue-600 text-white text-xs font-medium hover:bg-blue-700">Edit</button>
                           <button onClick={() => handleDelete(item.id, 'news')} className="w-full inline-flex justify-center px-3 py-2 rounded-md bg-red-600 text-white text-xs font-medium hover:bg-red-700">Delete</button>
                         </div>
@@ -272,6 +289,7 @@ const NewsManagement = () => {
                       data={newsData}
                       onEdit={handleEdit}
                       onDelete={(id) => handleDelete(id, 'news')}
+                      onView={(item) => setSelectedItem(item)}
                     />
                   </div>
                 </>
@@ -286,15 +304,17 @@ const NewsManagement = () => {
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <div className="text-sm font-semibold text-slate-900 break-words">{item.title}</div>
-                            <div className="mt-1 text-xs text-slate-600 break-words">{item.summary || item.content?.slice(0, 120)}</div>
                             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">{item.category || 'Event'}</span>
+                              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                                {item.category ? (item.category.charAt(0).toUpperCase() + item.category.slice(1)) : 'Event'}
+                              </span>
                               <span>{formatDMY(item.created_at || item.date)}</span>
                               <span className={`px-2 py-0.5 rounded-full ${item.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{item.status || 'draft'}</span>
                             </div>
                           </div>
                         </div>
-                        <div className="mt-3 grid grid-cols-2 gap-2">
+                        <div className="mt-3 grid grid-cols-3 gap-2">
+                          <button onClick={() => setSelectedItem(item)} className="w-full inline-flex justify-center px-3 py-2 rounded-md bg-gray-100 text-gray-800 text-xs font-medium hover:bg-gray-200">View</button>
                           <button onClick={() => handleEdit(item)} className="w-full inline-flex justify-center px-3 py-2 rounded-md bg-blue-600 text-white text-xs font-medium hover:bg-blue-700">Edit</button>
                           <button onClick={() => handleDelete(item.id, 'events')} className="w-full inline-flex justify-center px-3 py-2 rounded-md bg-red-600 text-white text-xs font-medium hover:bg-red-700">Delete</button>
                         </div>
@@ -308,6 +328,7 @@ const NewsManagement = () => {
                       data={eventsData}
                       onEdit={handleEdit}
                       onDelete={(id) => handleDelete(id, 'events')}
+                      onView={(item) => setSelectedItem(item)}
                     />
                   </div>
                 </>
@@ -349,6 +370,12 @@ const NewsManagement = () => {
                         </div>
                         <div className="flex gap-2 sm:ml-4 w-full sm:w-auto">
                           <button
+                            onClick={() => setSelectedItem(featuredAnnouncement)}
+                            className="w-full sm:w-auto bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+                          >
+                            View
+                          </button>
+                          <button
                             onClick={() => handleEdit(featuredAnnouncement)}
                             className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
                           >
@@ -376,6 +403,88 @@ const NewsManagement = () => {
           )}
         </div>
       </div>
+    {/* Detail Modal for admin view */}
+      {selectedItem && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+          onClick={() => setSelectedItem(null)}
+        >
+          <div 
+            className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {selectedItem.image_url && (
+              <div className="h-64 overflow-hidden">
+                <img
+                  src={selectedItem.image_url}
+                  alt={selectedItem.title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+            <div className="p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                  selectedItem.type === 'event' 
+                    ? 'bg-purple-100 text-purple-700' 
+                    : 'bg-blue-100 text-blue-700'
+                }`}>
+                  {selectedItem.type === 'event' ? '📅 Event' : '📰 News'}
+                </span>
+                {selectedItem.category && (
+                  <span className="px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-700">
+                    {selectedItem.category}
+                  </span>
+                )}
+              </div>
+              
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
+                {selectedItem.title}
+              </h2>
+              
+              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-6 pb-6 border-b border-gray-200">
+                <span>📅 {formatDMY(selectedItem.created_at || selectedItem.date)}</span>
+                {selectedItem.author && <span>✍️ {selectedItem.author}</span>}
+                {selectedItem.status && <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">{selectedItem.status}</span>}
+              </div>
+              
+              <div className="prose max-w-none text-gray-700 whitespace-pre-wrap">
+                {selectedItem.content}
+              </div>
+              
+              {toArrayTags(selectedItem.tags).length > 0 && (
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <div className="flex flex-wrap gap-2">
+                    {toArrayTags(selectedItem.tags).map((tag, index) => (
+                      <span
+                        key={index}
+                        className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm"
+                      >
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  onClick={() => setSelectedItem(null)}
+                  className="px-6 py-2 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => { setSelectedItem(null); handleEdit(selectedItem); }}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Edit
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

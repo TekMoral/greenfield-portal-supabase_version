@@ -8,16 +8,16 @@ const EventsTable = ({ data, onEdit, onDelete }) => {
   const [filterCategory, setFilterCategory] = useState('all');
 
   // Get unique categories and statuses from data
-  const categories = ['all', ...new Set(data.map(item => item.category))];
+  const categories = ['all', ...new Set(data.map(item => item?.category).filter(Boolean))];
   const statuses = ['all', 'upcoming', 'current', 'past'];
 
   // Filter and sort data
   const filteredData = data
     .filter(item => {
-      const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           item.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           item.venue.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           item.organizer.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (item.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (item.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (item.venue || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (item.organizer || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = filterCategory === 'all' || item.category === filterCategory;
       const matchesStatus = filterStatus === 'all' || item.status === filterStatus;
       return matchesSearch && matchesCategory && matchesStatus;
@@ -117,8 +117,8 @@ const EventsTable = ({ data, onEdit, onDelete }) => {
             className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {categories.map(category => (
-              <option key={category} value={category}>
-                {category === 'all' ? 'All Categories' : category.charAt(0).toUpperCase() + category.slice(1)}
+              <option key={String(category)} value={category}>
+                {category === 'all' ? 'All Categories' : (String(category).charAt(0).toUpperCase() + String(category).slice(1))}
               </option>
             ))}
           </select>
@@ -188,7 +188,7 @@ const EventsTable = ({ data, onEdit, onDelete }) => {
                         {item.title}
                       </div>
                       <div className="text-sm text-gray-500 line-clamp-2 mt-1">
-                        {item.description}
+                        {item.description || item.content}
                       </div>
                     </div>
                   </td>
@@ -202,12 +202,12 @@ const EventsTable = ({ data, onEdit, onDelete }) => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getCategoryColor(item.category)}`}>
-                      {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
+                      {(item.category || 'general').charAt(0).toUpperCase() + (item.category || 'general').slice(1)}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status)}`}>
-                      {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                      {(item.status || 'published').charAt(0).toUpperCase() + (item.status || 'published').slice(1)}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

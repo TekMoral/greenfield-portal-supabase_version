@@ -287,7 +287,7 @@ const AdminTimetable = () => {
       <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8 py-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 text-center lg:text-left">Timetable (Admin)</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-indigo-900 text-center lg:text-left">Timetable (Admin)</h1>
             <p className="text-slate-600 mt-1 text-center lg:text-left">Centralized schedule management (academic year, term, class)</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">

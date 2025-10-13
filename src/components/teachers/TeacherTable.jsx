@@ -712,7 +712,7 @@ const TeacherTable = ({
                 <thead className="bg-gray-50">
                   <tr>
                     {showSelection && (
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 z-20 bg-gray-50 w-14 min-w-[3.5rem]">
                         <input
                           type="checkbox"
                           className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -721,7 +721,7 @@ const TeacherTable = ({
                         />
                       </th>
                     )}
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky ${showSelection ? 'left-14' : 'left-0'} z-10 bg-gray-50`}>
                       <SortButton field="name">Teacher</SortButton>
                     </th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -749,7 +749,7 @@ const TeacherTable = ({
                     return (
                       <tr key={teacher?.id || index} className="hover:bg-gray-50">
                         {showSelection && (
-                          <td className="px-4 py-3 whitespace-nowrap">
+                          <td className="px-4 py-3 whitespace-nowrap sticky left-0 z-10 bg-white w-14 min-w-[3.5rem]">
                             <input
                               type="checkbox"
                               className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -759,7 +759,7 @@ const TeacherTable = ({
                             />
                           </td>
                         )}
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className={`px-6 py-4 whitespace-nowrap sticky ${showSelection ? 'left-14' : 'left-0'} z-10 bg-white`}>
                           <div className="flex items-center">
                             <div
                               className={`flex-shrink-0 ${teacher?.profileImageUrl ? 'cursor-zoom-in hover:opacity-90 transition' : ''}`}
@@ -774,8 +774,8 @@ const TeacherTable = ({
                               />
                             </div>
                             <div className="ml-3 min-w-0">
-                              <div className="text-sm font-medium text-gray-900 truncate">{name}</div>
-                              {email && <div className="text-xs text-gray-500 truncate">{email}</div>}
+                              <div className="text-sm font-medium text-gray-900 truncate max-w-[220px]" title={name}>{name}</div>
+                              {email && <div className="text-xs text-gray-500 truncate max-w-[220px]" title={email}>{email}</div>}
                             </div>
                           </div>
                         </td>

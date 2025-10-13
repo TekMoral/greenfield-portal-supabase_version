@@ -1389,7 +1389,7 @@ export default function AdminAttendance() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">
+          <h1 className="text-2xl font-bold text-indigo-900">
             Admin Attendance
           </h1>
           <p className="text-slate-600 text-sm">

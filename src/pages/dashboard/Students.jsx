@@ -1027,7 +1027,7 @@ const Students = () => {
         {/* Header */}
         <div className="relative overflow-hidden rounded-2xl border border-indigo-200/60 bg-gradient-to-br from-indigo-50/90 via-slate-50 to-violet-50/90 backdrop-blur-sm shadow p-4 sm:p-6 mb-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+            <h1 className="text-2xl sm:text-3xl font-bold text-indigo-900">
               Student Management
             </h1>
             <p className="text-gray-600 mt-1">

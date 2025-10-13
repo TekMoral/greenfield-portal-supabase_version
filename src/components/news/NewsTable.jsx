@@ -7,14 +7,14 @@ const NewsTable = ({ data, onEdit, onDelete }) => {
   const [filterCategory, setFilterCategory] = useState('all');
 
   // Get unique categories from data
-  const categories = ['all', ...new Set(data.map(item => item.category))];
+  const categories = ['all', ...new Set(data.map(item => item?.category).filter(Boolean))];
 
   // Filter and sort data
   const filteredData = data
     .filter(item => {
-      const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           item.summary.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           item.author.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (item.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (item.summary || item.content || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (item.author || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = filterCategory === 'all' || item.category === filterCategory;
       return matchesSearch && matchesCategory;
     })
@@ -93,8 +93,8 @@ const NewsTable = ({ data, onEdit, onDelete }) => {
             className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {categories.map(category => (
-              <option key={category} value={category}>
-                {category === 'all' ? 'All Categories' : category.charAt(0).toUpperCase() + category.slice(1)}
+              <option key={String(category)} value={category}>
+                {category === 'all' ? 'All Categories' : (String(category).charAt(0).toUpperCase() + String(category).slice(1))}
               </option>
             ))}
           </select>
@@ -168,7 +168,7 @@ const NewsTable = ({ data, onEdit, onDelete }) => {
                   <td className="px-6 py-4">
                     <div className="flex items-start gap-3">
                       <img
-                        src={item.image}
+                        src={item.image_url || item.image}
                         alt={item.title}
                         className="w-12 h-12 object-cover rounded-lg flex-shrink-0"
                       />
@@ -184,14 +184,14 @@ const NewsTable = ({ data, onEdit, onDelete }) => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getCategoryColor(item.category)}`}>
-                      {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
+                      {(item.category || 'general').charAt(0).toUpperCase() + (item.category || 'general').slice(1)}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {item.author}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDate(item.date)}
+                    {formatDate(item.date || item.created_at)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2">

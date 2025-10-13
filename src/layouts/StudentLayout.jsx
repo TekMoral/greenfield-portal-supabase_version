@@ -3,7 +3,7 @@
 
 import { NavLink, Outlet } from "react-router-dom";
 import { useState } from "react";
-import { Menu, X, LayoutDashboard, User, BookOpen, ClipboardList, CalendarCheck, BarChart3, FileText, Calendar } from 'lucide-react';
+import { Menu, X, LayoutDashboard, User, BookOpen, ClipboardList, CalendarCheck, BarChart3, FileText, Calendar, Newspaper } from 'lucide-react';
 
 const StudentLayout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -17,6 +17,7 @@ const StudentLayout = () => {
     { label: "Results", path: "/student/results", Icon: BarChart3 },
     { label: "Report Cards", path: "/student/report-cards", Icon: FileText },
     { label: "Timetable", path: "/student/timetable", Icon: Calendar },
+    { label: "News & Events", path: "/student/news", Icon: Newspaper },
   ];
 
   const toggleMobileMenu = () => {

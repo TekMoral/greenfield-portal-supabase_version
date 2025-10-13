@@ -5,11 +5,8 @@ import { sanitizeText, isValidURL } from '../../utils/sanitize';
 const NewsForm = ({ initialData, onSubmit, onCancel }) => {
   const [formData, setFormData] = useState({
     title: '',
-    summary: '',
     content: '',
-    image: '',
     category: 'academic',
-    author: '',
     tags: [],
     featured: false,
     date: new Date().toISOString().split('T')[0]
@@ -60,24 +57,10 @@ const NewsForm = ({ initialData, onSubmit, onCancel }) => {
       };
       reader.readAsDataURL(file);
       
-      // Clear image URL if file is selected
-      setFormData(prev => ({ ...prev, image: '' }));
-      
       // Clear error
       if (errors.image) {
         setErrors(prev => ({ ...prev, image: '' }));
       }
-    }
-  };
-
-  const handleImageUrlChange = (e) => {
-    const url = e.target.value;
-    setFormData(prev => ({ ...prev, image: url }));
-    setImagePreview(url);
-    setImageFile(null); // Clear file if URL is entered
-    
-    if (errors.image) {
-      setErrors(prev => ({ ...prev, image: '' }));
     }
   };
 
@@ -107,26 +90,12 @@ const NewsForm = ({ initialData, onSubmit, onCancel }) => {
       newErrors.title = 'Title is required';
     }
 
-    if (!formData.summary.trim()) {
-      newErrors.summary = 'Summary is required';
-    }
-
     if (!formData.content.trim()) {
       newErrors.content = 'Content is required';
     }
 
-    if (!formData.author.trim()) {
-      newErrors.author = 'Author is required';
-    }
-
-    if (!imageFile && !formData.image.trim()) {
-      newErrors.image = 'Image is required (either upload a file or provide a URL)';
-    }
-
-    if (formData.image.trim() && !imageFile) {
-      if (!isValidURL(formData.image, { protocols: ['https'] })) {
-        newErrors.image = 'Please enter a valid https image URL';
-      }
+    if (!imageFile) {
+      newErrors.image = 'Image is required';
     }
 
     if (!formData.date) {
@@ -152,10 +121,7 @@ const NewsForm = ({ initialData, onSubmit, onCancel }) => {
       const sanitizedData = {
         ...formData,
         title: sanitizeText(formData.title, { maxLength: 150 }),
-        summary: sanitizeText(formData.summary, { maxLength: 300 }),
         content: sanitizeText(formData.content, { maxLength: 10000 }),
-        author: sanitizeText(formData.author, { maxLength: 100 }),
-        image: formData.image.trim(),
         tags: Array.isArray(formData.tags)
           ? formData.tags.map((t) => sanitizeText(t, { maxLength: 30 })).filter(Boolean)
           : [],
@@ -192,25 +158,6 @@ const NewsForm = ({ initialData, onSubmit, onCancel }) => {
           {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title}</p>}
         </div>
 
-        {/* Summary */}
-        <div className="lg:col-span-2">
-          <label htmlFor="summary" className="block text-sm font-medium text-gray-700 mb-2">
-            Summary *
-          </label>
-          <textarea
-            id="summary"
-            name="summary"
-            value={formData.summary}
-            onChange={handleInputChange}
-            rows={3}
-            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.summary ? 'border-red-500' : 'border-gray-300'
-            }`}
-            placeholder="Enter a brief summary"
-          />
-          {errors.summary && <p className="text-red-500 text-sm mt-1">{errors.summary}</p>}
-        </div>
-
         {/* Content */}
         <div className="lg:col-span-2">
           <label htmlFor="content" className="block text-sm font-medium text-gray-700 mb-2">
@@ -230,46 +177,23 @@ const NewsForm = ({ initialData, onSubmit, onCancel }) => {
           {errors.content && <p className="text-red-500 text-sm mt-1">{errors.content}</p>}
         </div>
 
-        {/* Image Upload/URL */}
+        {/* Image Upload */}
         <div className="lg:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Image * (Upload file or provide URL)
+            Image *
           </label>
           
-          <div className="space-y-4">
-            {/* File Upload */}
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Upload Image File</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Supported formats: JPEG, PNG, GIF, WebP. Max size: 10MB
-              </p>
-            </div>
-
-            {/* OR Divider */}
-            <div className="flex items-center">
-              <div className="flex-1 border-t border-gray-300"></div>
-              <span className="px-3 text-sm text-gray-500">OR</span>
-              <div className="flex-1 border-t border-gray-300"></div>
-            </div>
-
-            {/* URL Input */}
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Image URL</label>
-              <input
-                type="url"
-                value={formData.image}
-                onChange={handleImageUrlChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="https://example.com/image.jpg"
-              />
-            </div>
-          </div>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleImageChange}
+            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              errors.image ? 'border-red-500' : 'border-gray-300'
+            }`}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Supported formats: JPEG, PNG, GIF, WebP. Max size: 10MB
+          </p>
 
           {errors.image && <p className="text-red-500 text-sm mt-1">{errors.image}</p>}
           
@@ -283,7 +207,7 @@ const NewsForm = ({ initialData, onSubmit, onCancel }) => {
                 className="w-32 h-20 object-cover rounded-lg border border-gray-300"
                 onError={(e) => {
                   e.target.style.display = 'none';
-                  setErrors(prev => ({ ...prev, image: 'Invalid image URL or file' }));
+                  setErrors(prev => ({ ...prev, image: 'Invalid image file' }));
                 }}
               />
             </div>
@@ -308,25 +232,6 @@ const NewsForm = ({ initialData, onSubmit, onCancel }) => {
               </option>
             ))}
           </select>
-        </div>
-
-        {/* Author */}
-        <div>
-          <label htmlFor="author" className="block text-sm font-medium text-gray-700 mb-2">
-            Author *
-          </label>
-          <input
-            type="text"
-            id="author"
-            name="author"
-            value={formData.author}
-            onChange={handleInputChange}
-            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.author ? 'border-red-500' : 'border-gray-300'
-            }`}
-            placeholder="Author name"
-          />
-          {errors.author && <p className="text-red-500 text-sm mt-1">{errors.author}</p>}
         </div>
 
         {/* Date */}

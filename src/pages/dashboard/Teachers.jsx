@@ -382,7 +382,7 @@ const Teachers = () => {
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-0 sm:px-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Teacher Management</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-indigo-900">Teacher Management</h1>
           <p className="text-gray-600 mt-1">Manage your school's teaching staff</p>
         </div>
         <div className="flex gap-3">

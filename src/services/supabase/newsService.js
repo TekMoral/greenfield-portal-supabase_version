@@ -76,53 +76,152 @@ export const getNewsById = async (newsId) => {
   }
 }
 
-// ✅ Create news/event - using only existing columns
+// ✅ Create news/event - with image upload
 export const createNews = async (newsData, imageFile = null) => {
   try {
-    // Note: Not storing image since image_url column doesn't exist
-    // Images can be handled separately or stored in content as base64/URL
-    
-    const { data, error } = await supabase
-      .from('news_events')
-      .insert({
-        title: newsData.title,
-        content: newsData.content,
-        type: newsData.type || 'news',
-        status: newsData.status || 'draft',
-        author_id: newsData.author_id,
-        published_at: newsData.status === 'published' ? new Date().toISOString() : null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single()
+    let imageUrl = null;
 
-    if (error) {
-      console.error('[createNews] Error:', error)
-      throw error
+    // Upload image if provided
+    if (imageFile) {
+      const fileExt = imageFile.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `news/${fileName}`;
+
+      // Try standard Supabase client upload first
+      let uploadError = null;
+      try {
+        const { error } = await supabase.storage
+          .from('news-images')
+          .upload(filePath, imageFile, {
+            cacheControl: 'public, max-age=31536000, immutable',
+            upsert: false,
+            contentType: imageFile.type || 'application/octet-stream'
+          });
+        uploadError = error || null;
+      } catch (e) {
+        uploadError = e;
+      }
+
+      // Fallback to direct client if regular upload failed
+      if (uploadError) {
+        console.warn('[createNews] Supabase upload failed, attempting direct upload fallback:', uploadError);
+        const { data: altData, error: altErr } = await directStorageClient.upload('news-images', filePath, imageFile);
+        if (altErr) {
+          console.error('[createNews] Direct upload fallback failed:', altErr);
+          throw new Error(`Failed to upload image: ${altErr}`);
+        }
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('news-images')
+        .getPublicUrl(filePath);
+
+      imageUrl = publicUrl;
     }
 
-    return data
+    const insertData = {
+      title: newsData.title,
+      content: newsData.content,
+      type: newsData.type || 'news',
+      status: newsData.status || 'draft',
+      author_id: newsData.author_id,
+      published_at: newsData.status === 'published' ? new Date().toISOString() : null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    // Add optional fields if they exist
+    if (imageUrl) insertData.image_url = imageUrl;
+    if (newsData.category) insertData.category = newsData.category;
+    if (newsData.author) insertData.author = newsData.author;
+    if (newsData.tags) insertData.tags = newsData.tags;
+    if (newsData.featured !== undefined) insertData.featured = newsData.featured;
+    if (newsData.date) insertData.date = newsData.date;
+
+    const { data, error } = await supabase
+      .from('news_events')
+      .insert(insertData)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[createNews] Error:', error);
+      throw error;
+    }
+
+    return data;
   } catch (error) {
-    console.error('[createNews] Error creating news:', error)
-    throw error
+    console.error('[createNews] Error creating news:', error);
+    throw error;
   }
 }
 
-// ✅ Update news/event - using only existing columns
+// ✅ Update news/event - with image upload
 export const updateNews = async (newsId, updates, imageFile = null) => {
   try {
+    let imageUrl = updates.image_url;
+
+    // Upload new image if provided
+    if (imageFile) {
+      const fileExt = imageFile.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `news/${fileName}`;
+
+      // Try standard Supabase client upload first
+      let uploadError = null;
+      try {
+        const { error } = await supabase.storage
+          .from('news-images')
+          .upload(filePath, imageFile, {
+            cacheControl: 'public, max-age=31536000, immutable',
+            upsert: false,
+            contentType: imageFile.type || 'application/octet-stream'
+          });
+        uploadError = error || null;
+      } catch (e) {
+        uploadError = e;
+      }
+
+      // Fallback to direct client if regular upload failed
+      if (uploadError) {
+        console.warn('[updateNews] Supabase upload failed, attempting direct upload fallback:', uploadError);
+        const { data: altData, error: altErr } = await directStorageClient.upload('news-images', filePath, imageFile);
+        if (altErr) {
+          console.error('[updateNews] Direct upload fallback failed:', altErr);
+          throw new Error(`Failed to upload image: ${altErr}`);
+        }
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('news-images')
+        .getPublicUrl(filePath);
+
+      imageUrl = publicUrl;
+
+      // TODO: Delete old image from storage if exists
+    }
+
     const updateData = {
       title: updates.title,
       content: updates.content,
       type: updates.type,
       status: updates.status,
       updated_at: new Date().toISOString()
-    }
+    };
+
+    // Add optional fields if they exist
+    if (imageUrl) updateData.image_url = imageUrl;
+    if (updates.category) updateData.category = updates.category;
+    if (updates.author) updateData.author = updates.author;
+    if (updates.tags) updateData.tags = updates.tags;
+    if (updates.featured !== undefined) updateData.featured = updates.featured;
+    if (updates.date) updateData.date = updates.date;
 
     // Set published_at if status is being changed to published
     if (updates.status === 'published' && !updates.published_at) {
-      updateData.published_at = new Date().toISOString()
+      updateData.published_at = new Date().toISOString();
     }
 
     // Remove undefined values
@@ -137,17 +236,17 @@ export const updateNews = async (newsId, updates, imageFile = null) => {
       .update(updateData)
       .eq('id', newsId)
       .select()
-      .single()
+      .single();
 
     if (error) {
-      console.error('[updateNews] Error:', error)
-      throw error
+      console.error('[updateNews] Error:', error);
+      throw error;
     }
 
-    return data
+    return data;
   } catch (error) {
-    console.error('[updateNews] Error updating news:', error)
-    throw error
+    console.error('[updateNews] Error updating news:', error);
+    throw error;
   }
 }
 

@@ -417,7 +417,7 @@ const AdminReview = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-slate-800">Admin Review & Approval</h1>
+          <h1 className="text-2xl lg:text-3xl font-bold text-indigo-900">Admin Review & Approval</h1>
           <p className="text-slate-600 mt-1">Review and approve exam results before publishing</p>
         </div>
         {selectedResults.length > 0 && activeTab === 'reviewed' && (
@@ -440,7 +440,56 @@ const AdminReview = () => {
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
+        {/* Mobile: 2x2 Grid */}
+        <nav className="grid grid-cols-2 gap-2 sm:hidden pb-2">
+          <button
+            onClick={() => setActiveTab('pending')}
+            className={`py-2 px-3 rounded-t-lg font-medium text-xs text-center ${
+              activeTab === 'pending'
+                ? 'bg-yellow-500 text-white'
+                : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'
+            }`}
+          >
+            Pending
+            <span className="block text-[10px] mt-0.5">({pendingResults.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('reviewed')}
+            className={`py-2 px-3 rounded-t-lg font-medium text-xs text-center ${
+              activeTab === 'reviewed'
+                ? 'bg-blue-500 text-white'
+                : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+            }`}
+          >
+            Reviewed
+            <span className="block text-[10px] mt-0.5">({reviewedResults.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('rejected')}
+            className={`py-2 px-3 rounded-t-lg font-medium text-xs text-center ${
+              activeTab === 'rejected'
+                ? 'bg-red-500 text-white'
+                : 'bg-red-50 text-red-700 hover:bg-red-100'
+            }`}
+          >
+            Rejected
+            <span className="block text-[10px] mt-0.5">({rejectedResults.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('published')}
+            className={`py-2 px-3 rounded-t-lg font-medium text-xs text-center ${
+              activeTab === 'published'
+                ? 'bg-green-500 text-white'
+                : 'bg-green-50 text-green-700 hover:bg-green-100'
+            }`}
+          >
+            Published
+            <span className="block text-[10px] mt-0.5">({publishedResults.length})</span>
+          </button>
+        </nav>
+
+        {/* Desktop: Horizontal Tabs */}
+        <nav className="hidden sm:flex -mb-px space-x-8">
           <button
             onClick={() => setActiveTab('pending')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
@@ -575,9 +624,6 @@ const AdminReview = () => {
           <table className="w-full">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden md:table-cell">
-                  Select
-                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Student
                 </th>
@@ -613,20 +659,10 @@ const AdminReview = () => {
 
                 return (
                   <tr key={result.id} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
-                      <input
-                      type="checkbox"
-                      checked={selectedResults.includes(result.id)}
-                      onChange={() => handleSelectResult(result.id)}
-                      disabled={!isEligibleForPublish(result)}
-                      title={!isEligibleForPublish(result) ? 'Approve before publishing' : 'Select for publish'}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                      />
-                    </td>
                     <td className="px-4 py-3 whitespace-normal break-words md:whitespace-nowrap">
                       <div className="flex items-center gap-2 w-full">
-                        {/* Mobile inline checkbox */}
-                        <label className="inline-flex items-center md:hidden">
+                        {/* Checkbox beside name for all screen sizes */}
+                        <label className="inline-flex items-center">
                           <input
                             type="checkbox"
                             checked={selectedResults.includes(result.id)}
@@ -663,9 +699,9 @@ const AdminReview = () => {
                               <span className="text-slate-600">Subject:</span>
                               <span className="font-medium text-slate-900 break-words">{getSubjectName(result.subjectId)}</span>
 
-                              <div className="col-span-2 flex items-center gap-2">
+                              <div className="col-span-2 flex items-center gap-2 flex-wrap">
                                 <span className="text-slate-600">Status:</span>
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(result.status, isPublished)} whitespace-nowrap`}>{getStatusText(result.status, isPublished)}</span>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(result.status, isPublished)}`}>{getStatusText(result.status, isPublished)}</span>
                               </div>
 
                               {result.testScore != null && (
@@ -705,6 +741,18 @@ const AdminReview = () => {
                               <span className="text-slate-600">Total score:</span>
                               <span className="font-semibold text-slate-900">{(Number((result.testScore || 0) + (result.examScore || 0)) || Number(result.score ?? 0) || 0)}/100</span>
                             </div>
+
+                            {/* Mobile action buttons */}
+                            {(activeTab === 'pending' || activeTab === 'reviewed') && !isPublished && (
+                              <div className="col-span-2 mt-2 pt-2 border-t border-emerald-300 flex gap-2">
+                                <button
+                                  onClick={() => handleReject(result)}
+                                  className="flex-1 px-3 py-1.5 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -812,6 +860,7 @@ const AdminReview = () => {
                 setSelectedResult(null);
               }}
               onSubmit={handleSubmitReview}
+              onReject={handleReject}
               exams={exams}
               classes={classes}
               subjects={subjects}

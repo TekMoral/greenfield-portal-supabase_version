@@ -37,6 +37,7 @@ const StudentAssignments = lazyWithRetry(() => import("../pages/student/Assignme
 const StudentExamResults = lazyWithRetry(() => import("../pages/student/ExamResults"));
 const StudentAttendance = lazyWithRetry(() => import("../pages/student/Attendance"));
 const StudentReportCards = lazyWithRetry(() => import("../pages/student/ReportCards"));
+const StudentNews = lazyWithRetry(() => import("../pages/student/News"));
 
 // Teacher routes
 const TeacherDashboard = lazyWithRetry(() =>
@@ -61,6 +62,7 @@ const TeacherProfile = lazyWithRetry(() => import("../pages/dashboard/teacher/Pr
 const TeacherExamResults = lazyWithRetry(() =>
   import("../pages/dashboard/teacher/ExamResults")
 );
+const TeacherNews = lazyWithRetry(() => import("../pages/dashboard/teacher/News"));
 
 //Admin Dashboard routes
 const Overview = lazyWithRetry(() => import("../pages/dashboard/Overview"));
@@ -84,6 +86,7 @@ const AdminReportCards = lazyWithRetry(() => import("../pages/dashboard/AdminRep
 const GeneratedReportCards = lazyWithRetry(() => import("../pages/dashboard/GeneratedReportCards"));
 const CarouselManagement = lazyWithRetry(() => import("../pages/dashboard/CarouselManagement"));
 const ActivityLogs = lazyWithRetry(() => import("../pages/dashboard/ActivityLogs"));
+const NewsManagement = lazyWithRetry(() => import("../pages/dashboard/NewsManagement"));
 
 // Loading component
 const LoadingFallback = () => (
@@ -320,6 +323,14 @@ const AppRouter = () => (
           </Suspense>
         }
       />
+      <Route
+        path="news"
+        element={
+          <Suspense fallback={<LoadingFallback />}>
+            <NewsManagement />
+          </Suspense>
+        }
+      />
           </Route>
 
     {/* Teacher Routes */}
@@ -431,6 +442,14 @@ const AppRouter = () => (
           </Suspense>
         }
       />
+      <Route
+        path="news"
+        element={
+          <Suspense fallback={<LoadingFallback />}>
+            <TeacherNews />
+          </Suspense>
+        }
+      />
                 </Route>
 
     {/* Student Portal Routes (Nested) */}
@@ -515,6 +534,14 @@ const AppRouter = () => (
         element={
           <Suspense fallback={<LoadingFallback />}>
             <StudentReportCards />
+          </Suspense>
+        }
+      />
+      <Route
+        path="news"
+        element={
+          <Suspense fallback={<LoadingFallback />}>
+            <StudentNews />
           </Suspense>
         }
       />

@@ -354,7 +354,7 @@ const AdminReportCards = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-slate-800">Report Cards (Admin)</h1>
+          <h1 className="text-2xl lg:text-3xl font-bold text-indigo-900">Report Cards (Admin)</h1>
           <p className="text-slate-600 mt-1">Generate and publish official term report card PDFs in bulk</p>
           <div className="text-sm text-slate-500 mt-1">{formatSessionBadge(academicYear, currentTerm)}</div>
         </div>

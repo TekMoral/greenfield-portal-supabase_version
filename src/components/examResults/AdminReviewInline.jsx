@@ -11,83 +11,30 @@ const AdminReviewInline = ({
   students,
   isReadOnly = false
 }) => {
-  const [formData, setFormData] = useState({
-    adminScore: '',
-    adminMaxScore: 20 // Default 20% admin assessment
-  });
+  const [approving, setApproving] = useState(false);
 
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    if (result) {
-      setFormData({
-        adminScore: result.adminScore || '',
-        adminMaxScore: result.adminMaxScore || 20
-      });
-    }
+    // no-op for approval-only flow
   }, [result]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+  const handleChange = () => {};
 
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
-  };
-
-  const validateForm = () => {
-    const newErrors = {};
-    const adminScoreVal = formData.adminScore;
-
-    if (adminScoreVal === '' || adminScoreVal === null || adminScoreVal === undefined) {
-      newErrors.adminScore = 'Admin score is required';
-    } else {
-      const score = parseFloat(adminScoreVal);
-      const maxScore = parseFloat(formData.adminMaxScore);
-
-      if (isNaN(score) || score < 0) {
-        newErrors.adminScore = 'Score must be a valid number';
-      }
-      if (score > maxScore) {
-        newErrors.adminScore = `Score cannot exceed ${maxScore}`;
-      }
-    }
-
-    if (!formData.adminMaxScore) {
-      newErrors.adminMaxScore = 'Max score is required';
-    } else {
-      const maxScore = parseFloat(formData.adminMaxScore);
-      if (isNaN(maxScore) || maxScore <= 0) {
-        newErrors.adminMaxScore = 'Max score must be a positive number';
-      }
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+  const validateForm = () => true;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isReadOnly) return;
-    if (!validateForm()) return;
     try {
+      setApproving(true);
       if (onSubmit) {
-        await onSubmit({
-          adminScore: parseFloat(formData.adminScore),
-          adminMaxScore: parseFloat(formData.adminMaxScore),
-          teacherScore: originalScore
-        });
+        await onSubmit({ result });
       }
     } catch (error) {
-      setErrors({ adminScore: error.message });
+      setErrors({ approve: error.message });
+    } finally {
+      setApproving(false);
     }
   };
 
@@ -119,15 +66,10 @@ const AdminReviewInline = ({
     return student ? (student.admission_number || student.admissionNumber || student.id) : studentId;
   };
 
-  // Calculate teacher subtotal (out of 80) with robust fallbacks
+  // Calculate teacher total (out of 100) with robust fallbacks
   const teacherScore = Number(result.totalScore ?? result.score ?? ((result.testScore || 0) + (result.examScore || 0))) || 0;
-  const originalScore = teacherScore; // out of 80
-  const originalMaxScore = 80;
-
-  // Calculate projected final scores
-  const projectedAdminScore = parseFloat(formData.adminScore) || 0;
-  const projectedTotalScore = originalScore + projectedAdminScore;
-  const projectedGrade = calculateGrade(projectedTotalScore, 100);
+  const originalScore = teacherScore; // out of 100
+  const originalMaxScore = 100;
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 space-y-4 max-w-full overflow-hidden">
@@ -135,7 +77,7 @@ const AdminReviewInline = ({
       <div className="flex justify-between items-start">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">
-            {isReadOnly ? 'View Result' : 'Admin Review & Assessment'}
+            {isReadOnly ? 'View Result' : 'Admin Review & Approval'}
           </h3>
           <p className="text-sm text-gray-600 mt-1">
             {getStudentName(result.studentId)} - {getSubjectName(result.subjectId)}
@@ -180,99 +122,60 @@ const AdminReviewInline = ({
         <div className="space-y-2 text-sm">
           {result.testScore != null && (
             <div className="flex justify-between">
-              <span className="text-blue-700">Test Score:</span>
+              <span className="text-blue-700">CA Score:</span>
               <span className="font-medium">{result.testScore}/30</span>
             </div>
           )}
           {result.examScore != null && (
             <div className="flex justify-between">
               <span className="text-blue-700">Exam Score:</span>
-              <span className="font-medium">{result.examScore}/50</span>
+              <span className="font-medium">{result.examScore}/70</span>
             </div>
           )}
           <div className="flex justify-between border-t border-blue-200 pt-2 font-medium">
-            <span className="text-blue-800">Teacher Subtotal (80%):</span>
+            <span className="text-blue-800">Teacher Total (100%):</span>
             <span className="text-blue-900">{originalScore}/{originalMaxScore}</span>
           </div>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Admin Assessment */}
+        {/* Approval */}
         <div>
-          <h4 className="text-lg font-medium text-gray-900 mb-4">Admin Assessment (20%)</h4>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Admin Score *
-              </label>
-              <input
-                type="number"
-                name="adminScore"
-                value={formData.adminScore}
-                onChange={handleChange}
-                min="0"
-                max={formData.adminMaxScore}
-                step="0.5"
-                disabled={isReadOnly}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.adminScore ? 'border-red-500' : 'border-gray-300'
-                } ${isReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-                placeholder="0-20"
-              />
-              {errors.adminScore && <p className="text-red-500 text-sm mt-1">{errors.adminScore}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Max Score *
-              </label>
-              <input
-                type="number"
-                name="adminMaxScore"
-                value={formData.adminMaxScore}
-                onChange={handleChange}
-                min="1"
-                disabled={isReadOnly}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.adminMaxScore ? 'border-red-500' : 'border-gray-300'
-                } ${isReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-                placeholder="20"
-              />
-              {errors.adminMaxScore && <p className="text-red-500 text-sm mt-1">{errors.adminMaxScore}</p>}
-            </div>
-          </div>
+          <h4 className="text-lg font-medium text-gray-900 mb-4">Approval</h4>
+          <p className="text-sm text-gray-600 mb-3">Approving will finalize the teacher’s total (Exam 70% + CA 30%) and mark this result as graded.</p>
+          {!isReadOnly && (
+            <button
+              onClick={handleSubmit}
+              disabled={approving}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {approving ? 'Approving...' : 'Approve Result'}
+            </button>
+          )}
+          {isReadOnly && (
+            <div className="text-green-700">Approved</div>
+          )}
         </div>
 
-        {/* Score Summary */}
-        {(formData.adminScore || formData.adminScore === 0) && (
-          <div className="bg-green-50 rounded-lg p-4">
-            <h4 className="font-medium text-green-900 mb-2">Final Score Summary</h4>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-green-700">Teacher Score:</span>
-                <span className="font-medium ml-2">{originalScore}/80</span>
-              </div>
-              <div>
-                <span className="text-green-700">Admin Score:</span>
-                <span className="font-medium ml-2">{formData.adminScore || 0}/{formData.adminMaxScore}</span>
-              </div>
-              <div>
-                <span className="text-green-700">Total Score:</span>
-                <span className="font-medium ml-2">{projectedTotalScore}/100</span>
-              </div>
-              <div>
-                <span className="text-green-700">Final Grade:</span>
-                <span className="font-medium ml-2">{projectedGrade.grade}</span>
-              </div>
+        {/* Final summary (approval-only): show current teacher total and grade */}
+        <div className="bg-green-50 rounded-lg p-4">
+          <h4 className="font-medium text-green-900 mb-2">Final Score</h4>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="text-green-700">Total Score:</span>
+              <span className="font-medium ml-2">{originalScore}/100</span>
             </div>
-            <div className="mt-3 text-center">
-              <div className="text-2xl font-bold text-green-800">{((projectedTotalScore / 100) * 100).toFixed(1)}%</div>
-              <div className="text-sm text-green-600">Final Percentage</div>
+            <div>
+              <span className="text-green-700">Final Grade:</span>
+              <span className="font-medium ml-2">{calculateGrade(originalScore, 100).grade}</span>
             </div>
           </div>
-        )}
+          <div className="mt-3 text-center">
+            <div className="text-2xl font-bold text-green-800">{((originalScore / 100) * 100).toFixed(1)}%</div>
+            <div className="text-sm text-green-600">Final Percentage</div>
+          </div>
+        </div>
 
         {/* Teacher Comments */}
         {result.teacherComments && (
@@ -289,14 +192,14 @@ const AdminReviewInline = ({
         {/* Notice */}
         {!isReadOnly && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-            <div className="flex items-center">
-              <svg className="w-4 h-4 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-sm text-yellow-700">
-                This will finalize the student's grade and make it visible to them.
-              </p>
-            </div>
+          <div className="flex items-center">
+          <svg className="w-4 h-4 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-sm text-yellow-700">
+          Approval will mark this result as graded. Publishing is a separate step.
+          </p>
+          </div>
           </div>
         )}
 

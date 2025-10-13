@@ -221,6 +221,41 @@ export default function Classes() {
       const existingKeySet = new Set(existing.map(e => `${e.teacher_id}|${e.subject_id}`));
       const toAdd = desiredPairs.filter(p => !existingKeySet.has(`${p.teacher_id}|${p.subject_id}`));
 
+      // If there are no additions to make, don't treat as failure; we may have only removals or no changes
+      if (toAdd.length === 0) {
+        if (toRemoveIds.length > 0) {
+          toast.success(`Removed ${toRemoveIds.length} assignment(s).`);
+        } else {
+          toast('No changes to assignments.');
+        }
+
+        // Also update the class record with subjects for backward compatibility
+        const updateRes = await updateClass(selectedClass.id, { subjects });
+        if (!updateRes?.success) {
+          console.warn('⚠️ Failed to update class subjects field, but assignment removals were applied');
+        }
+
+        // Log the class subjects update
+        await logClassAction(
+          AUDIT_ACTIONS.CLASS_UPDATE,
+          selectedClass.id,
+          {
+            className: selectedClass.name,
+            level: selectedClass.level,
+            category: selectedClass.category,
+            subjectsCount: subjects.length,
+            subjects: subjects,
+            assignmentsCreated: 0,
+            assignmentsRemoved: toRemoveIds.length
+          },
+          `Updated subjects for class: ${selectedClass.name} (${subjects.length} subjects, 0 assignments created, ${toRemoveIds.length} removed)`
+        );
+
+        await fetchClassesRQ();
+        closeSubjectManager();
+        return;
+      }
+
       // Create teacher_assignments records for additions using Edge Function
       const assignmentPromises = toAdd.map(async (pair) => {
         try {

@@ -119,8 +119,7 @@ const Results = () => {
             createdAt,
             scoreBreakdown: {
               test: { score: result.testScore || 0, maxScore: 30 },
-              exam: { score: result.examScore || 0, maxScore: 50 },
-              admin: { score: result.adminScore || 0, maxScore: 20 }
+              exam: { score: result.examScore || 0, maxScore: 70 }
             }
           };
         });
@@ -222,7 +221,7 @@ const Results = () => {
     if (!filteredResults.length) return;
     const headers = [
       'Subject', 'Exam Title', 'Term', 'Session', 'Score', 'Total Marks', 'Percentage', 'Grade', 'Status',
-      'Test Score', 'Exam Score', 'Admin Score', 'Remarks', 'Date'
+      'CA Score', 'Exam Score', 'Remarks', 'Date'
     ];
     const rows = filteredResults.map(r => [
       r.subject,
@@ -236,7 +235,6 @@ const Results = () => {
       r.status,
       r.testScore ?? 0,
       r.examScore ?? 0,
-      r.adminScore ?? 0,
       (r.remarks || '').toString().replace(/\n/g, ' '),
       r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ''
     ]);
@@ -281,7 +279,7 @@ const Results = () => {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div className="ml-0 sm:ml-0">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 ml-10">My Results</h1>
-          <p className="text-gray-600">Track your academic performance across sessions and terms</p>
+          <p className="text-gray-600">Track your academic performance across sessions and terms (Exam 70% + CA 30%)</p>
           <div className="text-sm text-slate-500 mt-1">{formatSessionBadge(settingsYear, currentTerm)}</div>
         </div>
         <div className="flex items-center gap-2">

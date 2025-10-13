@@ -87,20 +87,20 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
         hasErrors = true;
       } else {
         const num = Number(result.exam_score);
-        if (!Number.isInteger(num) || num < 0 || num > 50) {
-          newErrors[`exam_score_${index}`] = 'Exam score must be a whole number between 0 and 50';
+        if (!Number.isInteger(num) || num < 0 || num > 70) {
+          newErrors[`exam_score_${index}`] = 'Exam score must be a whole number between 0 and 70';
           hasErrors = true;
         }
       }
 
       // Validate test score (whole number)
       if (!result.test_score && result.test_score !== 0) {
-        newErrors[`test_score_${index}`] = 'Test score is required';
+        newErrors[`test_score_${index}`] = 'CA score is required';
         hasErrors = true;
       } else {
         const num = Number(result.test_score);
         if (!Number.isInteger(num) || num < 0 || num > 30) {
-          newErrors[`test_score_${index}`] = 'Test score must be a whole number between 0 and 30';
+          newErrors[`test_score_${index}`] = 'CA score must be a whole number between 0 and 30';
           hasErrors = true;
         }
       }
@@ -122,9 +122,9 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
         exam_score: parseInt(result.exam_score, 10),
         test_score: parseInt(result.test_score, 10),
         totalTeacherScore: parseInt(result.exam_score, 10) + parseInt(result.test_score, 10),
-        maxExamScore: 50,
+        maxExamScore: 70,
         maxTestScore: 30,
-        maxTeacherScore: 80
+        maxTeacherScore: 100
       }));
 
     onSubmit(validResults);
@@ -132,7 +132,7 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
 
   
   const downloadTemplate = () => {
-    const headers = ['Admission Number', 'Exam Score (0-50)', 'Test Score (0-30)'];
+    const headers = ['Admission Number', 'Exam Score (0-70)', 'CA Score (0-30)'];
     const csvContent = [
       headers.join(','),
       ...students.map(student => `${student.admissionNumber},,`)
@@ -153,14 +153,14 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
 
   const getPercentage = (examScore, testScore) => {
     const total = getTotalScore(examScore, testScore);
-    return Math.round((total / 80) * 100);
+    return Math.round((total / 100) * 100);
   };
 
   // Completion helpers
   const isComplete = (r) => {
     const e = parseFloat(r.exam_score);
     const t = parseFloat(r.test_score);
-    const eOk = Number.isFinite(e) && e >= 0 && e <= 50;
+    const eOk = Number.isFinite(e) && e >= 0 && e <= 70;
     const tOk = Number.isFinite(t) && t >= 0 && t <= 30;
     return eOk && tOk;
   };
@@ -177,15 +177,15 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
     const newErrors = { ...errors };
     let ok = true;
     const e = Number(r.exam_score);
-    if (!Number.isInteger(e) || e < 0 || e > 50) {
-      newErrors[`exam_score_${idx}`] = 'Exam score must be a whole number between 0 and 50';
+    if (!Number.isInteger(e) || e < 0 || e > 70) {
+      newErrors[`exam_score_${idx}`] = 'Exam score must be a whole number between 0 and 70';
       ok = false;
     } else {
       delete newErrors[`exam_score_${idx}`];
     }
     const t = Number(r.test_score);
     if (!Number.isInteger(t) || t < 0 || t > 30) {
-      newErrors[`test_score_${idx}`] = 'Test score must be a whole number between 0 and 30';
+      newErrors[`test_score_${idx}`] = 'CA score must be a whole number between 0 and 30';
       ok = false;
     } else {
       delete newErrors[`test_score_${idx}`];
@@ -260,13 +260,13 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
                       Admission No.
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Exam Score (0-50)
+                      Exam Score (0-70)
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Test Score (0-30)
+                      CA Score (0-30)
                     </th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Total (80)
+                      Total (100)
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Percentage
@@ -286,7 +286,7 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
                         <input
                           type="number"
                           min="0"
-                          max="50"
+                          max="70"
                           step="0.5"
                           value={result.exam_score}
                           onChange={(e) => handleScoreChange(index, 'exam_score', e.target.value)}
@@ -362,11 +362,11 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
                     <div className="px-4 pb-4 space-y-3">
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-xs text-gray-700 mb-1">Exam (0-50)</label>
+                          <label className="block text-xs text-gray-700 mb-1">Exam (0-70)</label>
                           <input
                             type="number"
                             min="0"
-                            max="50"
+                            max="70"
                             step="0.5"
                             value={r.exam_score}
                             onChange={(e)=>handleScoreChange(i,'exam_score', e.target.value)}
@@ -376,7 +376,7 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
                           {errors[`exam_score_${i}`] && <p className="text-xs text-red-500 mt-1">{errors[`exam_score_${i}`]}</p>}
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-700 mb-1">Test (0-30)</label>
+                          <label className="block text-xs text-gray-700 mb-1">CA (0-30)</label>
                           <input
                             type="number"
                             min="0"
@@ -391,7 +391,7 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
                         </div>
                       </div>
                                             <div className="flex items-center justify-between">
-                        <div className="text-sm text-gray-700">Total: <span className="font-medium">{getTotalScore(r.exam_score, r.test_score)}</span>/80 • {getPercentage(r.exam_score, r.test_score)}%</div>
+                        <div className="text-sm text-gray-700">Total: <span className="font-medium">{getTotalScore(r.exam_score, r.test_score)}</span>/100 • {getPercentage(r.exam_score, r.test_score)}%</div>
                         <div className="flex gap-2">
                           <button
                             onClick={() => {
@@ -439,7 +439,7 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
                       .filter(r => r.exam_score && r.test_score)
                       .reduce((sum, r) => sum + getTotalScore(r.exam_score, r.test_score), 0) / 
                       bulkResults.filter(r => r.exam_score && r.test_score).length
-                    ) : 0}/80
+                    ) : 0}/100
                 </span>
               </div>
               <div>
@@ -448,7 +448,7 @@ const BulkExamResultUpload = ({ students, subject, onSubmit, submitting }) => {
               </div>
             </div>
             <div className="mt-3 p-2 bg-yellow-100 rounded text-xs text-yellow-800">
-              <strong>Note:</strong> These scores represent 80% of the total grade. Admin will add Assignment (15%) + Attendance (5%) scores.
+              <strong>Note:</strong> Final score is Exam 70% + CA 30%. Admin approval is required before publishing.
             </div>
             <div className="mt-3">
               {incompleteCount > 0 ? (

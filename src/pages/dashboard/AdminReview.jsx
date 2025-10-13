@@ -4,7 +4,8 @@ import {
   getSubmittedResults,
   gradeResultByAdmin,
   publishResult,
-  calculateGrade
+  calculateGrade,
+  rejectResult
 } from '../../services/supabase/studentResultService';
 import { getAllExams } from '../../services/supabase/examService';
 import { getAllClasses } from '../../services/supabase/classService';
@@ -20,6 +21,7 @@ const AdminReview = () => {
   const [pendingResults, setPendingResults] = useState([]);
   const [reviewedResults, setReviewedResults] = useState([]);
   const [publishedResults, setPublishedResults] = useState([]);
+  const [rejectedResults, setRejectedResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('pending'); // pending, reviewed, published
   const [selectedResults, setSelectedResults] = useState([]);
@@ -80,7 +82,7 @@ const AdminReview = () => {
           let n = String(name).trim();
           const catMatch = n.match(/\s+(Science|Sciences|Arts|Commercial|Commerce|Management|Technical|Tech|Business|Social|Humanities|Option\s*[A-Z])$/i);
           const category = catMatch ? catMatch[1] : '';
-          n = n.replace(/\s+(Science|Sciences|Arts|Commercial|Commerce|Management|Technical|Tech|Business|Social|Humanities|Option\s*[A-Z])$/i, '');
+          n = n.replace(/\s+(Science|Sciences|Arts|Commercial|Commerce|Management|Technical|Tech|Business|Humanities|Option\s*[A-Z])$/i, '');
           n = n.replace(/([A-Za-z]+)\s*([0-9]+)/g, '$1 $2');
           const label = n.replace(/\s+/g, ' ').trim();
           const key = label.toLowerCase();
@@ -105,16 +107,19 @@ const AdminReview = () => {
   const fetchResults = async () => {
     setLoading(true);
     try {
-      const [pendingRes, gradedRes] = await Promise.all([
+      const [pendingRes, gradedRes, rejectedRes] = await Promise.all([
         getSubmittedResults({ ...filters, status: 'submitted' }),
-        getSubmittedResults({ ...filters, status: 'graded' })
+        getSubmittedResults({ ...filters, status: 'graded' }),
+        getSubmittedResults({ ...filters, status: 'rejected' })
       ]);
 
       let pending = pendingRes?.success ? (pendingRes.data || []) : [];
       let graded = gradedRes?.success ? (gradedRes.data || []) : [];
+      let rejected = rejectedRes?.success ? (rejectedRes.data || []) : [];
 
       pending = applyClassFilters(pending);
       graded = applyClassFilters(graded);
+      rejected = applyClassFilters(rejected);
 
       const published = graded.filter(r => r.published === true || r.is_published === true);
       const reviewed = graded.filter(r => !(r.published === true || r.is_published === true));
@@ -122,6 +127,7 @@ const AdminReview = () => {
       setPendingResults(pending);
       setReviewedResults(reviewed);
       setPublishedResults(published);
+      setRejectedResults(rejected);
     } catch (error) {
       console.error('Error fetching results:', error);
     } finally {
@@ -168,11 +174,27 @@ const AdminReview = () => {
     setSelectedResult(result);
   };
 
-  // Ensure desktop inline review is brought into view when opened
+  // Mobile only: scroll inline review into view when opened
   useEffect(() => {
     if (selectedResult && inlineRef.current) {
-      inlineRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (typeof window !== 'undefined' && window.innerWidth < 768) {
+        inlineRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
+  }, [selectedResult]);
+
+  // Lock body scroll when desktop modal is open
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    const isDesktop = window.innerWidth >= 768;
+    if (selectedResult && isDesktop) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prev || '';
+      };
+    }
+    return undefined;
   }, [selectedResult]);
 
   const handleSubmitReview = async (reviewData) => {
@@ -199,10 +221,10 @@ const AdminReview = () => {
       }
       
       await fetchResults();
-      showToast('Admin score saved successfully!', 'success');
+      showToast('Result approved successfully!', 'success');
     } catch (error) {
       console.error('Error submitting review:', error);
-      showToast('Error saving admin score. Please try again.', 'error');
+      showToast('Error approving result. Please try again.', 'error');
     }
   };
 
@@ -235,7 +257,7 @@ const AdminReview = () => {
     const selectedObjs = currentResults.filter(r => selectedResults.includes(r.id));
     const ineligible = selectedObjs.filter(r => !isEligibleForPublish(r));
     if (ineligible.length > 0) {
-      showToast(`${ineligible.length} selected result(s) must be reviewed and graded (20%) before publishing.`, 'error');
+      showToast(`${ineligible.length} selected result(s) must be approved before publishing.`, 'error');
       return;
     }
 
@@ -262,6 +284,32 @@ const AdminReview = () => {
     } catch (error) {
       console.error('Error publishing results:', error);
       showToast('Error publishing results. Please try again.', 'error');
+    }
+  };
+
+  const handleReject = async (resObj) => {
+    try {
+      const reason = window.prompt('Enter reason for rejection (visible to teacher):');
+      if (reason == null) return; // cancelled
+      const trimmed = String(reason).trim();
+      if (!trimmed) {
+        showToast('Please provide a reason for rejection.', 'error');
+        return;
+      }
+      const resp = await rejectResult({
+        studentId: resObj.studentId,
+        subjectId: resObj.subjectId,
+        term: resObj.term,
+        year: resObj.year,
+        reason: trimmed
+      });
+      if (!resp?.success) throw new Error(resp?.error || 'Failed to reject');
+      if (selectedResult) setSelectedResult(null);
+      await fetchResults();
+      showToast('Result rejected and sent back for correction.', 'success');
+    } catch (err) {
+      console.error('Reject error:', err);
+      showToast(err?.message || 'Error rejecting result.', 'error');
     }
   };
 
@@ -305,6 +353,7 @@ const AdminReview = () => {
   const getStatusColor = (status, published = false) => {
     if (status === 'graded' && published) return 'bg-green-100 text-green-800';
     if (status === 'graded') return 'bg-blue-100 text-blue-800';
+    if (status === 'rejected') return 'bg-red-100 text-red-800';
     if (status === 'submitted') return 'bg-yellow-100 text-yellow-800';
     return 'bg-gray-100 text-gray-800';
   };
@@ -312,11 +361,12 @@ const AdminReview = () => {
   const getStatusText = (status, published = false) => {
     if (status === 'graded' && published) return 'Published';
     if (status === 'graded') return 'Graded';
+    if (status === 'rejected') return 'Rejected';
     if (status === 'submitted') return 'Pending Review';
     return 'Draft';
   };
 
-  const isEligibleForPublish = (r) => r?.status === 'graded' && r?.adminScore !== null && r?.adminScore !== undefined;
+  const isEligibleForPublish = (r) => r?.status === 'graded';
 
   
   // Filter results by class or class group using students -> class_id
@@ -336,7 +386,13 @@ const AdminReview = () => {
     return out;
   };
 
-  const currentResults = activeTab === 'pending' ? pendingResults : activeTab === 'reviewed' ? reviewedResults : publishedResults;
+  const currentResults = activeTab === 'pending'
+    ? pendingResults
+    : activeTab === 'reviewed'
+      ? reviewedResults
+      : activeTab === 'rejected'
+        ? rejectedResults
+        : publishedResults;
 
   if (loading) {
     return (
@@ -361,8 +417,8 @@ const AdminReview = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-slate-800">Admin Review & Assessment</h1>
-          <p className="text-slate-600 mt-1">Review exam results and add admin assessment before publishing</p>
+          <h1 className="text-2xl lg:text-3xl font-bold text-slate-800">Admin Review & Approval</h1>
+          <p className="text-slate-600 mt-1">Review and approve exam results before publishing</p>
         </div>
         {selectedResults.length > 0 && activeTab === 'reviewed' && (
           <button
@@ -374,7 +430,7 @@ const AdminReview = () => {
                 : 'bg-green-600 opacity-50 cursor-not-allowed'
             }`}
             title={!currentResults.filter(r => selectedResults.includes(r.id)).every(isEligibleForPublish)
-              ? 'Select only results that have been reviewed and graded (20%)'
+              ? 'Select only results that have been approved'
               : 'Publish Selected'}
           >
             Publish Selected ({selectedResults.length})
@@ -404,6 +460,16 @@ const AdminReview = () => {
             }`}
           >
             Reviewed ({reviewedResults.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('rejected')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'rejected'
+                ? 'border-red-500 text-red-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Rejected ({rejectedResults.length})
           </button>
           <button
             onClick={() => setActiveTab('published')}
@@ -525,7 +591,7 @@ const AdminReview = () => {
                   Current Score
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden md:table-cell">
-                  Admin Score
+                  Final (Score/Grade)
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden md:table-cell">
                   Status
@@ -540,10 +606,9 @@ const AdminReview = () => {
                 const isPublished = result.published === true || result.is_published === true;
                 console.log('Rendering result:', result); // Debug log
                 const teacherScore = Number((result.testScore || 0) + (result.examScore || 0)) || Number(result.score ?? 0) || 0;
-                const originalScore = teacherScore; // out of 80
-                const originalMaxScore = 80;
-                const adminScore = Number(result.adminScore ?? 0) || 0; // out of 20
-                const totalScore = teacherScore + adminScore; // out of 100
+                const originalScore = teacherScore; // out of 100
+                const originalMaxScore = 100;
+                const totalScore = teacherScore; // out of 100
                 const gradeInfo = calculateGrade(totalScore, 100);
 
                 return (
@@ -554,7 +619,7 @@ const AdminReview = () => {
                       checked={selectedResults.includes(result.id)}
                       onChange={() => handleSelectResult(result.id)}
                       disabled={!isEligibleForPublish(result)}
-                      title={!isEligibleForPublish(result) ? 'Review and grade the admin 20% before publishing' : 'Select for publish'}
+                      title={!isEligibleForPublish(result) ? 'Approve before publishing' : 'Select for publish'}
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                     </td>
@@ -567,7 +632,7 @@ const AdminReview = () => {
                             checked={selectedResults.includes(result.id)}
                             onChange={() => handleSelectResult(result.id)}
                             disabled={!isEligibleForPublish(result)}
-                            title={!isEligibleForPublish(result) ? 'Review and grade the admin 20% before publishing' : 'Select for publish'}
+                            title={!isEligibleForPublish(result) ? 'Approve before publishing' : 'Select for publish'}
                             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                           />
                         </label>
@@ -605,7 +670,7 @@ const AdminReview = () => {
 
                               {result.testScore != null && (
                                 <>
-                                  <span className="text-slate-600">Test score:</span>
+                                  <span className="text-slate-600">CA score:</span>
                                   <span className="font-medium text-slate-900">{result.testScore}/30</span>
                                 </>
                               )}
@@ -613,46 +678,32 @@ const AdminReview = () => {
                               {result.examScore != null && (
                                 <>
                                   <span className="text-slate-600">Exam score:</span>
-                                  <span className="font-medium text-slate-900">{result.examScore}/50</span>
+                                  <span className="font-medium text-slate-900">{result.examScore}/70</span>
                                 </>
                               )}
 
-                              {/* Admin score row: input on pending/reviewed, value on published */}
-                              <span className="text-slate-600">Admin score:</span>
+                              {String(result.status || '').toLowerCase() === 'rejected' && (
+                                <>
+                                  <span className="text-slate-600">Rejection reason:</span>
+                                  <span className="font-medium text-slate-900">{result.admin_comments || result.adminComments || '—'}</span>
+                                </>
+                              )}
+
+                              {/* Approval row: approve on pending/reviewed, show approved on published */}
+                              <span className="text-slate-600">Approval:</span>
                               {activeTab === 'published' ? (
-                                <span className="font-medium text-slate-900">{Number(result.adminScore ?? 0) || 0}/20</span>
+                                <span className="font-medium text-slate-900">Approved</span>
                               ) : (
-                                <form onSubmit={(e) => handleInlineAdminSave(e, result)} className="flex items-center gap-2 whitespace-nowrap">
-                                  <input
-                                    name={`adminScore_${result.id}`}
-                                    type="number"
-                                    value={(draftAdminScores[result.id] ?? (result.adminScore ?? ''))}
-                                    onChange={(e) => setDraftAdminScores((prev) => ({ ...prev, [result.id]: e.target.value }))}
-                                    min={0}
-                                    max={20}
-                                    step={0.5}
-                                    className="w-16 px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shrink-0"
-                                    placeholder="0-20"
-                                  />
-                                  <button
-                                    type="submit"
-                                    className="px-2 py-1 bg-emerald-600 text-white text-xs rounded hover:bg-emerald-700 shrink-0"
-                                  >
-                                    Save
-                                  </button>
-                                </form>
+                                <button
+                                  onClick={() => handleSubmitReview({ result })}
+                                  className="px-2 py-1 bg-emerald-600 text-white text-xs rounded hover:bg-emerald-700 shrink-0"
+                                >
+                                  Approve
+                                </button>
                               )}
 
                               <span className="text-slate-600">Total score:</span>
-                              <span className="font-semibold text-slate-900">{
-                                (
-                                  (Number((result.testScore || 0) + (result.examScore || 0)) || Number(result.score ?? 0) || 0)
-                                  + (activeTab === 'published'
-                                      ? (Number(result.adminScore ?? 0) || 0)
-                                      : (Number(draftAdminScores[result.id] ?? result.adminScore ?? 0) || 0)
-                                    )
-                                )
-                              }/100</span>
+                              <span className="font-semibold text-slate-900">{(Number((result.testScore || 0) + (result.examScore || 0)) || Number(result.score ?? 0) || 0)}/100</span>
                             </div>
                           </div>
                         </div>
@@ -679,10 +730,10 @@ const AdminReview = () => {
                     <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
                       <div>
                         <div className="text-sm text-slate-900">
-                          {adminScore}/20
+                          {totalScore}/100
                         </div>
                         <div className="text-sm text-green-600">
-                          Final: {totalScore}/100 ({gradeInfo.grade})
+                          Grade: {gradeInfo.grade}
                         </div>
                       </div>
                     </td>
@@ -716,6 +767,14 @@ const AdminReview = () => {
                           View
                         </button>
                       )}
+                      {(activeTab === 'pending' || activeTab === 'reviewed') && !isPublished && (
+                        <button
+                          onClick={() => handleReject(result)}
+                          className="text-red-600 hover:text-red-800 ml-2"
+                        >
+                          Reject
+                        </button>
+                      )}
                                           </td>
                   </tr>
                 );
@@ -742,21 +801,24 @@ const AdminReview = () => {
         )}
       </div>
 
-      {/* Admin Review Inline - Desktop Only */}
+      {/* Desktop Modal for Review */}
       {selectedResult && (
-        <div ref={inlineRef} className="hidden md:block">
-          <AdminReviewInline
-            result={selectedResult}
-            onClose={() => {
-              setSelectedResult(null);
-            }}
-            onSubmit={handleSubmitReview}
-            exams={exams}
-            classes={classes}
-            subjects={subjects}
-            students={students}
-            isReadOnly={activeTab === 'published'}
-          />
+        <div className="fixed inset-0 z-50 hidden md:flex items-center justify-center" aria-modal="true" role="dialog">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setSelectedResult(null)} />
+          <div className="relative bg-white w-full max-w-4xl max-h-[90vh] rounded-lg shadow-xl overflow-auto" onClick={(e) => e.stopPropagation()}>
+            <AdminReviewInline
+              result={selectedResult}
+              onClose={() => {
+                setSelectedResult(null);
+              }}
+              onSubmit={handleSubmitReview}
+              exams={exams}
+              classes={classes}
+              subjects={subjects}
+              students={students}
+              isReadOnly={activeTab === 'published'}
+            />
+          </div>
         </div>
       )}
     </div>

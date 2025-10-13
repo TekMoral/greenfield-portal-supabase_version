@@ -150,7 +150,7 @@ const ResultCard = ({ result }) => {
               <div className="space-y-2 text-sm">
                 {result.testScore !== undefined && (
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Test Component:</span>
+                    <span className="text-gray-600">CA Component:</span>
                     <div className="text-right">
                       <span className="font-medium">{Math.round(Number(result.testScore || 0))}/30</span>
                       <span className="text-gray-500 ml-2">({Math.round(((Number(result.testScore || 0) / 30) * 100))}%)</span>
@@ -161,21 +161,12 @@ const ResultCard = ({ result }) => {
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">Exam Component:</span>
                     <div className="text-right">
-                      <span className="font-medium">{Math.round(Number(result.examScore || 0))}/50</span>
-                      <span className="text-gray-500 ml-2">({Math.round(((Number(result.examScore || 0) / 50) * 100))}%)</span>
+                      <span className="font-medium">{Math.round(Number(result.examScore || 0))}/70</span>
+                      <span className="text-gray-500 ml-2">({Math.round(((Number(result.examScore || 0) / 70) * 100))}%)</span>
                     </div>
                   </div>
                 )}
-                {result.adminScore !== undefined && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Admin Assessment:</span>
-                    <div className="text-right">
-                      <span className="font-medium">{Math.round(Number(result.adminScore || 0))}/20</span>
-                      <span className="text-gray-500 ml-2">({Math.round(((Number(result.adminScore || 0) / 20) * 100))}%)</span>
-                    </div>
-                  </div>
-                )}
-                <div className="border-t pt-2 mt-2">
+                                <div className="border-t pt-2 mt-2">
                   <div className="flex justify-between items-center font-medium">
                     <span className="text-gray-800">Total Score:</span>
                     <div className="text-right">

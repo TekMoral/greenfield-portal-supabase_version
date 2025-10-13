@@ -111,17 +111,17 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
       newErrors.exam_score = 'Exam score is required';
     } else {
       const score = Number(formData.exam_score);
-      if (!Number.isInteger(score) || score < 0 || score > 50) {
-        newErrors.exam_score = 'Exam score must be a whole number between 0 and 50';
+      if (!Number.isInteger(score) || score < 0 || score > 70) {
+        newErrors.exam_score = 'Exam score must be a whole number between 0 and 70';
       }
     }
 
     if (formData.test_score === '' || formData.test_score === null || formData.test_score === undefined) {
-      newErrors.test_score = 'Test score is required';
+      newErrors.test_score = 'CA score is required';
     } else {
       const score = Number(formData.test_score);
       if (!Number.isInteger(score) || score < 0 || score > 30) {
-        newErrors.test_score = 'Test score must be a whole number between 0 and 30';
+        newErrors.test_score = 'CA score must be a whole number between 0 and 30';
       }
     }
 
@@ -149,9 +149,9 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
       exam_score: parseInt(formData.exam_score, 10),
       test_score: parseInt(formData.test_score, 10),
       totalTeacherScore: parseInt(formData.exam_score, 10) + parseInt(formData.test_score, 10),
-      maxExamScore: 50,
+      maxExamScore: 70,
       maxTestScore: 30,
-      maxTeacherScore: 80
+      maxTeacherScore: 100
     };
 
     await onSubmit(resultData);
@@ -165,10 +165,12 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
 
   const getPercentage = () => {
     const total = getTotalScore();
-    return Math.round((total / 80) * 100);
+    return Math.round((total / 100) * 100);
   };
 
-  const isReadOnly = !!existingResult;
+  // Allow editing if result is rejected, otherwise read-only if exists
+  const isRejected = existingResult && String(existingResult.status || '').toLowerCase() === 'rejected';
+  const isReadOnly = !!existingResult && !isRejected;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -176,7 +178,7 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold text-gray-900">
-              {isReadOnly ? 'View Submitted Result' : 'Submit Exam Result'}
+              {isRejected ? 'Correct & Resubmit Result' : isReadOnly ? 'View Submitted Result' : 'Submit Exam Result'}
             </h2>
             <button
               onClick={onClose}
@@ -197,7 +199,24 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
           </div>
 
           {/* Already Submitted Notice or Scoring System Info */}
-          {isReadOnly ? (
+          {isRejected ? (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <div className="flex items-start">
+                <svg className="w-5 h-5 text-red-600 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div className="flex-1">
+                  <h3 className="font-medium text-red-900 mb-1">Result Rejected by Admin</h3>
+                  <p className="text-sm text-red-800 mb-2">
+                    {existingResult?.admin_comments || existingResult?.adminComments || 'This result was rejected and needs correction.'}
+                  </p>
+                  <p className="text-sm text-red-700 font-medium">
+                    Please correct the scores and resubmit for review.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : isReadOnly ? (
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
               <div className="flex items-center">
                 <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -215,10 +234,10 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
               <h3 className="font-medium text-blue-900 mb-2">Scoring Breakdown</h3>
               <div className="text-sm text-blue-800 space-y-1">
-                <p>• Exam Score: 0-50 marks (50%)</p>
-                <p>• Test Score: 0-30 marks (30%)</p>
-                <p>• <strong>Your Total: 80 marks (80%)</strong></p>
-                <p className="text-blue-600 mt-2">Admin will add Assignment (15%) + Attendance (5%) = 20%</p>
+                <p>• Exam Score: 0-70 marks (70%)</p>
+                <p>• CA Score: 0-30 marks (30%)</p>
+                <p>• <strong>Your Total: 100 marks (100%)</strong></p>
+                <p className="text-blue-600 mt-2">Submit to admin for approval. Final score = Exam 70% + CA 30%.</p>
               </div>
             </div>
           )}
@@ -279,7 +298,7 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Exam Score * (0-50)
+                  Exam Score * (0-70)
                 </label>
                 <input
                   type="number"
@@ -287,20 +306,20 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
                   value={formData.exam_score}
                   onChange={handleChange}
                   min="0"
-                  max="50"
+                  max="70"
                   step="0.5"
                   disabled={isReadOnly}
                   className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                     errors.exam_score ? 'border-red-500' : 'border-gray-300'
                   } ${isReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-                  placeholder="0-50"
+                  placeholder="0-70"
                 />
                 {errors.exam_score && <p className="text-red-500 text-sm mt-1">{errors.exam_score}</p>}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Test Score * (0-30)
+                  CA Score * (0-30)
                 </label>
                 <input
                   type="number"
@@ -324,19 +343,19 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
             {/* Score Summary */}
             {(formData.exam_score || formData.test_score) && (
               <div className="bg-green-50 rounded-lg p-4">
-                <h4 className="font-medium text-green-900 mb-2">Score Summary (Teacher's 80%)</h4>
+                <h4 className="font-medium text-green-900 mb-2">Score Summary (Teacher Total 100%)</h4>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-green-700">Exam Score:</span>
-                    <span className="font-medium ml-2">{formData.exam_score || 0}/50</span>
+                    <span className="font-medium ml-2">{formData.exam_score || 0}/70</span>
                   </div>
                   <div>
-                    <span className="text-green-700">Test Score:</span>
+                    <span className="text-green-700">CA Score:</span>
                     <span className="font-medium ml-2">{formData.test_score || 0}/30</span>
                   </div>
                   <div>
                     <span className="text-green-700">Total Score:</span>
-                    <span className="font-medium ml-2">{getTotalScore()}/80</span>
+                    <span className="font-medium ml-2">{getTotalScore()}/100</span>
                   </div>
                   <div>
                     <span className="text-green-700">Percentage:</span>
@@ -344,7 +363,7 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
                   </div>
                 </div>
                 <div className="mt-3 p-2 bg-yellow-100 rounded text-xs text-yellow-800">
-                  <strong>Note:</strong> Admin will add Assignment (15 marks) + Attendance (5 marks) to complete the 100% grading.
+                  <strong>Note:</strong> Final score is Exam 70% + CA 30%. Admin approval is required before publishing.
                 </div>
               </div>
             )}
@@ -357,7 +376,7 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <p className="text-sm text-yellow-700">
-                    This result will be submitted to admin for final grading and approval before students can see it.
+                    This result will be submitted to admin for approval before students can see it.
                   </p>
                 </div>
               </div>
@@ -378,7 +397,7 @@ const ExamResultEntryForm = ({ student, subject, onSubmit, onClose, submitting, 
                   disabled={submitting}
                   className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {submitting ? 'Submitting...' : 'Submit for Review'}
+                  {submitting ? (isRejected ? 'Resubmitting...' : 'Submitting...') : (isRejected ? 'Resubmit for Review' : 'Submit for Review')}
                 </button>
               )}
             </div>

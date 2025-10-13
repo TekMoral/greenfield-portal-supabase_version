@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getTeacherClassesAndSubjects, getStudentsByTeacherSubjectAndClasses } from '../../../services/supabase/teacherStudentService';
 
-import { submitResult, insertExamResultsBulk, getSubmittedResults } from '../../../services/supabase/studentResultService';
+import { submitOrUpdateResult, bulkSubmitOrUpdateResults, getSubmittedResults } from '../../../services/supabase/studentResultService';
 import { useAuth } from '../../../hooks/useAuth';
 import useToast from '../../../hooks/useToast';
 import ExamResultEntryForm from '../../../components/results/ExamResultEntryForm';
@@ -48,6 +48,7 @@ const ExamResults = () => {
   const [coreSubjectNames, setCoreSubjectNames] = useState([]);
   const [existingResultsMap, setExistingResultsMap] = useState({});
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [showRejectedOnly, setShowRejectedOnly] = useState(false);
 
   // Helper function to get student full name
   const getStudentName = (student) => {
@@ -90,10 +91,16 @@ const ExamResults = () => {
           subjectId: selectedSubjectId,
           status: 'graded'
         });
+        const resRejected = await getSubmittedResults({
+          subjectId: selectedSubjectId,
+          status: 'rejected'
+        });
         
-        console.log('📊 getSubmittedResults API response:', { submitted: resSubmitted, graded: resGraded });
+        console.log('📊 getSubmittedResults API response:', { submitted: resSubmitted, graded: resGraded, rejected: resRejected });
         
-        const combinedData = (resSubmitted?.success ? (resSubmitted.data || []) : []).concat(resGraded?.success ? (resGraded.data || []) : []);
+        const combinedData = (resSubmitted?.success ? (resSubmitted.data || []) : [])
+          .concat(resGraded?.success ? (resGraded.data || []) : [])
+          .concat(resRejected?.success ? (resRejected.data || []) : []);
         if (combinedData.length > 0) {
           const map = {};
           const submittedIds = [];
@@ -113,7 +120,9 @@ const ExamResults = () => {
             });
             if (sid) {
               map[sid] = r;
-              submittedIds.push(sid);
+              if (String(r.status || '').toLowerCase() !== 'rejected') {
+                submittedIds.push(sid);
+              }
             }
           });
           
@@ -268,23 +277,18 @@ const ExamResults = () => {
 
     try {
       setSubmitting(true);
-      // Use the same SECURITY DEFINER bulk RPC with a single item so teacher_id is persisted (RLS-compatible)
-      const res = await insertExamResultsBulk({
-        results: [
-          {
-            studentId: resultData.studentId,
-            term: resultData.term,
-            session: resultData.session,
-            examScore: resultData.exam_score,
-            testScore: resultData.test_score,
-            remark: resultData.remark ?? ''
-          }
-        ],
+      // Submit new or correct rejected without duplicates
+      const termVal = normalizeTermToNumber(resultData.term ?? currentTerm);
+      const yearVal = parseYearFromAcademic(resultData.session ?? academicYear);
+      const res = await submitOrUpdateResult({
+        studentId: resultData.studentId,
         subjectId: selectedSubjectId,
-        term: resultData.term,
-        year: resultData.session,
-        teacherId: user.id,
-        status: 'submitted'
+        term: termVal,
+        year: yearVal,
+        examScore: resultData.exam_score,
+        testScore: resultData.test_score,
+        remark: resultData.remark ?? '',
+        teacherId: user.id
       });
       if (!res?.success) {
         throw new Error(res?.error || 'Failed to submit result');
@@ -354,7 +358,7 @@ const ExamResults = () => {
       const classData = getSelectedClassData();
       // Force term/year from global settings when submitting
       const term = normalizeTermToNumber(currentTerm);
-      const year = String(parseYearFromAcademic(academicYear));
+      const year = parseYearFromAcademic(academicYear);
       // Normalize each row to global session/term to avoid mismatches
       const normalizedBulk = (bulkResults || []).map(r => ({
         ...r,
@@ -362,14 +366,12 @@ const ExamResults = () => {
         session: year,
       }));
 
-      const res = await insertExamResultsBulk({
-        results: normalizedBulk,
+      const res = await bulkSubmitOrUpdateResults({
+        rows: normalizedBulk,
         subjectId: selectedSubjectId,
         term,
         year,
-        teacherId: user.id,
-        examId: null,
-        status: 'submitted'
+        teacherId: user.id
       });
 
       if (!res?.success) {
@@ -381,7 +383,8 @@ const ExamResults = () => {
         .map(r => r.studentId ?? r.student_id)
         .filter(Boolean);
       setSubmittedResults(prev => new Set([...prev, ...submittedStudentIds]));
-      showToast(`${submittedStudentIds.length} result(s) submitted to admin.`, 'success');
+      const count = res?.data?.successful ?? submittedStudentIds.length;
+      showToast(`${count} result(s) submitted to admin.`, 'success');
     } catch (error) {
       console.error('Error submitting bulk results:', error);
       const emsg = (error?.message || '').toLowerCase();
@@ -516,8 +519,8 @@ const ExamResults = () => {
           <div>
             <h3 className="text-sm font-medium text-blue-800">Scoring System</h3>
             <p className="text-sm text-blue-700">
-              Submit exam scores (max 50) + test scores (max 30) = 80% of total grade.
-              Admin will add assignment (15%) and attendance (5%) scores before publishing.
+              Submit Exam (0-70) and CA (0-30) = 100% of the final grade.
+              Admin approval is required before publishing.
             </p>
           </div>
         </div>
@@ -781,10 +784,20 @@ const ExamResults = () => {
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                 <h3 className="text-lg font-medium text-gray-900">Individual Result Entry</h3>
+                <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                  <input type="checkbox" checked={showRejectedOnly} onChange={(e)=>setShowRejectedOnly(e.target.checked)} />
+                  Show rejected only
+                </label>
               </div>
 
               <div className="grid gap-4">
-                {Array.isArray(students) && students.map(student => {
+                {Array.isArray(students) && students
+                  .filter(student => {
+                    if (!showRejectedOnly) return true;
+                    const st = String(existingResultsMap[String(student.id)]?.status || '').toLowerCase();
+                    return st === 'rejected';
+                  })
+                  .map(student => {
                   const isSubmitted = isStudentSubmitted(student.id);
                   const studentName = getStudentName(student);
                   const resultStatus = existingResultsMap[String(student.id)]?.status;
@@ -810,23 +823,35 @@ const ExamResults = () => {
                         </div>
                       </div>
                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:space-x-4 w-full sm:w-auto">
-                        {isSubmitted ? (
-                          <div className="text-left sm:text-right">
-                            {existingResultsMap[String(student.id)]?.status === 'graded' ? (
-                              <>
-                                <p className="font-medium text-green-700">Graded by Admin</p>
-                                <p className="text-sm text-green-600">Reviewed</p>
-                              </>
-                            ) : (
-                              <>
+                        {(() => {
+                          const status = existingResultsMap[String(student.id)]?.status;
+                          const reason = existingResultsMap[String(student.id)]?.admin_comments || existingResultsMap[String(student.id)]?.adminComments;
+                          if (String(status || '').toLowerCase() === 'rejected') {
+                            return (
+                              <div className="text-left sm:text-right">
+                                <p className="font-medium text-red-700">Rejected by Admin</p>
+                                <p className="text-sm text-red-600">{reason ? `Reason: ${reason}` : 'Needs correction and resubmission'}</p>
+                              </div>
+                            );
+                          }
+                          if (isSubmitted) {
+                            if (String(status || '').toLowerCase() === 'graded') {
+                              return (
+                                <div className="text-left sm:text-right">
+                                  <p className="font-medium text-green-700">Graded by Admin</p>
+                                  <p className="text-sm text-green-600">Reviewed</p>
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className="text-left sm:text-right">
                                 <p className="font-medium text-yellow-700">Submitted to Admin</p>
                                 <p className="text-sm text-yellow-600">Pending Admin Review</p>
-                              </>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-500">No result submitted</span>
-                        )}
+                              </div>
+                            );
+                          }
+                          return <span className="text-sm text-gray-500">No result submitted</span>;
+                        })()}
                         <button
                           onClick={() => {
                             setSelectedStudent(student);
@@ -839,7 +864,11 @@ const ExamResults = () => {
                               : 'bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed'
                           }`}
                         >
-                          {isSubmitted ? 'View Submitted' : 'Submit to Admin'}
+                          {(() => {
+                            const status = existingResultsMap[String(student.id)]?.status;
+                            if (String(status || '').toLowerCase() === 'rejected') return 'Resubmit to Admin';
+                            return isSubmitted ? 'View Submitted' : 'Submit to Admin';
+                          })()}
                         </button>
                       </div>
                     </div>

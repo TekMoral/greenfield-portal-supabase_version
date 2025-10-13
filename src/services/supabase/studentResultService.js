@@ -92,64 +92,199 @@ export const submitResult = async ({ studentId, subjectId, term, year, testScore
 /**
  * Admin grades result (adds adminScore, totalScore, sets status: graded, published: false)
  */
-export const gradeResultByAdmin = async ({ studentId, subjectId, term, year, adminScore, teacherScore }) => {
+export const gradeResultByAdmin = async ({ studentId, subjectId, term, year /* adminScore, teacherScore (ignored) */ }) => {
+  // Backward compatibility: Admin no longer adds scores. Approve the teacher's 100% (exam+CA) and mark as graded.
   try {
-    let baseTestScore = 0;
-    let baseExamScore = 0;
-    
-    if (Number.isFinite(Number(teacherScore))) {
-      // If teacherScore is provided, assume it's the total and split it (this is a fallback)
-      baseTestScore = Number(teacherScore) * 0.375; // Approximate test score (30/80 of total)
-      baseExamScore = Number(teacherScore) * 0.625; // Approximate exam score (50/80 of total)
-    } else {
-      // Fetch current teacher scores from DB
-      const { data: existing, error: fetchErr } = await supabase
-        .from('exam_results')
-        .select('test_score, exam_score')
-        .eq('student_id', studentId)
-        .eq('subject_id', subjectId)
-        .eq('term', term)
-        .eq('year', year)
-        .single();
-      
-      if (fetchErr) {
-        console.warn('Could not fetch existing teacher scores, defaulting to 0:', fetchErr?.message);
-        baseTestScore = 0;
-        baseExamScore = 0;
-      } else {
-        baseTestScore = Number(existing?.test_score || 0);
-        baseExamScore = Number(existing?.exam_score || 0);
-      }
+    const { data: existing, error: fetchErr } = await supabase
+      .from('exam_results')
+      .select('id, test_score, exam_score, total_score')
+      .eq('student_id', studentId)
+      .eq('subject_id', subjectId)
+      .eq('term', term)
+      .eq('year', year)
+      .single();
+
+    if (fetchErr) {
+      console.error('Error fetching existing result for approval:', fetchErr);
+      return { success: false, error: fetchErr.message };
     }
 
-    const admin = parseFloat(adminScore) || 0;
-    
-    // Call RPC with the correct parameters matching your function signature
-    const { data, error } = await supabase.rpc('grade_result', {
-      p_student_id: studentId,
-      p_subject_id: subjectId,
-      p_term: term,
-      p_year: year,
-      p_test_score: baseTestScore,
-      p_exam_score: baseExamScore,
-      p_admin_score: admin
-    });
-    
+    const baseTestScore = Number(existing?.test_score || 0);
+    const baseExamScore = Number(existing?.exam_score || 0);
+    const total = Number(existing?.total_score ?? (baseExamScore + baseTestScore));
+
+    const { data, error } = await supabase
+      .from('exam_results')
+      .update({ status: 'graded', total_score: total, updated_at: new Date().toISOString() })
+      .eq('id', existing.id)
+      .select()
+      .single();
+
     if (error) {
-      console.error('Supabase RPC error grade_result:', error);
+      console.error('Supabase error approving result:', error);
       return { success: false, error: error.message };
     }
-    
+
     return { success: true, data };
   } catch (error) {
-    console.error('Error grading result via RPC:', error);
+    console.error('Error approving result:', error);
     return { success: false, error: error.message };
+  }
+};
+
+// New: Explicit approval helper (admin marks teacher-submitted 100% as graded)
+export const approveResult = async ({ studentId, subjectId, term, year }) => {
+  try {
+    const { data: existing, error: fetchErr } = await supabase
+      .from('exam_results')
+      .select('id, test_score, exam_score, total_score')
+      .eq('student_id', studentId)
+      .eq('subject_id', subjectId)
+      .eq('term', term)
+      .eq('year', year)
+      .single();
+
+    if (fetchErr) {
+      return { success: false, error: fetchErr.message };
+    }
+
+    const baseTestScore = Number(existing?.test_score || 0);
+    const baseExamScore = Number(existing?.exam_score || 0);
+    const total = Number(existing?.total_score ?? (baseExamScore + baseTestScore));
+
+    const { data, error } = await supabase
+      .from('exam_results')
+      .update({ status: 'graded', total_score: total, updated_at: new Date().toISOString() })
+      .eq('id', existing.id)
+      .select()
+      .single();
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data };
+  } catch (err) {
+    console.error('Error approving result:', err);
+    return { success: false, error: err.message };
   }
 };
 
 /**
  * Admin publishes result (sets published: true)
  */
+export const rejectResult = async ({ studentId, subjectId, term, year, reason }) => {
+  try {
+    const { data: existing, error: fetchErr } = await supabase
+      .from('exam_results')
+      .select('id, status')
+      .eq('student_id', studentId)
+      .eq('subject_id', subjectId)
+      .eq('term', term)
+      .eq('year', year)
+      .single();
+
+    if (fetchErr) {
+      return { success: false, error: fetchErr.message };
+    }
+
+    const updatePayload = { status: 'rejected', updated_at: new Date().toISOString() };
+    // Store rejection reason if admin_comments column exists
+    updatePayload.admin_comments = reason || null;
+
+    const { data, error } = await supabase
+      .from('exam_results')
+      .update(updatePayload)
+      .eq('id', existing.id)
+      .select()
+      .single();
+
+    if (error) return { success: false, error: error.message };
+    return { success: true, data };
+  } catch (err) {
+    console.error('Error rejecting result:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+export const submitOrUpdateResult = async ({ studentId, subjectId, term, year, testScore, examScore, remark, teacherId }) => {
+  try {
+    const t = parseFloat(testScore) || 0;
+    const e = parseFloat(examScore) || 0;
+    const termNormalized = normalizeTerm(term);
+    const yearNormalized = normalizeYear(year);
+
+    console.log('submitOrUpdateResult called with:', {
+      studentId,
+      subjectId,
+      term,
+      termNormalized,
+      year,
+      yearNormalized,
+      testScore: t,
+      examScore: e
+    });
+
+    // Use dedicated RPC function with SECURITY DEFINER to handle both insert and update
+    // This bypasses RLS restrictions that prevent teachers from updating results
+    const { data, error } = await supabase.rpc('update_exam_result_by_teacher', {
+      p_student_id: studentId,
+      p_subject_id: subjectId,
+      p_term: String(termNormalized ?? term),
+      p_year: yearNormalized,
+      p_teacher_id: teacherId || null,
+      p_test_score: t,
+      p_exam_score: e,
+      p_remarks: remark ?? null
+    });
+
+    if (error) {
+      console.error('RPC update_exam_result_by_teacher error:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('Successfully submitted/updated result via RPC:', data);
+    return { success: true, data };
+  } catch (err) {
+    console.error('Error submitOrUpdateResult:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+export const bulkSubmitOrUpdateResults = async ({ rows, subjectId, term, year, teacherId }) => {
+  try {
+    const payload = (rows || []).map(r => {
+      const t = parseFloat(r.testScore ?? r.test_score) || 0;
+      const e = parseFloat(r.examScore ?? r.exam_score) || 0;
+      const total = t + e;
+      return {
+        student_id: r.studentId ?? r.student_id,
+        subject_id: subjectId,
+        term: String(term),
+        year,
+        teacher_id: teacherId || null,
+        status: 'submitted',
+        total_score: total,
+        test_score: t,
+        exam_score: e,
+        remarks: (r.remark ?? r.remarks) ?? null,
+        submitted_at: new Date().toISOString()
+      };
+    });
+
+    const { error } = await supabase.rpc('insert_exam_results_bulk', { p_results: payload });
+    if (error) {
+      console.error('RPC insert_exam_results_bulk error (bulkSubmitOrUpdateResults):', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data: { successful: payload.length, failed: 0 } };
+  } catch (err) {
+    console.error('Error bulkSubmitOrUpdateResults:', err);
+    return { success: false, error: err.message };
+  }
+};
+
 export const publishResult = async ({ studentId, subjectId, term, year }) => {
   try {
     const { data, error } = await supabase.rpc('publish_result', {
@@ -190,27 +325,26 @@ export const getPublishedResultsByStudent = async (studentId) => {
     }
 
     const mapped = (data || []).map((r) => {
-  const hasAdmin = (r.admin_score ?? r.adminScore) != null;
-  const total = r.total_score ?? r.totalScore ?? ((r.test_score || 0) + (r.exam_score || 0) + (hasAdmin ? (r.admin_score || r.adminScore || 0) : 0));
-  const max = hasAdmin ? 100 : 80;
-  const gradeInfo = mapGradeFromBackend(r, total, max);
-  return {
-    ...r,
-    id: r.id,
-    studentId: r.student_id ?? r.studentId,
-    subjectId: r.subject_id ?? r.subjectId,
-    term: r.term,
-    year: r.year,
-    published: (r.is_published ?? r.published),
-    createdAt: r.created_at ?? r.createdAt,
-    totalScore: total,
-    maxScore: max,
-    testScore: r.test_score ?? r.testScore ?? null,
-    examScore: r.exam_score ?? r.examScore ?? null,
-    adminScore: r.admin_score ?? r.adminScore ?? null,
-    ...gradeInfo,
-  };
-});
+      const total = Number(r.total_score ?? r.totalScore ?? ((r.test_score || 0) + (r.exam_score || 0)));
+      const max = 100;
+      const gradeInfo = mapGradeFromBackend(r, total, max);
+      return {
+        ...r,
+        id: r.id,
+        studentId: r.student_id ?? r.studentId,
+        subjectId: r.subject_id ?? r.subjectId,
+        term: r.term,
+        year: r.year,
+        published: (r.is_published ?? r.published),
+        createdAt: r.created_at ?? r.createdAt,
+        totalScore: total,
+        maxScore: max,
+        testScore: r.test_score ?? r.testScore ?? null,
+        examScore: r.exam_score ?? r.examScore ?? null,
+        adminScore: r.admin_score ?? r.adminScore ?? null,
+        ...gradeInfo,
+      };
+    });
 
     return { success: true, data: mapped };
   } catch (error) {
@@ -257,29 +391,26 @@ export const getSubmittedResults = async (filters = {}) => {
 
     // Normalize snake_case -> camelCase for UI and provide score fallbacks
     const mapped = (data || []).map((r) => {
-  const teacherSubtotal = (r.test_score || 0) + (r.exam_score || 0);
-  // Before admin grading, total_score stores teacher subtotal (out of 80). After grading, it's final (out of 100).
-  const total = r.total_score ?? r.totalScore ?? teacherSubtotal;
-  const hasAdmin = (r.admin_score ?? r.adminScore) != null;
-  const max = hasAdmin ? 100 : 80;
-  const gradeInfo = mapGradeFromBackend(r, total, max);
-  return {
-    ...r,
-    id: r.id,
-    studentId: r.student_id ?? r.studentId,
-    subjectId: r.subject_id ?? r.subjectId,
-    term: r.term,
-    year: r.year,
-    status: r.status,
-    createdAt: r.created_at ?? r.createdAt,
-    totalScore: total,
-    maxScore: max,
-    testScore: r.test_score ?? r.testScore ?? null,
-    examScore: r.exam_score ?? r.examScore ?? null,
-    adminScore: r.admin_score ?? r.adminScore ?? null,
-    ...gradeInfo,
-  };
-});
+      const total = Number(r.total_score ?? r.totalScore ?? ((r.test_score || 0) + (r.exam_score || 0)));
+      const max = 100;
+      const gradeInfo = mapGradeFromBackend(r, total, max);
+      return {
+        ...r,
+        id: r.id,
+        studentId: r.student_id ?? r.studentId,
+        subjectId: r.subject_id ?? r.subjectId,
+        term: r.term,
+        year: r.year,
+        status: r.status,
+        createdAt: r.created_at ?? r.createdAt,
+        totalScore: total,
+        maxScore: max,
+        testScore: r.test_score ?? r.testScore ?? null,
+        examScore: r.exam_score ?? r.examScore ?? null,
+        adminScore: r.admin_score ?? r.adminScore ?? null,
+        ...gradeInfo,
+      };
+    });
 
     return { success: true, data: mapped };
   } catch (error) {
@@ -342,27 +473,26 @@ export const getStudentExamResults = async (studentId) => {
 
     // Normalize snake_case -> camelCase and enrich with grades
     const mapped = (data || []).map((r) => {
-    const hasAdmin = (r.admin_score ?? r.adminScore) != null;
-    const total = r.total_score ?? r.totalScore ?? ((r.test_score || 0) + (r.exam_score || 0) + (hasAdmin ? (r.admin_score || r.adminScore || 0) : 0));
-    const max = hasAdmin ? 100 : 80;
-    const gradeInfo = mapGradeFromBackend(r, total, max);
-    return {
-      ...r,
-      id: r.id,
-      studentId: r.student_id ?? r.studentId,
-      subjectId: r.subject_id ?? r.subjectId,
-      term: r.term,
-      year: r.year,
-      published: (r.is_published ?? r.published),
-      createdAt: r.created_at ?? r.createdAt,
-      totalScore: total,
-      maxScore: max,
-      testScore: r.test_score ?? r.testScore ?? null,
-      examScore: r.exam_score ?? r.examScore ?? null,
-      adminScore: r.admin_score ?? r.adminScore ?? null,
-      ...gradeInfo,
-    };
-  });
+      const total = Number(r.total_score ?? r.totalScore ?? ((r.test_score || 0) + (r.exam_score || 0)));
+      const max = 100;
+      const gradeInfo = mapGradeFromBackend(r, total, max);
+      return {
+        ...r,
+        id: r.id,
+        studentId: r.student_id ?? r.studentId,
+        subjectId: r.subject_id ?? r.subjectId,
+        term: r.term,
+        year: r.year,
+        published: (r.is_published ?? r.published),
+        createdAt: r.created_at ?? r.createdAt,
+        totalScore: total,
+        maxScore: max,
+        testScore: r.test_score ?? r.testScore ?? null,
+        examScore: r.exam_score ?? r.examScore ?? null,
+        adminScore: r.admin_score ?? r.adminScore ?? null,
+        ...gradeInfo,
+      };
+    });
 
     return { success: true, data: mapped };
   } catch (error) {
@@ -391,12 +521,8 @@ export const getResultById = async (resultId) => {
     }
 
     // Add calculated grade information
-    const normalizedTotal = Math.max(
-      Number(data.total_score ?? 0),
-      Number(((data.test_score || 0) + (data.exam_score || 0))) + Number(data.admin_score ?? 0)
-    );
-    const hasAdmin = (data.admin_score ?? data.adminScore) != null;
-    const max = hasAdmin ? 100 : 80;
+    const normalizedTotal = Number(data.total_score ?? ((data.test_score || 0) + (data.exam_score || 0)));
+    const max = 100;
     const gradeInfo = mapGradeFromBackend(data, normalizedTotal, max);
     const enrichedResult = {
       ...data,
@@ -668,7 +794,11 @@ export const insertExamResultsBulk = async ({ results, subjectId, term, year, te
 // Export as service object for easier usage
 export const studentResultService = {
   submitResult,
+  submitOrUpdateResult,
+  bulkSubmitOrUpdateResults,
+  rejectResult,
   gradeResultByAdmin,
+  approveResult,
   publishResult,
   getPublishedResultsByStudent,
   getSubmittedResults,

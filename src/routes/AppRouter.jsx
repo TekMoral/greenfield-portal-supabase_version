@@ -84,7 +84,6 @@ const AdminTimetable = lazyWithRetry(() => import("../pages/dashboard/AdminTimet
 const AdminReview = lazyWithRetry(() => import("../pages/dashboard/AdminReview"));
 const AdminReportCards = lazyWithRetry(() => import("../pages/dashboard/AdminReportCards"));
 const GeneratedReportCards = lazyWithRetry(() => import("../pages/dashboard/GeneratedReportCards"));
-const CarouselManagement = lazyWithRetry(() => import("../pages/dashboard/CarouselManagement"));
 const ActivityLogs = lazyWithRetry(() => import("../pages/dashboard/ActivityLogs"));
 const NewsManagement = lazyWithRetry(() => import("../pages/dashboard/NewsManagement"));
 
@@ -307,15 +306,7 @@ const AppRouter = () => (
           </Suspense>
         }
       />
-                  <Route
-        path="carousel"
-        element={
-          <Suspense fallback={<LoadingFallback />}>
-            <CarouselManagement />
-          </Suspense>
-        }
-      />
-                  <Route
+      <Route
         path="activity-logs"
         element={
           <Suspense fallback={<LoadingFallback />}>

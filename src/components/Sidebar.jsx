@@ -12,7 +12,6 @@ import {
   BarChart3,
   FileText,
   CalendarCheck,
-  Image,
   Newspaper,
   Settings,
   ClipboardList,
@@ -45,7 +44,6 @@ const Sidebar = ({ onNavigate }) => {
     },
     { path: "/dashboard/report-cards", label: "Report Cards", Icon: FileText },
     { path: "/dashboard/attendance", label: "Attendance", Icon: CalendarCheck },
-    { path: "/dashboard/carousel", label: "Carousel", Icon: Image },
     { path: "/dashboard/news", label: "News & Events", Icon: Newspaper },
     // Admin Review parent handled as custom dropdown below
     // Only show Activity Logs for super admins

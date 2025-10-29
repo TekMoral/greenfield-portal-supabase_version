@@ -9,9 +9,9 @@ import { cookieAuth, getAccessToken } from '../lib/cookieAuthClient'
 // Debug flag to control verbose auth logging
 const AUTH_DEBUG = (typeof window !== 'undefined' && window.AUTH_DEBUG === true) || (import.meta?.env?.VITE_AUTH_DEBUG === 'true')
 
-// Inactivity-based session expiry (default: 48 hours). Override via VITE_AUTH_MAX_IDLE_MS
+// Inactivity-based session expiry (default: 30 minutes). Override via VITE_AUTH_MAX_IDLE_MS
 const LAST_ACTIVE_KEY = 'auth:lastActiveAt'
-const MAX_IDLE_MS = Number(import.meta.env.VITE_AUTH_MAX_IDLE_MS || 1000 * 60 * 60 * 48)
+const MAX_IDLE_MS = Number(import.meta.env.VITE_AUTH_MAX_IDLE_MS || 1000 * 60 * 30)
 const nowMs = () => Date.now()
 const getLastActiveAt = () => {
   try { const v = Number(localStorage.getItem(LAST_ACTIVE_KEY) || '0'); return Number.isFinite(v) ? v : 0 } catch { return 0 }
